@@ -5,11 +5,18 @@ const { useState: useS1, useEffect: useE1 } = React;
    LOGIN — glassmorphism
    ========================================================= */
 function LoginScreen({ onLogin, logo }) {
-  const [u, setU] = useS1("hr.admin");
-  const [p, setP] = useS1("••••••••");
+  const [u, setU] = useS1("hr.admin@bestworld.co.th");
+  const [p, setP] = useS1("");
   const [show, setShow] = useS1(false);
   const [busy, setBusy] = useS1(false);
-  const submit = (e) => { e.preventDefault(); setBusy(true); setTimeout(onLogin, 700); };
+  const [err, setErr] = useS1("");
+  const submit = async (e) => {
+    e.preventDefault();
+    setErr(""); setBusy(true);
+    const { error } = await window.sb.auth.signInWithPassword({ email: u.trim(), password: p });
+    if (error) { setBusy(false); setErr("เข้าสู่ระบบไม่สำเร็จ — ตรวจสอบอีเมล/รหัสผ่านอีกครั้ง"); return; }
+    if (onLogin) onLogin();
+  };
 
   return (
     <div style={{ minHeight: "100vh", display: "flex", position: "relative", overflow: "hidden", background: "#0a1832" }}>
@@ -48,7 +55,7 @@ function LoginScreen({ onLogin, logo }) {
             ติดตาม KPI และ Competency รายบุคคล หน่วยงาน และทั้งองค์กร เชื่อมโยงกับ Job Description พร้อมรายงานเชิงลึกสำหรับฝ่าย HR และผู้บริหาร
           </p>
           <div className="row" style={{ gap: 30, marginTop: 32 }}>
-            {[["พนักงานในระบบ", SUMMARY.total + " คน"], ["รอบประเมิน", "ปี 2568"], ["หน่วยงาน", DEPARTMENTS.length + " ฝ่าย"]].map(([k, v]) => (
+            {[["พนักงานในระบบ", "285 คน"], ["รอบประเมิน", "ปี 2568"], ["หน่วยงาน", "10 ฝ่าย"]].map(([k, v]) => (
               <div key={k}><div style={{ fontSize: 22, fontWeight: 700, fontFamily: "var(--mono)" }}>{v}</div><div style={{ fontSize: 12.5, color: "rgba(255,255,255,.55)" }}>{k}</div></div>
             ))}
           </div>
@@ -85,6 +92,11 @@ function LoginScreen({ onLogin, logo }) {
             </label>
             <a href="#" onClick={(e) => { e.preventDefault(); toast("ส่งลิงก์รีเซ็ตรหัสผ่านไปยังอีเมลแล้ว", "mail"); }} style={{ color: "#9dc0ff", fontSize: 13.5, textDecoration: "none", fontWeight: 600 }}>ลืมรหัสผ่าน?</a>
           </div>
+          {err && (
+            <div style={{ marginBottom: 14, padding: "10px 13px", borderRadius: 10, background: "rgba(225,29,72,.18)", border: "1px solid rgba(255,140,160,.4)", color: "#ffd5dd", fontSize: 13 }}>
+              {err}
+            </div>
+          )}
           <button type="submit" className="btn btn-pri" disabled={busy} style={{ width: "100%", padding: "13px", fontSize: 15, opacity: busy ? .8 : 1 }}>
             {busy ? "กำลังเข้าสู่ระบบ…" : <>เข้าสู่ระบบ <Icon name="chevRight" size={18} /></>}
           </button>

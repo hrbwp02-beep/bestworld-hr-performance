@@ -334,6 +334,9 @@ textarea.input { resize: vertical; min-height: 76px; line-height: 1.55; }
 
 .divider { height: 1px; background: var(--border-2); border: none; margin: 0; }
 
+.boot-spin { width: 28px; height: 28px; border-radius: 50%; border: 3px solid rgba(255,255,255,.18); border-top-color: #5b8def; animation: bootspin .8s linear infinite; }
+@keyframes bootspin { to { transform: rotate(360deg); } }
+
 @keyframes fadeUp { from { transform: translateY(10px); } to { transform: none; } }
 .fade-up { animation: fadeUp .4s cubic-bezier(.22,1,.36,1) both; }
 @keyframes growIn { from { transform: scale(.97); } to { transform: none; } }

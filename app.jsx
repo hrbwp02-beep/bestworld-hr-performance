@@ -40,12 +40,28 @@ const TITLES = {
   settings: ["ตั้งค่า", "Settings"],
 };
 
+function BootSplash({ text, error }) {
+  return (
+    <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", background: "#0a1832", color: "#fff" }}>
+      <div style={{ textAlign: "center", maxWidth: 420, padding: 24 }}>
+        <div className="side-logo" style={{ width: 56, height: 56, margin: "0 auto 18px" }}><Icon name="layers" size={28} /></div>
+        <div style={{ fontWeight: 600, fontSize: 16 }}>{COMPANY.name}</div>
+        <div style={{ marginTop: 10, color: error ? "#ffb4c0" : "rgba(255,255,255,.62)", fontSize: 13.5, lineHeight: 1.6 }}>{text}</div>
+        {!error && <div className="boot-spin" style={{ margin: "20px auto 0" }} />}
+      </div>
+    </div>
+  );
+}
+
 function App() {
   const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
-  const [authed, setAuthed] = useA(false);
+  const [session, setSession] = useA(null);
+  const [checking, setChecking] = useA(true);
+  const [dataReady, setDataReady] = useA(false);
+  const [loadErr, setLoadErr] = useA(null);
   const [route, setRoute] = useA("dashboard");
-  const [empId, setEmpId] = useA(EMPLOYEES[0].id);
-  const [evalEmp, setEvalEmp] = useA(EMPLOYEES[0].id);
+  const [empId, setEmpId] = useA("E1000");
+  const [evalEmp, setEvalEmp] = useA("E1000");
   const [year, setYear] = useA("2568");
   const [collapsed, setCollapsed] = useA(false);
   const [mobileOpen, setMobileOpen] = useA(false);
@@ -66,6 +82,22 @@ function App() {
     r.setProperty("--r", (t.cardRadius || 14) + "px");
     document.body.style.fontSize = (t.fontScale || 100) + "%";
   }, [t.accent, t.cardRadius, t.fontScale]);
+
+  // Supabase auth session
+  useAE(() => {
+    let mounted = true;
+    window.sb.auth.getSession().then(({ data }) => { if (mounted) { setSession(data.session); setChecking(false); } });
+    const { data: sub } = window.sb.auth.onAuthStateChange((_evt, s) => { if (mounted) setSession(s); });
+    return () => { mounted = false; sub.subscription.unsubscribe(); };
+  }, []);
+
+  // load HR data from Supabase once authenticated
+  useAE(() => {
+    if (session && !dataReady) {
+      loadHRData().then(() => setDataReady(true)).catch((e) => setLoadErr(e.message || String(e)));
+    }
+    if (!session) { setDataReady(false); setLoadErr(null); }
+  }, [session]);
 
   const go = (rt) => { setRoute(rt); setMobileOpen(false); setNotifOpen(false); setMenuOpen(false); if (rt !== "exec") setExecDept(null); window.scrollTo(0, 0); };
   const openEmp = (id) => { setEmpId(id); go("profile"); };
@@ -99,7 +131,10 @@ function App() {
     </TweaksPanel>
   );
 
-  if (!authed) return (<><LoginScreen onLogin={() => setAuthed(true)} logo={null} /><ToastHost />{Panel}</>);
+  if (checking) return (<><BootSplash text="กำลังเริ่มระบบ…" /><ToastHost />{Panel}</>);
+  if (!session) return (<><LoginScreen onLogin={() => {}} logo={null} /><ToastHost />{Panel}</>);
+  if (loadErr) return (<><BootSplash text={"โหลดข้อมูลไม่สำเร็จ · " + loadErr} error /><ToastHost />{Panel}</>);
+  if (!dataReady) return (<><BootSplash text="กำลังโหลดข้อมูล…" /><ToastHost />{Panel}</>);
 
   const [tTitle, tSub] = TITLES[route] || TITLES.dashboard;
 
@@ -191,7 +226,7 @@ function App() {
                   <hr className="divider" style={{ margin: "5px 0" }} />
                   <button className="row" style={{ gap: 11, width: "100%", padding: "10px 12px", border: "none", background: "none", cursor: "pointer", borderRadius: 9, fontSize: 13.5, color: "var(--red)" }}
                     onMouseEnter={(e) => e.currentTarget.style.background = "var(--red-soft)"} onMouseLeave={(e) => e.currentTarget.style.background = "none"}
-                    onClick={() => { setAuthed(false); setMenuOpen(false); }}><Icon name="logout" size={17} />ออกจากระบบ</button>
+                    onClick={() => { window.sb.auth.signOut(); setMenuOpen(false); }}><Icon name="logout" size={17} />ออกจากระบบ</button>
                 </div>
               </>
             )}

@@ -163,10 +163,69 @@ function KpiMiniRow({ k }) {
   );
 }
 
+/* ---------- Add KPI modal ---------- */
+function AddKPIModal({ dept, ctx, onClose }) {
+  const [name, setName] = useK("");
+  const [en, setEn] = useK("");
+  const [unit, setUnit] = useK("%");
+  const [method, setMethod] = useK("higher");
+  const [weight, setWeight] = useK("");
+  const [target, setTarget] = useK("");
+  const [actual, setActual] = useK("");
+  const [type, setType] = useK("number");
+  const [busy, setBusy] = useK(false);
+  const [err, setErr] = useK("");
+
+  const nextId = () => {
+    const nums = (window.KPI_DEFS || []).map((k) => parseInt((String(k.id).match(/\d+/) || [0])[0], 10)).filter((n) => !isNaN(n));
+    return "KPI-" + String((nums.length ? Math.max(...nums) : 0) + 1).padStart(3, "0");
+  };
+
+  const save = async () => {
+    if (!name.trim()) { setErr("กรุณากรอกชื่อตัวชี้วัด"); return; }
+    setErr(""); setBusy(true);
+    const { error } = await window.sb.from("kpi_defs").insert({
+      id: nextId(), dept, name: name.trim(), en: en.trim() || null, unit: unit.trim() || null,
+      method, weight: Number(weight) || 0,
+      target_m: Number(target) || 0, target_q: Number(target) || 0, target_y: Number(target) || 0,
+      actual: Number(actual) || 0, type, status: "approved", owner: "HR", trend_down: false, sort: 999,
+    });
+    if (error) { setBusy(false); setErr("บันทึกไม่สำเร็จ: " + error.message); return; }
+    await ctx.refresh();
+    toast("เพิ่ม KPI “" + name.trim() + "” แล้ว", "check");
+    onClose();
+  };
+
+  return (
+    <Modal title={"เพิ่ม KPI · " + deptName(dept)} onClose={onClose}
+      footer={<>
+        <button className="btn btn-ghost" onClick={onClose} disabled={busy}>ยกเลิก</button>
+        <button className="btn btn-pri" onClick={save} disabled={busy}><Icon name="check" size={15} />{busy ? "กำลังบันทึก…" : "บันทึก KPI"}</button>
+      </>}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        {err && <div style={{ padding: "10px 13px", borderRadius: 10, background: "var(--red-soft)", color: "#be123c", fontSize: 13 }}>{err}</div>}
+        <div className="field"><label>ชื่อตัวชี้วัด (ไทย) *</label><input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="เช่น อัตราของเสีย" /></div>
+        <div className="field"><label>ชื่อภาษาอังกฤษ</label><input className="input" value={en} onChange={(e) => setEn(e.target.value)} placeholder="เช่น Scrap Rate" /></div>
+        <div className="grid" style={{ gridTemplateColumns: "1fr 1fr" }}>
+          <div className="field"><label>วิธีคิดคะแนน</label><select className="select" value={method} onChange={(e) => setMethod(e.target.value)}><option value="higher">ยิ่งสูงยิ่งดี</option><option value="lower">ยิ่งต่ำยิ่งดี</option></select></div>
+          <div className="field"><label>ประเภท</label><select className="select" value={type} onChange={(e) => setType(e.target.value)}><option value="number">ตัวเลข</option><option value="quality">เชิงคุณภาพ</option></select></div>
+        </div>
+        <div className="grid" style={{ gridTemplateColumns: "1fr 1fr 1fr" }}>
+          <div className="field"><label>น้ำหนัก (%)</label><input className="input" type="number" value={weight} onChange={(e) => setWeight(e.target.value)} placeholder="20" /></div>
+          <div className="field"><label>เป้าหมาย</label><input className="input" type="number" value={target} onChange={(e) => setTarget(e.target.value)} placeholder="95" /></div>
+          <div className="field"><label>ผลจริง</label><input className="input" type="number" value={actual} onChange={(e) => setActual(e.target.value)} placeholder="97" /></div>
+        </div>
+        <div className="field"><label>หน่วย</label><input className="input" value={unit} onChange={(e) => setUnit(e.target.value)} placeholder="%, ครั้ง, ชม. …" /></div>
+      </div>
+    </Modal>
+  );
+}
+
 /* ---------- Define KPI ---------- */
 function KPIDefine({ ctx }) {
   const [dept, setDept] = useK("prod");
   const [cycle, setCycle] = useK("y");
+  const [showAdd, setShowAdd] = useK(false);
   const kpis = KPI_DEFS.filter((k) => k.dept === dept);
   const approved = kpis.filter((k) => k.status === "approved");
   const proposed = kpis.filter((k) => k.status === "proposed");
@@ -179,7 +238,7 @@ function KPIDefine({ ctx }) {
           <div className="row wrap" style={{ gap: 8 }}>
             {KPI_DEPTS.map((id) => <button key={id} className={"chip" + (dept === id ? " on" : "")} onClick={() => setDept(id)}>{deptShort(id)}</button>)}
           </div>
-          <button className="btn btn-pri btn-sm" onClick={() => toast("เปิดฟอร์มเพิ่ม KPI", "plus")}><Icon name="plus" size={15} />เพิ่ม KPI</button>
+          <button className="btn btn-pri btn-sm" onClick={() => setShowAdd(true)}><Icon name="plus" size={15} />เพิ่ม KPI</button>
         </div>
         <div className="between wrap" style={{ gap: 12, borderTop: "1px solid var(--border-2)", paddingTop: 14 }}>
           <div className="row" style={{ gap: 10 }}>
@@ -246,6 +305,8 @@ function KPIDefine({ ctx }) {
           </div>
         </Card>
       )}
+
+      {showAdd && <AddKPIModal dept={dept} ctx={ctx} onClose={() => setShowAdd(false)} />}
     </div>
   );
 }

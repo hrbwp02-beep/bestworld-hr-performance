@@ -214,9 +214,65 @@ function Evaluation({ ctx }) {
 /* =========================================================
    JD MANAGEMENT
    ========================================================= */
+/* ---------- Create JD modal ---------- */
+function AddJDModal({ defaultDept, ctx, onClose }) {
+  const [title, setTitle] = useS3("");
+  const [dept, setDept] = useS3(defaultDept && defaultDept !== "all" ? defaultDept : "prod");
+  const [kpis, setKpis] = useS3("");
+  const [comps, setComps] = useS3("");
+  const [duties, setDuties] = useS3("");
+  const [busy, setBusy] = useS3(false);
+  const [err, setErr] = useS3("");
+
+  const thMonths = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
+  const today = () => { const d = new Date(); return String(d.getDate()).padStart(2, "0") + " " + thMonths[d.getMonth()] + " " + (d.getFullYear() + 543); };
+  const nextId = (dp) => {
+    const code = dp.toUpperCase();
+    const ids = new Set((window.JD_LIBRARY || []).map((j) => j.id));
+    let n = (window.JD_LIBRARY || []).filter((j) => j.dept === dp).length + 1;
+    let id = "JD-" + code + "-" + String(n).padStart(2, "0");
+    while (ids.has(id)) { n++; id = "JD-" + code + "-" + String(n).padStart(2, "0"); }
+    return id;
+  };
+
+  const save = async () => {
+    if (!title.trim()) { setErr("กรุณากรอกชื่อตำแหน่ง"); return; }
+    const dutyArr = duties.split("\n").map((s) => s.trim()).filter(Boolean);
+    setErr(""); setBusy(true);
+    const { error } = await window.sb.from("jd_library").insert({
+      id: nextId(dept), title: title.trim(), dept, version: "v1.0", updated: today(),
+      status: "draft", kpis: Number(kpis) || 0, comps: Number(comps) || 0, duties: dutyArr, sort: 999,
+    });
+    if (error) { setBusy(false); setErr("บันทึกไม่สำเร็จ: " + error.message); return; }
+    await ctx.refresh();
+    toast("สร้าง JD “" + title.trim() + "” แล้ว", "check");
+    onClose();
+  };
+
+  return (
+    <Modal title="สร้าง Job Description ใหม่" onClose={onClose}
+      footer={<>
+        <button className="btn btn-ghost" onClick={onClose} disabled={busy}>ยกเลิก</button>
+        <button className="btn btn-pri" onClick={save} disabled={busy}><Icon name="check" size={15} />{busy ? "กำลังบันทึก…" : "บันทึก JD"}</button>
+      </>}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        {err && <div style={{ padding: "10px 13px", borderRadius: 10, background: "var(--red-soft)", color: "#be123c", fontSize: 13 }}>{err}</div>}
+        <div className="field"><label>ชื่อตำแหน่ง *</label><input className="input" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="เช่น หัวหน้าแผนกควบคุมคุณภาพ" /></div>
+        <div className="field"><label>หน่วยงาน</label><select className="select" value={dept} onChange={(e) => setDept(e.target.value)}>{(window.DEPARTMENTS || []).map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}</select></div>
+        <div className="grid" style={{ gridTemplateColumns: "1fr 1fr" }}>
+          <div className="field"><label>จำนวน KPI ที่เชื่อมโยง</label><input className="input" type="number" value={kpis} onChange={(e) => setKpis(e.target.value)} placeholder="5" /></div>
+          <div className="field"><label>จำนวน Competency</label><input className="input" type="number" value={comps} onChange={(e) => setComps(e.target.value)} placeholder="5" /></div>
+        </div>
+        <div className="field"><label>หน้าที่ความรับผิดชอบ (บรรทัดละ 1 ข้อ)</label><textarea className="input" value={duties} onChange={(e) => setDuties(e.target.value)} rows={5} placeholder={"ควบคุมคุณภาพงานให้เป็นไปตามมาตรฐาน\nวางแผนการผลิตและจัดสรรกำลังคน"} /></div>
+      </div>
+    </Modal>
+  );
+}
+
 function JDManagement({ ctx }) {
   const [open, setOpen] = useS3(null);
   const [dept, setDept] = useS3("all");
+  const [showAdd, setShowAdd] = useS3(false);
   const list = JD_LIBRARY.filter((j) => dept === "all" || j.dept === dept);
   const stMeta = { active: { l: "ใช้งาน", c: "b-green" }, review: { l: "รอตรวจสอบ", c: "b-amber" }, draft: { l: "ฉบับร่าง", c: "b-gray" } };
   const jd = open ? JD_LIBRARY.find((j) => j.id === open) : null;
@@ -225,7 +281,7 @@ function JDManagement({ ctx }) {
     <div className="grid">
       <div className="page-head">
         <div><h1>จัดการ Job Description</h1><p>คลัง JD แยกตามตำแหน่ง · เชื่อมโยง KPI และ Competency · ควบคุมเวอร์ชัน</p></div>
-        <button className="btn btn-pri" onClick={() => toast("เปิดฟอร์มสร้าง JD ใหม่", "plus")}><Icon name="plus" size={16} />สร้าง JD</button>
+        <button className="btn btn-pri" onClick={() => setShowAdd(true)}><Icon name="plus" size={16} />สร้าง JD</button>
       </div>
 
       <div className="row wrap" style={{ gap: 8 }}>
@@ -296,6 +352,8 @@ function JDManagement({ ctx }) {
           </div>
         </Drawer>
       )}
+
+      {showAdd && <AddJDModal defaultDept={dept} ctx={ctx} onClose={() => setShowAdd(false)} />}
     </div>
   );
 }

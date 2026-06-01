@@ -69,6 +69,10 @@ function App() {
   const [menuOpen, setMenuOpen] = useA(false);
   const [subId, setSubId] = useA(null);
   const [execDept, setExecDept] = useA(null);
+  const [dataVer, setDataVer] = useA(0);
+
+  // re-fetch all HR data from Supabase and re-render (used after inserts/edits)
+  const refresh = async () => { await loadHRData(); setDataVer((v) => v + 1); };
 
   // apply tweaks → CSS vars
   useAE(() => {
@@ -105,7 +109,7 @@ function App() {
   const openSub = (id) => setSubId(id);
   const goExec = (deptId) => { setExecDept(deptId); setRoute("exec"); setMobileOpen(false); window.scrollTo(0, 0); };
 
-  const ctx = { t, setTweak, go, openEmp, startEval, openSub, goExec, empId, evalEmp, year, setYear, execDept };
+  const ctx = { t, setTweak, go, openEmp, startEval, openSub, goExec, empId, evalEmp, year, setYear, execDept, refresh, dataVer };
 
   const Panel = (
     <TweaksPanel>

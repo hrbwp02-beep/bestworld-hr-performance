@@ -69,8 +69,8 @@ function Reports({ ctx }) {
       <div className="page-head">
         <div><h1>รายงานและการวิเคราะห์</h1><p>รายงานเชิงลึกสำหรับ HR และผู้บริหาร · {COMPANY.cycle}</p></div>
         <div className="row wrap" style={{ gap: 10 }}>
-          <button className="btn btn-ghost" onClick={() => toast("กำลังสร้างไฟล์ PDF…", "file")}><Icon name="file" size={16} />PDF</button>
-          <button className="btn btn-pri" onClick={() => toast("กำลังสร้างไฟล์ Excel…", "fileExcel")}><Icon name="download" size={16} />Export Excel</button>
+          <button className="btn btn-ghost" onClick={() => window.print()}><Icon name="file" size={16} />PDF</button>
+          <button className="btn btn-pri" onClick={() => { const ranked = [...EMPLOYEES].sort((a, b) => b.overall - a.overall); downloadCSV("performance_ranking.csv", ["อันดับ", "รหัส", "ชื่อ", "หน่วยงาน", "ตำแหน่ง", "KPI", "Competency", "คะแนนรวม", "ระดับ"], ranked.map((e, i) => [i + 1, e.id, e.name, deptName(e.dept), e.position, e.kpi, e.comp, e.overall, e.band.label])); toast("ส่งออกรายงานจัดอันดับแล้ว", "fileExcel"); }}><Icon name="download" size={16} />Export Excel</button>
         </div>
       </div>
 
@@ -278,9 +278,127 @@ function Calibration({ ctx }) {
 /* =========================================================
    SETTINGS
    ========================================================= */
+/* ---------- Add / Edit app user (permissions) ---------- */
+function UserModal({ user, ctx, onClose }) {
+  const isEdit = !!user;
+  const [f, setF] = useS4(() => ({
+    name: (user && user.name) || "", email: (user && user.email) || "",
+    role: (user && user.role) || "viewer", dept: (user && user.dept) || "", active: user ? !!user.active : true,
+  }));
+  const [busy, setBusy] = useS4(false);
+  const [err, setErr] = useS4("");
+  const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
+
+  const save = async () => {
+    if (!f.name.trim()) { setErr("กรุณากรอกชื่อผู้ใช้"); return; }
+    if (!f.email.trim()) { setErr("กรุณากรอกอีเมล"); return; }
+    setErr(""); setBusy(true);
+    const row = { name: f.name.trim(), email: f.email.trim(), role: f.role, dept: f.dept || null, active: !!f.active };
+    let error;
+    if (isEdit) { ({ error } = await window.sb.from("app_users").update(row).eq("id", user.id)); }
+    else { row.sort = (window.APP_USERS || []).length; ({ error } = await window.sb.from("app_users").insert(row)); }
+    if (error) { setBusy(false); setErr("บันทึกไม่สำเร็จ: " + error.message); return; }
+    await ctx.refresh();
+    toast(isEdit ? "อัปเดตสิทธิ์ผู้ใช้แล้ว" : "เพิ่มผู้ใช้ “" + f.name.trim() + "” แล้ว", "check");
+    onClose();
+  };
+
+  return (
+    <Modal title={isEdit ? "แก้ไขสิทธิ์ผู้ใช้งาน" : "เพิ่มผู้ใช้งาน"} onClose={onClose}
+      footer={<>
+        <button className="btn btn-ghost" onClick={onClose} disabled={busy}>ยกเลิก</button>
+        <button className="btn btn-pri" onClick={save} disabled={busy}><Icon name="check" size={15} />{busy ? "กำลังบันทึก…" : "บันทึก"}</button>
+      </>}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        {err && <div style={{ padding: "10px 13px", borderRadius: 10, background: "var(--red-soft)", color: "#be123c", fontSize: 13 }}>{err}</div>}
+        <div className="field"><label>ชื่อ-นามสกุล *</label><input className="input" value={f.name} onChange={(e) => set("name", e.target.value)} placeholder="เช่น สมชาย ศรีสุข" /></div>
+        <div className="field"><label>อีเมล *</label><input className="input" value={f.email} onChange={(e) => set("email", e.target.value)} placeholder="name@bestworld.co.th" disabled={isEdit} /></div>
+        <div className="grid" style={{ gridTemplateColumns: "1fr 1fr" }}>
+          <div className="field"><label>บทบาท / สิทธิ์</label><select className="select" value={f.role} onChange={(e) => set("role", e.target.value)}>{ROLES.map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}</select></div>
+          <div className="field"><label>หน่วยงาน</label><select className="select" value={f.dept} onChange={(e) => set("dept", e.target.value)}><option value="">— ไม่ระบุ —</option>{(window.DEPARTMENTS || []).map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}</select></div>
+        </div>
+        <div className="muted" style={{ fontSize: 12.5, background: "var(--surface-2)", borderRadius: 9, padding: "10px 13px" }}>{roleMeta(f.role).desc}</div>
+        <label className="row" style={{ gap: 8, fontSize: 13.5, cursor: "pointer" }}><input type="checkbox" checked={f.active} onChange={(e) => set("active", e.target.checked)} style={{ width: 16, height: 16, accentColor: "var(--accent)" }} /> เปิดใช้งานบัญชี</label>
+      </div>
+    </Modal>
+  );
+}
+
+/* ---------- Add / Edit competency ---------- */
+function CompetencyModal({ comp, ctx, onClose }) {
+  const isEdit = !!comp;
+  const [name, setName] = useS4((comp && comp.name) || "");
+  const [en, setEn] = useS4((comp && comp.en) || "");
+  const [busy, setBusy] = useS4(false);
+  const [err, setErr] = useS4("");
+  const save = async () => {
+    if (!name.trim()) { setErr("กรุณากรอกชื่อสมรรถนะ"); return; }
+    setErr(""); setBusy(true);
+    let error;
+    if (isEdit) { ({ error } = await window.sb.from("competencies").update({ name: name.trim(), en: en.trim() || null }).eq("id", comp.id)); }
+    else { ({ error } = await window.sb.from("competencies").insert({ id: "comp_" + Date.now().toString(36), name: name.trim(), en: en.trim() || null, sort: (window.COMPETENCIES || []).length })); }
+    if (error) { setBusy(false); setErr("บันทึกไม่สำเร็จ: " + error.message); return; }
+    await ctx.refresh();
+    toast(isEdit ? "แก้ไขสมรรถนะแล้ว" : "เพิ่มสมรรถนะแล้ว", "check");
+    onClose();
+  };
+  return (
+    <Modal title={isEdit ? "แก้ไขสมรรถนะ" : "เพิ่มสมรรถนะหลัก"} onClose={onClose}
+      footer={<>
+        <button className="btn btn-ghost" onClick={onClose} disabled={busy}>ยกเลิก</button>
+        <button className="btn btn-pri" onClick={save} disabled={busy}><Icon name="check" size={15} />{busy ? "กำลังบันทึก…" : "บันทึก"}</button>
+      </>}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        {err && <div style={{ padding: "10px 13px", borderRadius: 10, background: "var(--red-soft)", color: "#be123c", fontSize: 13 }}>{err}</div>}
+        <div className="field"><label>ชื่อสมรรถนะ (ไทย) *</label><input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="เช่น ความคิดสร้างสรรค์" /></div>
+        <div className="field"><label>ชื่อภาษาอังกฤษ</label><input className="input" value={en} onChange={(e) => setEn(e.target.value)} placeholder="เช่น Creativity" /></div>
+      </div>
+    </Modal>
+  );
+}
+
 function Settings({ ctx }) {
-  const [w, setW] = useS4({ kpi: 50, comp: 25, jd: 25 });
+  const s = window.APP_SETTINGS || {};
+  const [cycleName, setCycleName] = useS4(s.cycle_name || "รอบประเมินผลประจำปี 2568");
+  const [startDate, setStartDate] = useS4(s.start_date || "2025-05-01");
+  const [endDate, setEndDate] = useS4(s.end_date || "2025-06-15");
+  const [evalOpen, setEvalOpen] = useS4(s.eval_open !== false);
+  const [w, setW] = useS4({ kpi: s.w_kpi != null ? s.w_kpi : 50, comp: s.w_comp != null ? s.w_comp : 25, jd: s.w_jd != null ? s.w_jd : 25 });
+  const [userModal, setUserModal] = useS4(null);   // false=add(via {}), object=edit, null=closed
+  const [compModal, setCompModal] = useS4(null);
+  const [busy, setBusy] = useS4(false);
   const total = w.kpi + w.comp + w.jd;
+  const users = window.APP_USERS || [];
+
+  const saveSettings = async () => {
+    setBusy(true);
+    const { error } = await window.sb.from("app_settings").update({
+      cycle_name: cycleName, start_date: startDate || null, end_date: endDate || null,
+      w_kpi: w.kpi, w_comp: w.comp, w_jd: w.jd, eval_open: evalOpen, updated_at: new Date().toISOString(),
+    }).eq("id", 1);
+    setBusy(false);
+    if (error) { toast("บันทึกไม่สำเร็จ: " + error.message, "x"); return; }
+    await ctx.refresh();
+    toast("บันทึกการตั้งค่าเรียบร้อย", "check");
+  };
+  const delUser = async (u) => {
+    if (!window.confirm("ลบผู้ใช้ " + u.name + " ออกจากระบบ?")) return;
+    const { error } = await window.sb.from("app_users").delete().eq("id", u.id);
+    if (error) { toast("ลบไม่สำเร็จ: " + error.message, "x"); return; }
+    await ctx.refresh(); toast("ลบผู้ใช้แล้ว", "check");
+  };
+  const toggleUser = async (u, v) => {
+    const { error } = await window.sb.from("app_users").update({ active: v }).eq("id", u.id);
+    if (error) { toast("อัปเดตไม่สำเร็จ", "x"); return; }
+    await ctx.refresh();
+  };
+  const delComp = async (c) => {
+    if (!window.confirm("ลบสมรรถนะ " + c.name + "?")) return;
+    const { error } = await window.sb.from("competencies").delete().eq("id", c.id);
+    if (error) { toast("ลบไม่สำเร็จ: " + error.message, "x"); return; }
+    await ctx.refresh(); toast("ลบสมรรถนะแล้ว", "check");
+  };
+
   return (
     <div className="grid">
       <div className="page-head"><div><h1>ตั้งค่าระบบ</h1><p>กำหนดรอบประเมิน น้ำหนักคะแนน สมรรถนะ และสิทธิ์ผู้ใช้งาน</p></div></div>
@@ -289,14 +407,14 @@ function Settings({ ctx }) {
         <Card>
           <CardHead title="รอบการประเมิน" sub="กำหนดช่วงเวลาและสถานะ" />
           <div className="card-pad" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            <div className="field"><label>ชื่อรอบประเมิน</label><input className="input" defaultValue="รอบประเมินผลประจำปี 2568" /></div>
+            <div className="field"><label>ชื่อรอบประเมิน</label><input className="input" value={cycleName} onChange={(e) => setCycleName(e.target.value)} /></div>
             <div className="row" style={{ gap: 12 }}>
-              <div className="field" style={{ flex: 1 }}><label>เริ่มต้น</label><input className="input" type="date" defaultValue="2025-05-01" /></div>
-              <div className="field" style={{ flex: 1 }}><label>ครบกำหนด</label><input className="input" type="date" defaultValue="2025-06-15" /></div>
+              <div className="field" style={{ flex: 1 }}><label>เริ่มต้น</label><input className="input" type="date" value={startDate || ""} onChange={(e) => setStartDate(e.target.value)} /></div>
+              <div className="field" style={{ flex: 1 }}><label>ครบกำหนด</label><input className="input" type="date" value={endDate || ""} onChange={(e) => setEndDate(e.target.value)} /></div>
             </div>
             <div className="between" style={{ border: "1px solid var(--border)", borderRadius: 11, padding: "12px 15px" }}>
               <div><div style={{ fontWeight: 600, fontSize: 13.5 }}>เปิดให้ประเมิน</div><div className="muted" style={{ fontSize: 12 }}>พนักงานสามารถส่งผลได้</div></div>
-              <Toggle on />
+              <Toggle on={evalOpen} onChange={setEvalOpen} />
             </div>
           </div>
         </Card>
@@ -314,42 +432,63 @@ function Settings({ ctx }) {
         </Card>
 
         <Card>
-          <CardHead title="สมรรถนะหลัก (Competency)" sub="หัวข้อที่ใช้ประเมินทั้งองค์กร" right={<button className="btn btn-soft btn-sm"><Icon name="plus" size={14} />เพิ่ม</button>} />
+          <CardHead title="สมรรถนะหลัก (Competency)" sub="หัวข้อที่ใช้ประเมินทั้งองค์กร" right={<button className="btn btn-soft btn-sm" onClick={() => setCompModal({})}><Icon name="plus" size={14} />เพิ่ม</button>} />
           <div style={{ padding: "8px 12px" }}>
             {COMPETENCIES.map((c) => (
               <div key={c.id} className="between" style={{ padding: "11px 10px", borderBottom: "1px solid var(--border-2)" }}>
                 <div className="row" style={{ gap: 10 }}><Icon name="award" size={16} color="#7c3aed" /><span style={{ fontSize: 13.5 }}>{c.name}</span><span className="muted" style={{ fontSize: 12 }}>{c.en}</span></div>
-                <button className="icon-btn" style={{ width: 32, height: 32 }}><Icon name="edit" size={14} /></button>
+                <div className="row" style={{ gap: 4 }}>
+                  <button className="icon-btn" style={{ width: 32, height: 32 }} onClick={() => setCompModal(c)}><Icon name="edit" size={14} /></button>
+                  <button className="icon-btn" style={{ width: 32, height: 32 }} onClick={() => delComp(c)}><Icon name="x" size={15} color="var(--red)" /></button>
+                </div>
               </div>
             ))}
           </div>
         </Card>
 
         <Card>
-          <CardHead title="สิทธิ์ผู้ใช้งาน" sub="บทบาทในระบบ" right={<button className="btn btn-soft btn-sm"><Icon name="plus" size={14} />เพิ่มผู้ใช้</button>} />
+          <CardHead title="สิทธิ์ผู้ใช้งาน" sub={`${users.length} ผู้ใช้ในระบบ`} right={<button className="btn btn-soft btn-sm" onClick={() => setUserModal({})}><Icon name="plus" size={14} />เพิ่มผู้ใช้</button>} />
           <div style={{ padding: "8px 12px" }}>
-            {[["ผู้ดูแลระบบ HR", "เข้าถึงทุกฟังก์ชัน", "b-blue", 3], ["ผู้จัดการฝ่าย", "ประเมินและอนุมัติทีม", "b-teal", 9], ["หัวหน้างาน", "ประเมินผู้ใต้บังคับบัญชา", "b-green", 18], ["พนักงานทั่วไป", "ดูผลและประเมินตนเอง", "b-gray", 211]].map(([r, d, c, n]) => (
-              <div key={r} className="between" style={{ padding: "11px 10px", borderBottom: "1px solid var(--border-2)" }}>
-                <div><div style={{ fontWeight: 600, fontSize: 13.5 }}>{r}</div><div className="muted" style={{ fontSize: 12 }}>{d}</div></div>
-                <Badge cls={c}>{n} คน</Badge>
-              </div>
-            ))}
+            {users.length === 0 && <div className="muted" style={{ padding: "16px 10px", fontSize: 13 }}>ยังไม่มีผู้ใช้ — กด “เพิ่มผู้ใช้”</div>}
+            {users.map((u) => {
+              const rm = roleMeta(u.role);
+              return (
+                <div key={u.id} className="between" style={{ padding: "11px 10px", borderBottom: "1px solid var(--border-2)", gap: 10 }}>
+                  <div className="row" style={{ gap: 11, minWidth: 0 }}>
+                    <Avatar name={u.name} size={34} color={u.active ? "#2563eb" : "#94a3b8"} />
+                    <div style={{ minWidth: 0 }}>
+                      <div className="row" style={{ gap: 7 }}><span style={{ fontWeight: 600, fontSize: 13.5 }}>{u.name}</span>{!u.active && <Badge cls="b-gray">ปิดใช้งาน</Badge>}</div>
+                      <div className="muted" style={{ fontSize: 12, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{u.email}{u.dept ? " · " + deptShort(u.dept) : ""}</div>
+                    </div>
+                  </div>
+                  <div className="row" style={{ gap: 6 }}>
+                    <Badge cls={rm.cls} dot>{rm.label}</Badge>
+                    <Toggle on={u.active} onChange={(v) => toggleUser(u, v)} />
+                    <button className="icon-btn" style={{ width: 32, height: 32 }} onClick={() => setUserModal(u)}><Icon name="edit" size={14} /></button>
+                    <button className="icon-btn" style={{ width: 32, height: 32 }} onClick={() => delUser(u)}><Icon name="x" size={15} color="var(--red)" /></button>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </Card>
       </div>
 
       <div className="row" style={{ justifyContent: "flex-end", gap: 10 }}>
-        <button className="btn btn-ghost">ยกเลิก</button>
-        <button className="btn btn-pri" onClick={() => toast("บันทึกการตั้งค่าเรียบร้อย", "check")}><Icon name="check" size={16} />บันทึกการตั้งค่า</button>
+        <button className="btn btn-ghost" onClick={() => ctx.go("dashboard")}>ยกเลิก</button>
+        <button className="btn btn-pri" onClick={saveSettings} disabled={busy}><Icon name="check" size={16} />{busy ? "กำลังบันทึก…" : "บันทึกการตั้งค่า"}</button>
       </div>
+
+      {userModal && <UserModal user={userModal.id ? userModal : null} ctx={ctx} onClose={() => setUserModal(null)} />}
+      {compModal && <CompetencyModal comp={compModal.id ? compModal : null} ctx={ctx} onClose={() => setCompModal(null)} />}
     </div>
   );
 }
 
-function Toggle({ on: initial }) {
+function Toggle({ on: initial, onChange }) {
   const [on, setOn] = useS4(initial);
   return (
-    <button onClick={() => setOn(!on)} style={{ width: 46, height: 26, borderRadius: 999, border: "none", background: on ? "var(--accent)" : "#cbd5e1", position: "relative", cursor: "pointer", transition: "background .2s", flex: "0 0 46px" }}>
+    <button onClick={() => { const v = !on; setOn(v); onChange && onChange(v); }} style={{ width: 46, height: 26, borderRadius: 999, border: "none", background: on ? "var(--accent)" : "#cbd5e1", position: "relative", cursor: "pointer", transition: "background .2s", flex: "0 0 46px" }}>
       <span style={{ position: "absolute", top: 3, left: on ? 23 : 3, width: 20, height: 20, borderRadius: 999, background: "#fff", transition: "left .2s", boxShadow: "0 1px 3px rgba(0,0,0,.2)" }} />
     </button>
   );

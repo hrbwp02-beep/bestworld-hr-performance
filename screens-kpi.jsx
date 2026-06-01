@@ -32,7 +32,7 @@ function KPIModule({ ctx }) {
         <div><h1>KPI หน่วยงาน</h1><p>กำหนด KPI แยกตามหน่วยงาน · ส่งรายงาน · คำนวณคะแนนอัตโนมัติ · {COMPANY.cycle}</p></div>
         <div className="row wrap" style={{ gap: 10 }}>
           <button className="btn btn-ghost" onClick={() => ctx.go("exec")}><Icon name="trend" size={16} />มุมมองผู้บริหาร</button>
-          <button className="btn btn-pri" onClick={() => toast("กำลังส่งออกรายงาน KPI", "download")}><Icon name="download" size={16} />Export</button>
+          <button className="btn btn-pri" onClick={() => { downloadCSV("kpi_definitions.csv", ["รหัส", "หน่วยงาน", "ตัวชี้วัด", "EN", "วิธีคิด", "น้ำหนัก%", "เป้าหมายปี", "ผลจริง", "หน่วย", "คะแนน%", "สถานะ"], (window.KPI_DEFS || []).map((k) => [k.id, deptName(k.dept), k.name, k.en, METHOD_LABEL[k.method], k.weight, k.target.y, k.actual, k.unit, kpiScore(k), k.status])); toast("ส่งออกรายงาน KPI แล้ว", "download"); }}><Icon name="download" size={16} />Export</button>
         </div>
       </div>
       <Card><div style={{ padding: "0 8px" }}><Tabs tabs={tabs} active={tab} onChange={setTab} /></div></Card>
@@ -164,15 +164,16 @@ function KpiMiniRow({ k }) {
 }
 
 /* ---------- Add KPI modal ---------- */
-function AddKPIModal({ dept, ctx, onClose }) {
-  const [name, setName] = useK("");
-  const [en, setEn] = useK("");
-  const [unit, setUnit] = useK("%");
-  const [method, setMethod] = useK("higher");
-  const [weight, setWeight] = useK("");
-  const [target, setTarget] = useK("");
-  const [actual, setActual] = useK("");
-  const [type, setType] = useK("number");
+function AddKPIModal({ dept, kpi, ctx, onClose }) {
+  const isEdit = !!kpi;
+  const [name, setName] = useK((kpi && kpi.name) || "");
+  const [en, setEn] = useK((kpi && kpi.en) || "");
+  const [unit, setUnit] = useK((kpi && kpi.unit) || "%");
+  const [method, setMethod] = useK((kpi && kpi.method) || "higher");
+  const [weight, setWeight] = useK(kpi ? String(kpi.weight) : "");
+  const [target, setTarget] = useK(kpi && kpi.target ? String(kpi.target.y) : "");
+  const [actual, setActual] = useK(kpi ? String(kpi.actual) : "");
+  const [type, setType] = useK((kpi && kpi.type) || "number");
   const [busy, setBusy] = useK(false);
   const [err, setErr] = useK("");
 
@@ -184,20 +185,23 @@ function AddKPIModal({ dept, ctx, onClose }) {
   const save = async () => {
     if (!name.trim()) { setErr("กรุณากรอกชื่อตัวชี้วัด"); return; }
     setErr(""); setBusy(true);
-    const { error } = await window.sb.from("kpi_defs").insert({
-      id: nextId(), dept, name: name.trim(), en: en.trim() || null, unit: unit.trim() || null,
+    const row = {
+      dept, name: name.trim(), en: en.trim() || null, unit: unit.trim() || null,
       method, weight: Number(weight) || 0,
       target_m: Number(target) || 0, target_q: Number(target) || 0, target_y: Number(target) || 0,
-      actual: Number(actual) || 0, type, status: "approved", owner: "HR", trend_down: false, sort: 999,
-    });
+      actual: Number(actual) || 0, type,
+    };
+    let error;
+    if (isEdit) { ({ error } = await window.sb.from("kpi_defs").update(row).eq("id", kpi.id)); }
+    else { row.id = nextId(); row.status = "approved"; row.owner = "HR"; row.trend_down = false; row.sort = 999; ({ error } = await window.sb.from("kpi_defs").insert(row)); }
     if (error) { setBusy(false); setErr("บันทึกไม่สำเร็จ: " + error.message); return; }
     await ctx.refresh();
-    toast("เพิ่ม KPI “" + name.trim() + "” แล้ว", "check");
+    toast(isEdit ? "บันทึก KPI แล้ว" : "เพิ่ม KPI “" + name.trim() + "” แล้ว", "check");
     onClose();
   };
 
   return (
-    <Modal title={"เพิ่ม KPI · " + deptName(dept)} onClose={onClose}
+    <Modal title={(isEdit ? "แก้ไข KPI · " : "เพิ่ม KPI · ") + deptName(dept)} onClose={onClose}
       footer={<>
         <button className="btn btn-ghost" onClick={onClose} disabled={busy}>ยกเลิก</button>
         <button className="btn btn-pri" onClick={save} disabled={busy}><Icon name="check" size={15} />{busy ? "กำลังบันทึก…" : "บันทึก KPI"}</button>
@@ -226,6 +230,9 @@ function KPIDefine({ ctx }) {
   const [dept, setDept] = useK("prod");
   const [cycle, setCycle] = useK("y");
   const [showAdd, setShowAdd] = useK(false);
+  const [editKpi, setEditKpi] = useK(null);
+  const approveKpi = async (k) => { const { error } = await window.sb.from("kpi_defs").update({ status: "approved" }).eq("id", k.id); if (error) { toast("อนุมัติไม่สำเร็จ", "x"); return; } await ctx.refresh(); toast("อนุมัติ KPI เข้าระบบแล้ว", "check"); };
+  const rejectKpi = async (k) => { const { error } = await window.sb.from("kpi_defs").delete().eq("id", k.id); if (error) { toast("ปฏิเสธไม่สำเร็จ", "x"); return; } await ctx.refresh(); toast("ปฏิเสธ KPI แล้ว", "x"); };
   const kpis = KPI_DEFS.filter((k) => k.dept === dept);
   const approved = kpis.filter((k) => k.status === "approved");
   const proposed = kpis.filter((k) => k.status === "proposed");
@@ -277,7 +284,7 @@ function KPIDefine({ ctx }) {
                         <span className="num" style={{ fontWeight: 700, color: t.c }}>{sc}%</span>
                       </div>
                     </td>
-                    <td><button className="icon-btn" style={{ width: 32, height: 32 }} onClick={() => toast("แก้ไข " + k.name, "edit")}><Icon name="edit" size={14} /></button></td>
+                    <td><button className="icon-btn" style={{ width: 32, height: 32 }} onClick={() => setEditKpi(k)}><Icon name="edit" size={14} /></button></td>
                   </tr>
                 );
               })}
@@ -297,8 +304,8 @@ function KPIDefine({ ctx }) {
                   <div className="muted" style={{ fontSize: 12.5, marginTop: 5 }}>เสนอโดย {k.owner} · {METHOD_LABEL[k.method]} · เป้า {k.target.y}{k.unit}</div>
                 </div>
                 <div className="row" style={{ gap: 8 }}>
-                  <button className="btn btn-ghost btn-sm" onClick={() => toast("ปฏิเสธ KPI", "x")}>ปฏิเสธ</button>
-                  <button className="btn btn-pri btn-sm" onClick={() => toast("อนุมัติ KPI เข้าระบบแล้ว", "check")}><Icon name="check" size={14} />อนุมัติ</button>
+                  <button className="btn btn-ghost btn-sm" onClick={() => rejectKpi(k)}>ปฏิเสธ</button>
+                  <button className="btn btn-pri btn-sm" onClick={() => approveKpi(k)}><Icon name="check" size={14} />อนุมัติ</button>
                 </div>
               </div>
             ))}
@@ -307,6 +314,7 @@ function KPIDefine({ ctx }) {
       )}
 
       {showAdd && <AddKPIModal dept={dept} ctx={ctx} onClose={() => setShowAdd(false)} />}
+      {editKpi && <AddKPIModal dept={editKpi.dept} kpi={editKpi} ctx={ctx} onClose={() => setEditKpi(null)} />}
     </div>
   );
 }
@@ -369,8 +377,8 @@ function SubmissionDrawer({ subId, onClose, ctx }) {
   return (
     <Drawer title={`รายงาน KPI · ${deptName(s.dept)}`} sub={`${s.id} · ${s.period}`} onClose={onClose} width={560}
       footer={s.status === "submitted" ? <>
-        <button className="btn btn-ghost" onClick={() => { toast("ตีกลับรายงานเพื่อแก้ไข", "refresh"); onClose(); }}>ตีกลับ</button>
-        <button className="btn btn-pri" onClick={() => { toast("อนุมัติรายงาน KPI แล้ว", "checkCircle"); onClose(); }}><Icon name="check" size={15} />อนุมัติรายงาน</button>
+        <button className="btn btn-ghost" onClick={async () => { const { error } = await window.sb.from("submissions").update({ status: "rejected" }).eq("id", s.id); if (error) { toast("ตีกลับไม่สำเร็จ", "x"); return; } await ctx.refresh(); toast("ตีกลับรายงานเพื่อแก้ไข", "refresh"); onClose(); }}>ตีกลับ</button>
+        <button className="btn btn-pri" onClick={async () => { const { error } = await window.sb.from("submissions").update({ status: "approved" }).eq("id", s.id); if (error) { toast("อนุมัติไม่สำเร็จ", "x"); return; } await ctx.refresh(); toast("อนุมัติรายงาน KPI แล้ว", "checkCircle"); onClose(); }}><Icon name="check" size={15} />อนุมัติรายงาน</button>
       </> : <button className="btn btn-ghost" onClick={onClose}>ปิด</button>}>
       <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
         {/* status workflow */}

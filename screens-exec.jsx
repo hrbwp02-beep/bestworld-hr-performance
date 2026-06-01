@@ -27,7 +27,7 @@ function ExecDashboard({ ctx }) {
         <div><h1>มุมมองผู้บริหาร</h1><p>เจาะลึก KPI จากระดับบริษัท → หน่วยงาน → ทีม → รายบุคคล</p></div>
         <div className="row wrap" style={{ gap: 10 }}>
           <div className="seg"><Seg options={[{ value: "2568", label: "ปี 2568" }, { value: "2567", label: "ปี 2567" }]} value={ctx.year} onChange={ctx.setYear} /></div>
-          <button className="btn btn-pri" onClick={() => toast("ส่งออกรายงานผู้บริหาร (PDF)", "download")}><Icon name="download" size={16} />รายงานผู้บริหาร</button>
+          <button className="btn btn-pri" onClick={() => { downloadCSV("executive_kpi.csv", ["หน่วยงาน", "Achievement%", "สถานะ"], KPI_DEPTS.map((id) => { const a = deptAchievement(id); return [deptName(id), a, trafficOf(a).l]; })); toast("ส่งออกรายงานผู้บริหารแล้ว", "download"); }}><Icon name="download" size={16} />รายงานผู้บริหาร</button>
         </div>
       </div>
 

@@ -215,12 +215,13 @@ function Evaluation({ ctx }) {
    JD MANAGEMENT
    ========================================================= */
 /* ---------- Create JD modal ---------- */
-function AddJDModal({ defaultDept, ctx, onClose }) {
-  const [title, setTitle] = useS3("");
-  const [dept, setDept] = useS3(defaultDept && defaultDept !== "all" ? defaultDept : "prod");
-  const [kpis, setKpis] = useS3("");
-  const [comps, setComps] = useS3("");
-  const [duties, setDuties] = useS3("");
+function AddJDModal({ defaultDept, jd, ctx, onClose }) {
+  const isEdit = !!jd;
+  const [title, setTitle] = useS3((jd && jd.title) || "");
+  const [dept, setDept] = useS3(jd ? jd.dept : (defaultDept && defaultDept !== "all" ? defaultDept : "prod"));
+  const [kpis, setKpis] = useS3(jd ? String(jd.kpis) : "");
+  const [comps, setComps] = useS3(jd ? String(jd.comps) : "");
+  const [duties, setDuties] = useS3(jd && jd.duties ? jd.duties.join("\n") : "");
   const [busy, setBusy] = useS3(false);
   const [err, setErr] = useS3("");
 
@@ -239,18 +240,23 @@ function AddJDModal({ defaultDept, ctx, onClose }) {
     if (!title.trim()) { setErr("กรุณากรอกชื่อตำแหน่ง"); return; }
     const dutyArr = duties.split("\n").map((s) => s.trim()).filter(Boolean);
     setErr(""); setBusy(true);
-    const { error } = await window.sb.from("jd_library").insert({
-      id: nextId(dept), title: title.trim(), dept, version: "v1.0", updated: today(),
-      status: "draft", kpis: Number(kpis) || 0, comps: Number(comps) || 0, duties: dutyArr, sort: 999,
-    });
+    let error;
+    if (isEdit) {
+      ({ error } = await window.sb.from("jd_library").update({ title: title.trim(), dept, kpis: Number(kpis) || 0, comps: Number(comps) || 0, duties: dutyArr, updated: today() }).eq("id", jd.id));
+    } else {
+      ({ error } = await window.sb.from("jd_library").insert({
+        id: nextId(dept), title: title.trim(), dept, version: "v1.0", updated: today(),
+        status: "draft", kpis: Number(kpis) || 0, comps: Number(comps) || 0, duties: dutyArr, sort: 999,
+      }));
+    }
     if (error) { setBusy(false); setErr("บันทึกไม่สำเร็จ: " + error.message); return; }
     await ctx.refresh();
-    toast("สร้าง JD “" + title.trim() + "” แล้ว", "check");
+    toast(isEdit ? "บันทึก JD แล้ว" : "สร้าง JD “" + title.trim() + "” แล้ว", "check");
     onClose();
   };
 
   return (
-    <Modal title="สร้าง Job Description ใหม่" onClose={onClose}
+    <Modal title={isEdit ? "แก้ไข Job Description" : "สร้าง Job Description ใหม่"} onClose={onClose}
       footer={<>
         <button className="btn btn-ghost" onClick={onClose} disabled={busy}>ยกเลิก</button>
         <button className="btn btn-pri" onClick={save} disabled={busy}><Icon name="check" size={15} />{busy ? "กำลังบันทึก…" : "บันทึก JD"}</button>
@@ -273,6 +279,7 @@ function JDManagement({ ctx }) {
   const [open, setOpen] = useS3(null);
   const [dept, setDept] = useS3("all");
   const [showAdd, setShowAdd] = useS3(false);
+  const [editJd, setEditJd] = useS3(null);
   const list = JD_LIBRARY.filter((j) => dept === "all" || j.dept === dept);
   const stMeta = { active: { l: "ใช้งาน", c: "b-green" }, review: { l: "รอตรวจสอบ", c: "b-amber" }, draft: { l: "ฉบับร่าง", c: "b-gray" } };
   const jd = open ? JD_LIBRARY.find((j) => j.id === open) : null;
@@ -318,7 +325,7 @@ function JDManagement({ ctx }) {
         <Drawer title={jd.title} sub={`${jd.id} · ${deptName(jd.dept)} · ${jd.version}`} onClose={() => setOpen(null)}
           footer={<>
             <button className="btn btn-ghost" onClick={() => toast("ดูประวัติเวอร์ชัน", "history")}><Icon name="history" size={15} />ประวัติเวอร์ชัน</button>
-            <button className="btn btn-pri" onClick={() => { toast("บันทึก JD แล้ว", "check"); setOpen(null); }}><Icon name="edit" size={15} />แก้ไข JD</button>
+            <button className="btn btn-pri" onClick={() => { setEditJd(jd); setOpen(null); }}><Icon name="edit" size={15} />แก้ไข JD</button>
           </>}>
           <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
             <div>
@@ -354,6 +361,7 @@ function JDManagement({ ctx }) {
       )}
 
       {showAdd && <AddJDModal defaultDept={dept} ctx={ctx} onClose={() => setShowAdd(false)} />}
+      {editJd && <AddJDModal jd={editJd} ctx={ctx} onClose={() => setEditJd(null)} />}
     </div>
   );
 }

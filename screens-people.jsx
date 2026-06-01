@@ -2,6 +2,89 @@
 const { useState: useS2, useMemo: useM2 } = React;
 
 /* =========================================================
+   ADD / EDIT EMPLOYEE modal (writes to Supabase)
+   ========================================================= */
+function EmployeeModal({ emp, ctx, onClose }) {
+  const isEdit = !!emp;
+  const [f, setF] = useS2(() => ({
+    name: (emp && emp.name) || "", dept: (emp && emp.dept) || (DEPARTMENTS[0] ? DEPARTMENTS[0].id : "prod"),
+    position: (emp && emp.position) || "", level: (emp && emp.level) || "ปฏิบัติการ",
+    tenure: (emp && emp.tenure) || "", email: (emp && emp.email) || "", phone: (emp && emp.phone) || "",
+    status: (emp && emp.status) || "pending", kpi: emp ? emp.kpi : "", comp: emp ? emp.comp : "",
+    potential: emp ? emp.potential : 2, perf: emp ? emp.perf : 2, reviewer: (emp && emp.reviewer) || "",
+    female: emp ? !!emp.female : false,
+  }));
+  const [busy, setBusy] = useS2(false);
+  const [err, setErr] = useS2("");
+  const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
+  const palette = ["#2563eb", "#0d9488", "#7c3aed", "#db2777", "#0ea5e9", "#e08a00", "#16a34a"];
+  const nextId = () => {
+    const nums = (window.EMPLOYEES || []).map((x) => parseInt(String(x.id).replace(/\D/g, ""), 10)).filter((n) => !isNaN(n));
+    return "E" + String((nums.length ? Math.max(...nums) : 999) + 1);
+  };
+
+  const save = async () => {
+    if (!f.name.trim()) { setErr("กรุณากรอกชื่อ-นามสกุล"); return; }
+    if (!f.position.trim()) { setErr("กรุณากรอกตำแหน่ง"); return; }
+    setErr(""); setBusy(true);
+    const row = {
+      name: f.name.trim(), female: !!f.female, dept: f.dept, position: f.position.trim(),
+      level: f.level, tenure: f.tenure || null, email: f.email.trim() || null, phone: f.phone.trim() || null,
+      status: f.status, kpi: Number(f.kpi) || 0, comp: Number(f.comp) || 0,
+      potential: Number(f.potential) || 1, perf: Number(f.perf) || 1, reviewer: f.reviewer || null,
+    };
+    let error;
+    if (isEdit) {
+      ({ error } = await window.sb.from("employees").update(row).eq("id", emp.id));
+    } else {
+      row.id = nextId();
+      row.color = palette[(window.EMPLOYEES || []).length % 7];
+      row.history = [];
+      row.sort = (window.EMPLOYEES || []).length;
+      ({ error } = await window.sb.from("employees").insert(row));
+    }
+    if (error) { setBusy(false); setErr("บันทึกไม่สำเร็จ: " + error.message); return; }
+    await ctx.refresh();
+    toast(isEdit ? "บันทึกข้อมูลพนักงานแล้ว" : "เพิ่มพนักงาน “" + f.name.trim() + "” แล้ว", "check");
+    onClose();
+  };
+
+  return (
+    <Modal title={isEdit ? "แก้ไขข้อมูลพนักงาน" : "เพิ่มพนักงานใหม่"} onClose={onClose}
+      footer={<>
+        <button className="btn btn-ghost" onClick={onClose} disabled={busy}>ยกเลิก</button>
+        <button className="btn btn-pri" onClick={save} disabled={busy}><Icon name="check" size={15} />{busy ? "กำลังบันทึก…" : "บันทึก"}</button>
+      </>}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        {err && <div style={{ padding: "10px 13px", borderRadius: 10, background: "var(--red-soft)", color: "#be123c", fontSize: 13 }}>{err}</div>}
+        <div className="field"><label>ชื่อ-นามสกุล *</label><input className="input" value={f.name} onChange={(e) => set("name", e.target.value)} placeholder="เช่น สมชาย ศรีสุข" /></div>
+        <div className="grid" style={{ gridTemplateColumns: "1fr 1fr" }}>
+          <div className="field"><label>หน่วยงาน</label><select className="select" value={f.dept} onChange={(e) => set("dept", e.target.value)}>{(window.DEPARTMENTS || []).map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}</select></div>
+          <div className="field"><label>ระดับ</label><select className="select" value={f.level} onChange={(e) => set("level", e.target.value)}>{["ผู้จัดการ", "หัวหน้างาน", "วิชาชีพ", "ปฏิบัติการ"].map((l) => <option key={l} value={l}>{l}</option>)}</select></div>
+        </div>
+        <div className="field"><label>ตำแหน่ง *</label><input className="input" value={f.position} onChange={(e) => set("position", e.target.value)} placeholder="เช่น หัวหน้าแผนกฉีดพลาสติก" /></div>
+        <div className="grid" style={{ gridTemplateColumns: "1fr 1fr" }}>
+          <div className="field"><label>อีเมล</label><input className="input" value={f.email} onChange={(e) => set("email", e.target.value)} placeholder="name@bestworld.co.th" /></div>
+          <div className="field"><label>เบอร์โทร</label><input className="input" value={f.phone} onChange={(e) => set("phone", e.target.value)} placeholder="08xxxxxxxx" /></div>
+        </div>
+        <div className="grid" style={{ gridTemplateColumns: "1fr 1fr" }}>
+          <div className="field"><label>อายุงาน</label><input className="input" value={f.tenure} onChange={(e) => set("tenure", e.target.value)} placeholder="เช่น 3 ปี 4 เดือน" /></div>
+          <div className="field"><label>สถานะการประเมิน</label><select className="select" value={f.status} onChange={(e) => set("status", e.target.value)}>{[["pending", "รอประเมิน"], ["progress", "กำลังประเมิน"], ["review", "รออนุมัติ"], ["done", "ประเมินแล้ว"]].map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></div>
+        </div>
+        <div className="grid" style={{ gridTemplateColumns: "1fr 1fr 1fr 1fr" }}>
+          <div className="field"><label>คะแนน KPI</label><input className="input" type="number" value={f.kpi} onChange={(e) => set("kpi", e.target.value)} placeholder="0-100" /></div>
+          <div className="field"><label>Competency</label><input className="input" type="number" value={f.comp} onChange={(e) => set("comp", e.target.value)} placeholder="0-100" /></div>
+          <div className="field"><label>ศักยภาพ</label><select className="select" value={f.potential} onChange={(e) => set("potential", +e.target.value)}>{[1, 2, 3].map((n) => <option key={n} value={n}>{n}</option>)}</select></div>
+          <div className="field"><label>ผลงาน</label><select className="select" value={f.perf} onChange={(e) => set("perf", +e.target.value)}>{[1, 2, 3].map((n) => <option key={n} value={n}>{n}</option>)}</select></div>
+        </div>
+        <div className="field"><label>ผู้ประเมิน (หัวหน้า)</label><input className="input" value={f.reviewer} onChange={(e) => set("reviewer", e.target.value)} placeholder="ชื่อผู้บังคับบัญชา" /></div>
+        <label className="row" style={{ gap: 8, fontSize: 13.5, cursor: "pointer" }}><input type="checkbox" checked={f.female} onChange={(e) => set("female", e.target.checked)} style={{ width: 16, height: 16, accentColor: "var(--accent)" }} /> เพศหญิง</label>
+      </div>
+    </Modal>
+  );
+}
+
+/* =========================================================
    EMPLOYEE LIST
    ========================================================= */
 function EmployeeList({ ctx }) {
@@ -9,6 +92,7 @@ function EmployeeList({ ctx }) {
   const [dept, setDept] = useS2("all");
   const [status, setStatus] = useS2("all");
   const [view, setView] = useS2("table");
+  const [showAdd, setShowAdd] = useS2(false);
 
   const rows = useM2(() => EMPLOYEES.filter((e) =>
     (dept === "all" || e.dept === dept) &&
@@ -24,10 +108,11 @@ function EmployeeList({ ctx }) {
       <div className="page-head">
         <div><h1>พนักงาน</h1><p>รายชื่อพนักงานและสถานะการประเมินทั้งหมด {EMPLOYEES.length} คน</p></div>
         <div className="row wrap" style={{ gap: 10 }}>
-          <button className="btn btn-ghost" onClick={() => toast("กำลังส่งออกรายชื่อ (Excel)", "fileExcel")}><Icon name="download" size={16} />Export</button>
-          <button className="btn btn-pri" onClick={() => toast("เปิดฟอร์มเพิ่มพนักงานใหม่", "plus")}><Icon name="plus" size={16} />เพิ่มพนักงาน</button>
+          <button className="btn btn-ghost" onClick={() => { downloadCSV("employees.csv", ["รหัส", "ชื่อ", "หน่วยงาน", "ตำแหน่ง", "สถานะ", "KPI", "Competency", "คะแนนรวม"], rows.map((e) => [e.id, e.name, deptName(e.dept), e.position, (statusMeta(e.status) || {}).label || e.status, e.kpi, e.comp, e.overall])); toast("ส่งออกรายชื่อ " + rows.length + " คนแล้ว", "fileExcel"); }}><Icon name="download" size={16} />Export</button>
+          <button className="btn btn-pri" onClick={() => setShowAdd(true)}><Icon name="plus" size={16} />เพิ่มพนักงาน</button>
         </div>
       </div>
+      {showAdd && <EmployeeModal emp={null} ctx={ctx} onClose={() => setShowAdd(false)} />}
 
       {/* filter bar */}
       <Card className="card-pad" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -126,6 +211,7 @@ function EmployeeList({ ctx }) {
    ========================================================= */
 function EmployeeProfile({ ctx, empId }) {
   const e = EMPLOYEES.find((x) => x.id === empId) || EMPLOYEES[0];
+  const [editing, setEditing] = useS2(false);
   const yrs = ["2564","2565","2566","2567","2568"];
   const hist = e.history.map((v, i) => ({ m: yrs[yrs.length - e.history.length + i], v }));
   const radar = COMPETENCIES.map((c, i) => ({ id: c.id, name: c.name, v: Math.max(55, Math.min(98, e.comp + [4,-3,2,-5,6][i])) }));
@@ -154,12 +240,13 @@ function EmployeeProfile({ ctx, empId }) {
             </div>
           </div>
           <div className="row wrap" style={{ gap: 9, alignSelf: "flex-start" }}>
-            <button className="btn btn-ghost" onClick={() => toast("ส่งออกประวัติการประเมิน (PDF)", "download")}><Icon name="download" size={16} />Export</button>
-            <button className="btn btn-ghost" onClick={() => toast("เปิดฟอร์มแก้ไขข้อมูลพนักงาน", "edit")}><Icon name="edit" size={16} />แก้ไข</button>
+            <button className="btn btn-ghost" onClick={() => { downloadCSV("employee_" + e.id + ".csv", ["รหัส", "ชื่อ", "หน่วยงาน", "ตำแหน่ง", "ระดับ", "อายุงาน", "สถานะ", "KPI", "Competency", "คะแนนรวม", "ผู้ประเมิน"], [[e.id, e.name, deptName(e.dept), e.position, e.level, e.tenure, (statusMeta(e.status) || {}).label || e.status, e.kpi, e.comp, e.overall, e.reviewer]]); toast("ส่งออกข้อมูลพนักงานแล้ว", "download"); }}><Icon name="download" size={16} />Export</button>
+            <button className="btn btn-ghost" onClick={() => setEditing(true)}><Icon name="edit" size={16} />แก้ไข</button>
             <button className="btn btn-pri" onClick={() => ctx.startEval(e.id)}><Icon name="eval" size={16} />ประเมินผล</button>
           </div>
         </div>
       </Card>
+      {editing && <EmployeeModal emp={e} ctx={ctx} onClose={() => setEditing(false)} />}
 
       <div className="grid" style={{ gridTemplateColumns: "320px 1fr" }}>
         {/* left column */}
@@ -241,7 +328,7 @@ function DepartmentKPI({ ctx }) {
     <div className="grid">
       <div className="page-head">
         <div><h1>KPI ตามหน่วยงาน</h1><p>เปรียบเทียบผลการดำเนินงานของแต่ละหน่วยงาน</p></div>
-        <button className="btn btn-ghost" onClick={() => toast("ส่งออกรายงานหน่วยงาน", "download")}><Icon name="download" size={16} />Export</button>
+        <button className="btn btn-ghost" onClick={() => { downloadCSV("department_kpi.csv", ["รหัส", "หน่วยงาน", "พนักงาน", "ประเมินแล้ว", "คะแนนเฉลี่ย", "แนวโน้ม"], DEPARTMENTS.map((d) => [d.id, d.name, d.head, d.done, d.score, d.trend])); toast("ส่งออกรายงานหน่วยงานแล้ว", "download"); }}><Icon name="download" size={16} />Export</button>
       </div>
 
       {/* dept cards */}

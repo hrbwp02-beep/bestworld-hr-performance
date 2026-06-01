@@ -1,0 +1,462 @@
+// screens-kpi.jsx — Department-based KPI module
+const { useState: useK, useMemo: useKM } = React;
+
+function TrafficDot({ score, size = 10 }) {
+  const t = trafficOf(score);
+  return <span title={t.l} style={{ width: size, height: size, borderRadius: 999, background: t.c, display: "inline-block", boxShadow: `0 0 0 3px ${t.c}22` }} />;
+}
+function TrafficLegend() {
+  return (
+    <div className="row wrap" style={{ gap: 14, fontSize: 12.5 }}>
+      {[["#16a34a", "บรรลุเป้า (≥100%)"], ["#e08a00", "ใกล้เป้า (95–99%)"], ["#e11d48", "ต่ำกว่าเป้า (<95%)"]].map(([c, l]) => (
+        <span key={l} className="row" style={{ gap: 6 }}><span style={{ width: 9, height: 9, borderRadius: 999, background: c }} />{l}</span>
+      ))}
+    </div>
+  );
+}
+
+/* =========================================================
+   KPI MODULE  (tabs)
+   ========================================================= */
+function KPIModule({ ctx }) {
+  const [tab, setTab] = useK("overview");
+  const tabs = [
+    { id: "overview", label: "ภาพรวม KPI" },
+    { id: "define", label: "กำหนด KPI" },
+    { id: "submit", label: "ส่งรายงาน" },
+    { id: "scoring", label: "คำนวณคะแนน" },
+  ];
+  return (
+    <div className="grid">
+      <div className="page-head">
+        <div><h1>KPI หน่วยงาน</h1><p>กำหนด KPI แยกตามหน่วยงาน · ส่งรายงาน · คำนวณคะแนนอัตโนมัติ · {COMPANY.cycle}</p></div>
+        <div className="row wrap" style={{ gap: 10 }}>
+          <button className="btn btn-ghost" onClick={() => ctx.go("exec")}><Icon name="trend" size={16} />มุมมองผู้บริหาร</button>
+          <button className="btn btn-pri" onClick={() => toast("กำลังส่งออกรายงาน KPI", "download")}><Icon name="download" size={16} />Export</button>
+        </div>
+      </div>
+      <Card><div style={{ padding: "0 8px" }}><Tabs tabs={tabs} active={tab} onChange={setTab} /></div></Card>
+      {tab === "overview" && <KPIOverview ctx={ctx} />}
+      {tab === "define" && <KPIDefine ctx={ctx} />}
+      {tab === "submit" && <KPISubmissions ctx={ctx} />}
+      {tab === "scoring" && <KPIScoring ctx={ctx} />}
+    </div>
+  );
+}
+
+/* ---------- Overview ---------- */
+function KPIOverview({ ctx }) {
+  const depts = KPI_DEPTS.map((id) => DEPARTMENTS.find((d) => d.id === id)).filter(Boolean);
+  const achData = depts.map((d) => { const a = deptAchievement(d.id); return { ...d, score: a, color: trafficOf(a).c, short: d.short }; });
+  const ranked = [...achData].sort((a, b) => b.score - a.score);
+  const greenN = achData.filter((d) => d.score >= 100).length;
+  const subDone = SUBMISSIONS.filter((s) => s.status === "approved" || s.status === "submitted").length;
+  const overdue = SUBMISSIONS.filter((s) => s.status === "overdue");
+  const allKpis = KPI_DEFS.filter((k) => k.status === "approved").map((k) => ({ ...k, score: kpiScore(k) }));
+  const topKpis = [...allKpis].sort((a, b) => b.score - a.score).slice(0, 5);
+  const botKpis = [...allKpis].sort((a, b) => a.score - b.score).slice(0, 5);
+  const companyTrend = KPI_MONTHS.map((m, i) => ({ m, v: Math.round((96 - (5 - i) * 0.9) * 10) / 10 }));
+  const subStatusPie = ["approved", "submitted", "rejected", "overdue", "draft"].map((k) => ({
+    label: SUB_STATUS[k].l, v: SUBMISSIONS.filter((s) => s.status === k).length, color: SUB_STATUS[k].c,
+  })).filter((x) => x.v > 0);
+  const heatVals = depts.map((d) => deptKpiTrend(d.id).map((p) => p.v));
+
+  return (
+    <div className="grid fade-up">
+      <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(200px,1fr))" }}>
+        <Stat icon="target" label="KPI เฉลี่ยองค์กร" value={Math.round(achData.reduce((a, d) => a + d.score, 0) / achData.length * 10) / 10} unit="%" tone="#2563eb" soft="#e8effb" sub="Achievement รวม" />
+        <Stat icon="checkCircle" label="หน่วยงานบรรลุเป้า" value={greenN} unit={`/ ${achData.length}`} tone="#16a34a" soft="#e7f6ec" sub="ไฟเขียว" />
+        <Stat icon="upload" label="รายงานส่งแล้ว" value={subDone} unit={`/ ${SUBMISSIONS.length}`} tone="#0d9488" soft="#e2f4f2" sub="รอบนี้" />
+        <Stat icon="alert" label="รายงานเกินกำหนด" value={overdue.length} unit="ฉบับ" tone="#e11d48" soft="#fbe7ec" sub="ต้องติดตาม" />
+      </div>
+
+      {/* traffic light grid */}
+      <Card>
+        <CardHead title="Traffic Light · สถานะ KPI ทุกหน่วยงาน" sub="ไฟจราจรแสดงระดับการบรรลุเป้าหมาย" right={<TrafficLegend />} />
+        <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(210px,1fr))", padding: 18 }}>
+          {achData.map((d) => {
+            const t = trafficOf(d.score);
+            return (
+              <button key={d.id} onClick={() => ctx.goExec(d.id)} className="card" style={{ textAlign: "left", cursor: "pointer", padding: 16, border: `1px solid ${t.c}33`, background: t.soft + "55", boxShadow: "none" }}>
+                <div className="between" style={{ marginBottom: 10 }}>
+                  <span style={{ fontWeight: 600, fontSize: 13.5 }}>{d.name}</span>
+                  <TrafficDot score={d.score} size={12} />
+                </div>
+                <div className="row" style={{ alignItems: "baseline", gap: 6 }}>
+                  <span className="num" style={{ fontWeight: 700, fontSize: 26, color: t.c }}>{d.score}</span>
+                  <span className="muted" style={{ fontSize: 13 }}>%</span>
+                  <span className={"badge " + (d.trend >= 0 ? "b-green" : "b-red")} style={{ marginLeft: "auto", padding: "2px 8px" }}>{d.trend >= 0 ? "▲" : "▼"} {Math.abs(d.trend)}</span>
+                </div>
+                <div className="muted" style={{ fontSize: 11.5, marginTop: 4 }}>{kpisOf(d.id).length} ตัวชี้วัด · {t.l}</div>
+              </button>
+            );
+          })}
+        </div>
+      </Card>
+
+      <div className="grid" style={{ gridTemplateColumns: "1.6fr 1fr" }}>
+        <Card>
+          <CardHead title="KPI Achievement ตามหน่วยงาน" sub="เส้นประแดง = เป้าหมาย 100%" />
+          <div className="card-pad"><BarChart data={achData} max={130} baseline={100} /></div>
+        </Card>
+        <Card>
+          <CardHead title="สถานะการส่งรายงาน" sub="KPI Submission Status" />
+          <div className="card-pad"><Donut data={subStatusPie} centerLabel="รายงาน" centerValue={SUBMISSIONS.length} size={170} /></div>
+        </Card>
+      </div>
+
+      <div className="grid" style={{ gridTemplateColumns: "1.6fr 1fr" }}>
+        <Card>
+          <CardHead title="แนวโน้ม KPI รายเดือน" sub="ค่าเฉลี่ย Achievement ทั้งองค์กร" />
+          <div className="card-pad"><LineChart data={companyTrend} height={240} min={88} max={100} /></div>
+        </Card>
+        <Card>
+          <CardHead title="ติดตามรายงานล่าช้า" sub="Late Report Tracking" right={<Badge cls="b-amber" dot>{overdue.length}</Badge>} />
+          <div style={{ padding: "8px 12px" }}>
+            {SUBMISSIONS.filter((s) => s.status === "overdue" || s.status === "draft" || s.status === "rejected").map((s) => {
+              const st = SUB_STATUS[s.status];
+              return (
+                <button key={s.id} onClick={() => ctx.openSub(s.id)} className="between" style={{ width: "100%", border: "none", background: "none", cursor: "pointer", padding: "11px 10px", borderBottom: "1px solid var(--border-2)", textAlign: "left", gap: 10 }}>
+                  <div><div style={{ fontWeight: 600, fontSize: 13 }}>{deptName(s.dept)}</div><div className="muted" style={{ fontSize: 11.5 }}>{s.period} · ครบกำหนด {s.due}</div></div>
+                  <Badge cls={st.cls} dot>{st.l}</Badge>
+                </button>
+              );
+            })}
+          </div>
+        </Card>
+      </div>
+
+      <div className="grid" style={{ gridTemplateColumns: "1fr 1fr" }}>
+        <Card>
+          <CardHead title="KPI ที่ทำได้ดีที่สุด" sub="Top KPI Achievement" right={<Icon name="trophy" size={18} color="#e08a00" />} />
+          <div className="card-pad" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {topKpis.map((k) => <KpiMiniRow key={k.id} k={k} />)}
+          </div>
+        </Card>
+        <Card>
+          <CardHead title="KPI ที่ต้องเร่งปรับปรุง" sub="Bottom KPI Achievement" right={<Icon name="alert" size={18} color="#e11d48" />} />
+          <div className="card-pad" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {botKpis.map((k) => <KpiMiniRow key={k.id} k={k} />)}
+          </div>
+        </Card>
+      </div>
+
+      <Card>
+        <CardHead title="KPI Heatmap · Achievement รายเดือน" sub="หน่วยงาน × เดือน (สีเขียว = สูง / แดง = ต่ำ)" />
+        <div className="card-pad"><Heatmap rows={depts.map((d) => d.short)} cols={KPI_MONTHS} values={heatVals} min={85} max={105} /></div>
+      </Card>
+    </div>
+  );
+}
+
+function KpiMiniRow({ k }) {
+  const t = trafficOf(k.score);
+  return (
+    <div className="row" style={{ gap: 11 }}>
+      <TrafficDot score={k.score} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{k.name}</div>
+        <div className="muted" style={{ fontSize: 11.5 }}>{deptShort(k.dept)} · เป้า {k.target.y}{k.unit} / จริง {k.actual}{k.unit}</div>
+      </div>
+      <span className="num" style={{ fontWeight: 700, color: t.c, fontSize: 15 }}>{k.score}%</span>
+    </div>
+  );
+}
+
+/* ---------- Define KPI ---------- */
+function KPIDefine({ ctx }) {
+  const [dept, setDept] = useK("prod");
+  const [cycle, setCycle] = useK("y");
+  const kpis = KPI_DEFS.filter((k) => k.dept === dept);
+  const approved = kpis.filter((k) => k.status === "approved");
+  const proposed = kpis.filter((k) => k.status === "proposed");
+  const wTotal = approved.reduce((a, k) => a + k.weight, 0);
+
+  return (
+    <div className="grid fade-up">
+      <Card className="card-pad" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        <div className="between wrap" style={{ gap: 12 }}>
+          <div className="row wrap" style={{ gap: 8 }}>
+            {KPI_DEPTS.map((id) => <button key={id} className={"chip" + (dept === id ? " on" : "")} onClick={() => setDept(id)}>{deptShort(id)}</button>)}
+          </div>
+          <button className="btn btn-pri btn-sm" onClick={() => toast("เปิดฟอร์มเพิ่ม KPI", "plus")}><Icon name="plus" size={15} />เพิ่ม KPI</button>
+        </div>
+        <div className="between wrap" style={{ gap: 12, borderTop: "1px solid var(--border-2)", paddingTop: 14 }}>
+          <div className="row" style={{ gap: 10 }}>
+            <span className="muted" style={{ fontSize: 13 }}>แสดงเป้าหมาย:</span>
+            <Seg options={[{ value: "m", label: "รายเดือน" }, { value: "q", label: "รายไตรมาส" }, { value: "y", label: "รายปี" }]} value={cycle} onChange={setCycle} />
+          </div>
+          <div className="row" style={{ gap: 8 }}>
+            <span className="muted" style={{ fontSize: 13 }}>น้ำหนักรวม</span>
+            <Badge cls={wTotal === 100 ? "b-green" : "b-red"} dot>{wTotal}%</Badge>
+          </div>
+        </div>
+      </Card>
+
+      <Card>
+        <CardHead title={`ตัวชี้วัด · ${deptName(dept)}`} sub={`${approved.length} ตัวชี้วัดที่ใช้งาน`} right={<TrafficLegend />} />
+        <div className="tbl-wrap">
+          <table className="tbl">
+            <thead><tr>
+              <th style={{ minWidth: 230 }}>ตัวชี้วัด (KPI)</th><th>ประเภท</th><th>วิธีคิด</th>
+              <th>น้ำหนัก</th><th>เป้าหมาย</th><th>ผลจริง</th><th style={{ minWidth: 130 }}>คะแนน</th><th></th>
+            </tr></thead>
+            <tbody>
+              {approved.map((k) => {
+                const sc = kpiScore(k); const t = trafficOf(sc);
+                return (
+                  <tr key={k.id}>
+                    <td><div style={{ fontWeight: 600, fontSize: 13.5 }}>{k.name}</div><div className="muted" style={{ fontSize: 12 }}>{k.en}</div></td>
+                    <td><Badge cls={k.type === "quality" ? "b-blue" : "b-gray"}>{k.type === "quality" ? "เชิงคุณภาพ" : "ตัวเลข"}</Badge></td>
+                    <td><span className="muted" style={{ fontSize: 12.5 }}>{METHOD_LABEL[k.method]}</span></td>
+                    <td className="num" style={{ fontWeight: 600 }}>{k.weight}%</td>
+                    <td className="num">{k.target[cycle]}<span className="muted" style={{ fontSize: 11 }}> {k.unit}</span></td>
+                    <td className="num" style={{ fontWeight: 600 }}>{k.actual}<span className="muted" style={{ fontSize: 11 }}> {k.unit}</span></td>
+                    <td>
+                      <div className="row" style={{ gap: 8 }}>
+                        <TrafficDot score={sc} />
+                        <span className="num" style={{ fontWeight: 700, color: t.c }}>{sc}%</span>
+                      </div>
+                    </td>
+                    <td><button className="icon-btn" style={{ width: 32, height: 32 }} onClick={() => toast("แก้ไข " + k.name, "edit")}><Icon name="edit" size={14} /></button></td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+
+      {proposed.length > 0 && (
+        <Card>
+          <CardHead title="KPI ที่ผู้จัดการเสนอ" sub="รอ HR พิจารณาอนุมัติเข้าระบบ" right={<Badge cls="b-amber" dot>{proposed.length} รายการ</Badge>} />
+          <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
+            {proposed.map((k) => (
+              <div key={k.id} className="between wrap" style={{ gap: 12, border: "1px dashed #e0b878", background: "var(--amber-soft)55", borderRadius: 12, padding: "14px 16px" }}>
+                <div>
+                  <div className="row" style={{ gap: 9 }}><Icon name="flag" size={16} color="#e08a00" /><b style={{ fontSize: 14 }}>{k.name}</b><span className="muted" style={{ fontSize: 12.5 }}>{k.en}</span></div>
+                  <div className="muted" style={{ fontSize: 12.5, marginTop: 5 }}>เสนอโดย {k.owner} · {METHOD_LABEL[k.method]} · เป้า {k.target.y}{k.unit}</div>
+                </div>
+                <div className="row" style={{ gap: 8 }}>
+                  <button className="btn btn-ghost btn-sm" onClick={() => toast("ปฏิเสธ KPI", "x")}>ปฏิเสธ</button>
+                  <button className="btn btn-pri btn-sm" onClick={() => toast("อนุมัติ KPI เข้าระบบแล้ว", "check")}><Icon name="check" size={14} />อนุมัติ</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+/* ---------- Submissions ---------- */
+function KPISubmissions({ ctx }) {
+  const [filter, setFilter] = useK("all");
+  const rows = SUBMISSIONS.filter((s) => filter === "all" || s.status === filter);
+  const counts = { all: SUBMISSIONS.length };
+  Object.keys(SUB_STATUS).forEach((k) => counts[k] = SUBMISSIONS.filter((s) => s.status === k).length);
+  return (
+    <div className="grid fade-up">
+      <Card className="card-pad">
+        <div className="between wrap" style={{ gap: 12 }}>
+          <div className="row wrap" style={{ gap: 8 }}>
+            <button className={"chip" + (filter === "all" ? " on" : "")} onClick={() => setFilter("all")}>ทั้งหมด <span className="mono" style={{ opacity: .7 }}>{counts.all}</span></button>
+            {Object.keys(SUB_STATUS).map((k) => <button key={k} className={"chip" + (filter === k ? " on" : "")} onClick={() => setFilter(k)}>{SUB_STATUS[k].l} <span className="mono" style={{ opacity: .7 }}>{counts[k]}</span></button>)}
+          </div>
+          <button className="btn btn-pri btn-sm" onClick={() => toast("เปิดฟอร์มอัปโหลดรายงาน KPI", "upload")}><Icon name="upload" size={15} />ส่งรายงาน</button>
+        </div>
+      </Card>
+      <Card>
+        <div className="tbl-wrap">
+          <table className="tbl">
+            <thead><tr><th>รหัส</th><th>หน่วยงาน</th><th>รอบ</th><th>ครบกำหนด</th><th>ส่งจริง</th><th>ผู้ส่ง</th><th>หลักฐาน</th><th>สถานะ</th><th></th></tr></thead>
+            <tbody>
+              {rows.map((s) => {
+                const st = SUB_STATUS[s.status];
+                const late = s.status === "overdue";
+                return (
+                  <tr key={s.id} style={{ cursor: "pointer" }} onClick={() => ctx.openSub(s.id)}>
+                    <td className="mono" style={{ fontSize: 12.5, fontWeight: 600 }}>{s.id}</td>
+                    <td><div style={{ fontWeight: 600, fontSize: 13 }}>{deptName(s.dept)}</div></td>
+                    <td><Badge cls="b-gray">{s.cycle === "monthly" ? "รายเดือน" : s.cycle === "quarterly" ? "รายไตรมาส" : "รายปี"}</Badge> <span className="muted" style={{ fontSize: 12 }}>{s.period}</span></td>
+                    <td className="muted" style={{ fontSize: 13 }}>{s.due}</td>
+                    <td className={late ? "" : "num"} style={{ fontSize: 13, color: late ? "var(--red)" : "inherit", fontWeight: late ? 600 : 400 }}>{s.submitted || "ยังไม่ส่ง"}</td>
+                    <td className="muted" style={{ fontSize: 13 }}>{s.submitter}</td>
+                    <td>{s.files.length > 0 ? <span className="row" style={{ gap: 5 }}><Icon name="paperclip" size={14} color="var(--text-3)" /><span className="num">{s.files.length}</span></span> : <span className="muted-3">—</span>}</td>
+                    <td><Badge cls={st.cls} dot>{st.l}</Badge></td>
+                    <td><Icon name="chevRight" size={16} color="var(--text-3)" /></td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+/* ---------- Submission drawer ---------- */
+function SubmissionDrawer({ subId, onClose, ctx }) {
+  const s = SUBMISSIONS.find((x) => x.id === subId);
+  if (!s) return null;
+  const st = SUB_STATUS[s.status];
+  const steps = [
+    { l: "จัดทำรายงาน", done: true }, { l: "อัปโหลดเข้าระบบ", done: s.status !== "draft" }, { l: "ผู้จัดการอนุมัติ", done: s.status === "approved" }, { l: "HR ตรวจสอบ", done: s.status === "approved" },
+  ];
+  return (
+    <Drawer title={`รายงาน KPI · ${deptName(s.dept)}`} sub={`${s.id} · ${s.period}`} onClose={onClose} width={560}
+      footer={s.status === "submitted" ? <>
+        <button className="btn btn-ghost" onClick={() => { toast("ตีกลับรายงานเพื่อแก้ไข", "refresh"); onClose(); }}>ตีกลับ</button>
+        <button className="btn btn-pri" onClick={() => { toast("อนุมัติรายงาน KPI แล้ว", "checkCircle"); onClose(); }}><Icon name="check" size={15} />อนุมัติรายงาน</button>
+      </> : <button className="btn btn-ghost" onClick={onClose}>ปิด</button>}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
+        {/* status workflow */}
+        <div>
+          <div className="between" style={{ marginBottom: 12 }}><b style={{ fontSize: 14 }}>ขั้นตอนการส่งรายงาน</b><Badge cls={st.cls} dot>{st.l}</Badge></div>
+          <div className="row" style={{ gap: 0 }}>
+            {steps.map((step, i) => (
+              <React.Fragment key={i}>
+                <div style={{ textAlign: "center", flex: 1 }}>
+                  <div style={{ width: 30, height: 30, borderRadius: 999, margin: "0 auto", display: "grid", placeItems: "center", background: step.done ? "#16a34a" : "var(--surface-3)", color: step.done ? "#fff" : "var(--text-3)" }}>
+                    {step.done ? <Icon name="check" size={15} /> : <span className="mono" style={{ fontSize: 12, fontWeight: 700 }}>{i + 1}</span>}
+                  </div>
+                  <div style={{ fontSize: 11, marginTop: 5, color: step.done ? "var(--text)" : "var(--text-3)" }}>{step.l}</div>
+                </div>
+                {i < steps.length - 1 && <div style={{ height: 2, flex: .5, background: step.done ? "#16a34a" : "var(--border)", marginTop: 15 }} />}
+              </React.Fragment>
+            ))}
+          </div>
+        </div>
+
+        {/* meta */}
+        <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          {[["รอบรายงาน", s.period], ["ครบกำหนดส่ง", s.due], ["วันที่ส่งจริง", s.submitted || "ยังไม่ส่ง"], ["ผู้ส่ง", s.submitter]].map(([k, v]) => (
+            <div key={k} style={{ background: "var(--surface-2)", borderRadius: 10, padding: "10px 13px" }}><div className="muted" style={{ fontSize: 11.5 }}>{k}</div><div style={{ fontSize: 13.5, fontWeight: 600 }}>{v}</div></div>
+          ))}
+        </div>
+
+        {/* evidence */}
+        <div>
+          <div className="between" style={{ marginBottom: 10 }}><b style={{ fontSize: 14 }}>เอกสารหลักฐาน ({s.files.length})</b><button className="btn btn-soft btn-sm" onClick={() => toast("เลือกไฟล์แนบ", "upload")}><Icon name="plus" size={13} />แนบไฟล์</button></div>
+          {s.files.length === 0 ? <div className="placeholder-img" style={{ height: 70 }}>ยังไม่มีเอกสารแนบ</div> : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {s.files.map((f, i) => {
+                const fk = FILE_KINDS[f.type];
+                return (
+                  <div key={i} className="between" style={{ border: "1px solid var(--border)", borderRadius: 10, padding: "10px 13px" }}>
+                    <div className="row" style={{ gap: 11, minWidth: 0 }}>
+                      <span style={{ width: 34, height: 34, borderRadius: 8, background: fk.c + "18", color: fk.c, display: "grid", placeItems: "center", flex: "0 0 34px" }}><Icon name={fk.icon} size={17} /></span>
+                      <div style={{ minWidth: 0 }}><div style={{ fontSize: 13, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{f.name}</div><div className="muted" style={{ fontSize: 11.5 }}>{fk.label} · {f.size}</div></div>
+                    </div>
+                    <div className="row" style={{ gap: 4 }}>
+                      <button className="icon-btn" style={{ width: 32, height: 32 }} title="Preview" onClick={() => toast("เปิดดูตัวอย่าง " + f.name, "eye")}><Icon name="eye" size={15} /></button>
+                      <button className="icon-btn" style={{ width: 32, height: 32 }} title="ดาวน์โหลด" onClick={() => toast("ดาวน์โหลด " + f.name, "download")}><Icon name="download" size={15} /></button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* version control */}
+        {s.versions.length > 0 && (
+          <div>
+            <b style={{ fontSize: 14, display: "block", marginBottom: 10 }}>ประวัติเวอร์ชัน (Version Control)</b>
+            <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+              {s.versions.map((v, i) => (
+                <div key={i} className="between" style={{ background: "var(--surface-2)", borderRadius: 9, padding: "9px 13px" }}>
+                  <div className="row" style={{ gap: 9 }}><Badge cls={i === 0 ? "b-blue" : "b-gray"}>{v.v}</Badge><span style={{ fontSize: 13 }}>{v.note}</span></div>
+                  <span className="muted" style={{ fontSize: 12 }}>{v.by} · {v.date}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* audit trail */}
+        <div>
+          <b style={{ fontSize: 14, display: "block", marginBottom: 10 }}>Audit Trail</b>
+          <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+            {s.audit.map((a, i) => (
+              <div key={i} className="row" style={{ gap: 11, alignItems: "flex-start" }}>
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", alignSelf: "stretch" }}>
+                  <span style={{ width: 9, height: 9, borderRadius: 999, background: "var(--accent)", marginTop: 5, flex: "0 0 9px" }} />
+                  {i < s.audit.length - 1 && <span style={{ width: 2, flex: 1, background: "var(--border)", minHeight: 18 }} />}
+                </div>
+                <div style={{ paddingBottom: 14 }}><div style={{ fontSize: 13, fontWeight: 600 }}>{a.act}</div><div className="muted" style={{ fontSize: 11.5 }}>{a.by} · {a.time}</div></div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {s.note && <div className="row" style={{ gap: 10, background: "var(--surface-2)", borderRadius: 10, padding: "11px 14px" }}><Icon name="flag" size={15} color="var(--text-3)" /><span style={{ fontSize: 13 }}>{s.note}</span></div>}
+      </div>
+    </Drawer>
+  );
+}
+
+/* ---------- Scoring ---------- */
+function KPIScoring({ ctx }) {
+  const [method, setMethod] = useK("higher");
+  const [target, setTarget] = useK(85);
+  const [actual, setActual] = useK(88);
+  const [lo, setLo] = useK(80);
+  const [hi, setHi] = useK(95);
+  const demo = { method, target: { y: +target }, actual: +actual, range: [+lo, +hi], customScore: Math.round(+actual / +target * 100) };
+  const score = kpiScore(demo);
+  const t = trafficOf(score);
+
+  const methods = [
+    { id: "higher", title: "Higher is Better", desc: "ยิ่งสูงยิ่งดี — เช่น OEE, ผลผลิต", formula: "Score = (Actual ÷ Target) × 100", ex: "เป้า 85% · จริง 88% → 103.5%" },
+    { id: "lower", title: "Lower is Better", desc: "ยิ่งต่ำยิ่งดี — เช่น ของเสีย, Downtime", formula: "Score = (Target ÷ Actual) × 100", ex: "เป้า 3% · จริง 2% → 150%" },
+    { id: "range", title: "Range Score", desc: "ดีเมื่ออยู่ในช่วงที่กำหนด", formula: "อยู่ในช่วง [Min, Max] = 100%", ex: "ช่วง 80–95 · จริง 88 → 100%" },
+    { id: "custom", title: "Custom Formula", desc: "ผู้ดูแลระบบกำหนดสูตรเอง", formula: "= กำหนดสูตรอิสระ", ex: "เช่น weighted, step, ฯลฯ" },
+  ];
+
+  return (
+    <div className="grid fade-up">
+      <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(250px,1fr))" }}>
+        {methods.map((m) => (
+          <button key={m.id} onClick={() => setMethod(m.id)} className="card" style={{ textAlign: "left", cursor: "pointer", padding: 18, border: method === m.id ? "1.5px solid var(--accent)" : "1px solid var(--border)", boxShadow: method === m.id ? "0 0 0 3px var(--accent-soft)" : "var(--shadow-sm)" }}>
+            <div className="row between"><b style={{ fontSize: 14 }}>{m.title}</b>{method === m.id && <Icon name="checkCircle" size={18} color="var(--accent)" />}</div>
+            <div className="muted" style={{ fontSize: 12.5, margin: "6px 0 10px" }}>{m.desc}</div>
+            <div className="mono" style={{ fontSize: 11.5, background: "var(--surface-2)", borderRadius: 7, padding: "7px 10px", color: "var(--text-2)" }}>{m.formula}</div>
+            <div className="muted" style={{ fontSize: 11.5, marginTop: 7 }}>{m.ex}</div>
+          </button>
+        ))}
+      </div>
+
+      <div className="grid" style={{ gridTemplateColumns: "1.2fr 1fr" }}>
+        <Card>
+          <CardHead title="เครื่องคำนวณคะแนน (Live)" sub={`วิธี: ${METHOD_LABEL[method]} · ปรับค่าเพื่อดูผลทันที`} />
+          <div className="card-pad" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <div className="row wrap" style={{ gap: 14 }}>
+              <div className="field" style={{ flex: 1, minWidth: 120 }}><label>เป้าหมาย (Target)</label><input className="input" type="number" value={target} onChange={(e) => setTarget(e.target.value)} /></div>
+              <div className="field" style={{ flex: 1, minWidth: 120 }}><label>ผลจริง (Actual)</label><input className="input" type="number" value={actual} onChange={(e) => setActual(e.target.value)} /></div>
+            </div>
+            {method === "range" && (
+              <div className="row wrap" style={{ gap: 14 }}>
+                <div className="field" style={{ flex: 1, minWidth: 120 }}><label>ขอบล่าง (Min)</label><input className="input" type="number" value={lo} onChange={(e) => setLo(e.target.value)} /></div>
+                <div className="field" style={{ flex: 1, minWidth: 120 }}><label>ขอบบน (Max)</label><input className="input" type="number" value={hi} onChange={(e) => setHi(e.target.value)} /></div>
+              </div>
+            )}
+            {method === "custom" && (
+              <div className="field"><label>สูตรกำหนดเอง (Custom Formula)</label><input className="input mono" defaultValue="(Actual / Target) * 100" /><div className="muted" style={{ fontSize: 11.5 }}>ตัวแปรที่ใช้ได้: Actual, Target, Min, Max</div></div>
+            )}
+          </div>
+        </Card>
+        <Card className="card-pad" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 14 }}>
+          <div className="muted" style={{ fontWeight: 600, fontSize: 13 }}>คะแนนที่คำนวณได้</div>
+          <Ring value={Math.min(score, 100)} size={150} color={t.c} sub={<div className="num" style={{ fontSize: 13, fontWeight: 700, color: t.c, marginTop: 2 }}>{score}%</div>} />
+          <div className="row" style={{ gap: 8 }}><TrafficDot score={score} size={12} /><span style={{ fontWeight: 600, color: t.c }}>{t.l}</span></div>
+          <div className="muted" style={{ fontSize: 12, textAlign: "center" }}>เป้า {target} · จริง {actual} → <b style={{ color: t.c }}>{score}%</b></div>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+Object.assign(window, { KPIModule, SubmissionDrawer, TrafficDot, trafficOf });

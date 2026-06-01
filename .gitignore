@@ -1,0 +1,16 @@
+# OS / editor
+Thumbs.db
+.DS_Store
+*.log
+
+# dependencies (none currently — CDN based)
+node_modules/
+
+# local env / secrets (do NOT commit service-role keys)
+.env
+.env.local
+*.local.env
+
+# build output
+dist/
+build/

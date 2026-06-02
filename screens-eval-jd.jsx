@@ -11,6 +11,8 @@ function Evaluation({ ctx }) {
   const [comp, setComp] = useS3(() => COMPETENCIES.map((c) => ({ ...c, score: 4, note: "" })));
   const [jd, setJd] = useS3(() => JD_ITEMS.map((j) => ({ ...j, note: "" })));
   const [submitted, setSubmitted] = useS3(false);
+  const [comment, setComment] = useS3("");
+  const [saving, setSaving] = useS3(false);
 
   const kpiTotal = useM3(() => {
     const w = kpi.reduce((a, k) => a + k.weight, 0);
@@ -20,6 +22,28 @@ function Evaluation({ ctx }) {
   const jdTotal = useM3(() => Math.round(jd.reduce((a, j) => a + j.score * 20, 0) / jd.length * 10) / 10, [jd]);
   const overall = Math.round((kpiTotal * 0.5 + compTotal * 0.25 + jdTotal * 0.25) * 10) / 10;
   const band = window.bandOf(overall);
+
+  // save the evaluation to Supabase: record it + write scores back to the employee
+  const saveEval = async (finalStatus) => {
+    if (saving) return;
+    setSaving(true);
+    const kScore = Math.round(kpiTotal), cScore = Math.round(compTotal), jScore = Math.round(jdTotal);
+    const cy = +(window.CYCLE_YEAR || 2569);
+    const histVal = Math.round(kScore * 0.6 + cScore * 0.4);
+    const { error: evErr } = await window.sb.from("evaluations").insert({
+      employee_id: e.id, cycle_year: cy, kpi_score: kScore, comp_score: cScore, jd_score: jScore,
+      overall: Math.round(overall), comment: comment.trim() || null, evaluator: "คุณสุดารัตน์ (HR)", status: finalStatus,
+    });
+    const newHist = finalStatus === "done" ? [...(e.history || []), histVal] : (e.history || []);
+    const { error: upErr } = await window.sb.from("employees").update({
+      kpi: kScore, comp: cScore, status: finalStatus, history: newHist,
+    }).eq("id", e.id);
+    setSaving(false);
+    if (evErr || upErr) { toast("บันทึกไม่สำเร็จ: " + ((evErr || upErr).message), "x"); return; }
+    await ctx.refresh();
+    if (finalStatus === "done") { setSubmitted(true); toast("อนุมัติและบันทึกผลการประเมินแล้ว", "checkCircle"); }
+    else toast("บันทึกฉบับร่างแล้ว", "check");
+  };
 
   const tabs = [
     { id: "kpi", label: "A · KPI", count: kpiTotal },
@@ -64,7 +88,7 @@ function Evaluation({ ctx }) {
             </div>
           </div>
           <div className="row" style={{ gap: 10 }}>
-            <button className="btn btn-ghost" onClick={() => toast("บันทึกฉบับร่างแล้ว", "check")}>บันทึกร่าง</button>
+            <button className="btn btn-ghost" onClick={() => saveEval("progress")} disabled={saving}>{saving ? "กำลังบันทึก…" : "บันทึกร่าง"}</button>
             <button className="btn btn-pri" onClick={() => { setTab("approve"); }}>ไปขั้นอนุมัติ <Icon name="chevRight" size={15} /></button>
           </div>
         </div>
@@ -195,11 +219,11 @@ function Evaluation({ ctx }) {
                     </div>
                   ))}
                 </div>
-                <textarea className="input" placeholder="ความคิดเห็นสรุปจากผู้ประเมิน…" style={{ marginTop: 8 }} />
+                <textarea className="input" placeholder="ความคิดเห็นสรุปจากผู้ประเมิน…" style={{ marginTop: 8 }} value={comment} onChange={(ev) => setComment(ev.target.value)} />
                 <div className="row wrap" style={{ gap: 10, marginTop: 16 }}>
-                  <button className="btn btn-ghost" onClick={() => toast("ส่งกลับเพื่อแก้ไข", "refresh")}><Icon name="refresh" size={15} />ส่งกลับแก้ไข</button>
-                  <button className="btn btn-pri" style={{ flex: 1 }} onClick={() => { setSubmitted(true); toast("อนุมัติผลการประเมินเรียบร้อย", "checkCircle"); }}>
-                    <Icon name="check" size={16} />{submitted ? "อนุมัติแล้ว" : "อนุมัติผลการประเมิน"}
+                  <button className="btn btn-ghost" onClick={() => saveEval("progress")} disabled={saving}><Icon name="refresh" size={15} />บันทึกร่าง</button>
+                  <button className="btn btn-pri" style={{ flex: 1 }} onClick={() => saveEval("done")} disabled={saving || submitted}>
+                    <Icon name="check" size={16} />{submitted ? "อนุมัติแล้ว ✓" : (saving ? "กำลังบันทึก…" : "อนุมัติผลการประเมิน")}
                   </button>
                 </div>
               </div>

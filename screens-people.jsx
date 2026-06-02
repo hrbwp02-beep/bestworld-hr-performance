@@ -456,8 +456,10 @@ function EmployeeProfile({ ctx, empId }) {
   };
   const yrs = ["2565","2566","2567","2568","2569"];
   const hist = e.history.map((v, i) => ({ m: yrs[yrs.length - e.history.length + i], v }));
-  const radar = COMPETENCIES.map((c, i) => ({ id: c.id, name: c.name, v: Math.max(55, Math.min(98, e.comp + [4,-3,2,-5,6][i])) }));
+  const radar = COMPETENCIES.map((c, i) => ({ id: c.id, name: c.name, v: Math.max(55, Math.min(98, e.comp + [4,-3,2,-5,6][i % 5])) }));
   const sm = statusMeta(e.status);
+  const notRated = (e.kpi === 0 && e.comp === 0); // imported but not evaluated yet
+  const dash = (v) => (v == null || v === "" ? "—" : v);
 
   return (
     <div className="grid">
@@ -476,7 +478,7 @@ function EmployeeProfile({ ctx, empId }) {
             </div>
             <div className="muted" style={{ fontSize: 15 }}>{e.position} · {deptName(e.dept)}</div>
             <div className="row wrap" style={{ gap: 18, marginTop: 14 }}>
-              {[["รหัสพนักงาน", e.id], ["ระดับ", e.level], ["อายุงาน", e.tenure], ["ผู้ประเมิน", e.reviewer]].map(([k, v]) => (
+              {[["รหัสพนักงาน", e.id], ["ระดับ", dash(e.level)], ["วันเข้างาน", dash(e.hire_date)], ["อายุงาน", dash(e.tenure)], ["ผู้ประเมิน", dash(e.reviewer)]].map(([k, v]) => (
                 <div key={k}><div className="muted" style={{ fontSize: 11.5 }}>{k}</div><div style={{ fontSize: 13.5, fontWeight: 600 }}>{v}</div></div>
               ))}
             </div>
@@ -497,19 +499,27 @@ function EmployeeProfile({ ctx, empId }) {
           <Card>
             <CardHead title="คะแนนรวม" sub={COMPANY.cycle} />
             <div className="card-pad" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
-              <Ring value={e.overall} size={150} label={e.band.label} />
-              <div className="row" style={{ gap: 0, width: "100%", textAlign: "center" }}>
-                <div style={{ flex: 1 }}><div className="num" style={{ fontWeight: 700, fontSize: 20, color: "#2563eb" }}>{e.kpi}</div><div className="muted" style={{ fontSize: 12 }}>KPI (60%)</div></div>
-                <div style={{ width: 1, background: "var(--border)" }} />
-                <div style={{ flex: 1 }}><div className="num" style={{ fontWeight: 700, fontSize: 20, color: "#7c3aed" }}>{e.comp}</div><div className="muted" style={{ fontSize: 12 }}>Competency (40%)</div></div>
-              </div>
+              {notRated ? (
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "22px 0" }}>
+                  <span style={{ color: "var(--text-3)" }}><Icon name="clock" size={38} /></span>
+                  <div className="muted" style={{ fontSize: 14, fontWeight: 600 }}>ยังไม่ได้ประเมินรอบนี้</div>
+                  <button className="btn btn-pri btn-sm" onClick={() => ctx.startEval(e.id)}><Icon name="eval" size={15} />เริ่มประเมิน</button>
+                </div>
+              ) : (<>
+                <Ring value={e.overall} size={150} label={e.band.label} />
+                <div className="row" style={{ gap: 0, width: "100%", textAlign: "center" }}>
+                  <div style={{ flex: 1 }}><div className="num" style={{ fontWeight: 700, fontSize: 20, color: "#2563eb" }}>{e.kpi}</div><div className="muted" style={{ fontSize: 12 }}>KPI (60%)</div></div>
+                  <div style={{ width: 1, background: "var(--border)" }} />
+                  <div style={{ flex: 1 }}><div className="num" style={{ fontWeight: 700, fontSize: 20, color: "#7c3aed" }}>{e.comp}</div><div className="muted" style={{ fontSize: 12 }}>Competency (40%)</div></div>
+                </div>
+              </>)}
             </div>
           </Card>
           <Card>
             <CardHead title="ข้อมูลติดต่อ" />
             <div className="card-pad" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              {[["mail", e.email], ["phone", e.phone], ["briefcase", deptName(e.dept)], ["calendar", "เข้าทำงาน " + e.tenure + "ที่แล้ว"]].map(([ic, v]) => (
-                <div key={ic} className="row" style={{ gap: 11 }}><span style={{ color: "var(--text-3)" }}><Icon name={ic} size={17} /></span><span style={{ fontSize: 13.5 }}>{v}</span></div>
+              {[["mail", e.email || "ยังไม่ระบุอีเมล"], ["phone", e.phone || "ยังไม่ระบุเบอร์โทร"], ["briefcase", e.position + " · " + deptName(e.dept)], ["calendar", e.hire_date ? ("เข้างาน " + e.hire_date + " (" + e.tenure + ")") : "ยังไม่ระบุวันเข้างาน"]].map(([ic, v], idx) => (
+                <div key={idx} className="row" style={{ gap: 11 }}><span style={{ color: "var(--text-3)" }}><Icon name={ic} size={17} /></span><span style={{ fontSize: 13.5, color: ((ic === "mail" && !e.email) || (ic === "phone" && !e.phone) || (ic === "calendar" && !e.hire_date)) ? "var(--text-3)" : "var(--text)" }}>{v}</span></div>
               ))}
             </div>
           </Card>
@@ -519,28 +529,32 @@ function EmployeeProfile({ ctx, empId }) {
         <div className="grid">
           <Card>
             <CardHead title="สมรรถนะ (Competency)" sub="ผลประเมิน 5 ด้านหลัก" />
-            <div className="card-pad row" style={{ gap: 20, alignItems: "center", flexWrap: "wrap" }}>
-              <div style={{ flex: "0 0 250px", maxWidth: 250, margin: "0 auto" }}><Radar data={radar} size={230} /></div>
-              <div style={{ flex: 1, minWidth: 220, display: "flex", flexDirection: "column", gap: 13 }}>
-                {radar.map((c) => (
-                  <div key={c.id}>
-                    <div className="between" style={{ marginBottom: 4 }}><span style={{ fontSize: 13 }}>{c.name}</span><span className="mono" style={{ fontWeight: 600, fontSize: 13 }}>{c.v}</span></div>
-                    <ScoreBar value={c.v} />
-                  </div>
-                ))}
+            {notRated ? (
+              <div className="card-pad muted" style={{ textAlign: "center", padding: "34px 0" }}>ยังไม่มีผลประเมินสมรรถนะสำหรับรอบนี้</div>
+            ) : (
+              <div className="card-pad row" style={{ gap: 20, alignItems: "center", flexWrap: "wrap" }}>
+                <div style={{ flex: "0 0 250px", maxWidth: 250, margin: "0 auto" }}><Radar data={radar} size={230} /></div>
+                <div style={{ flex: 1, minWidth: 220, display: "flex", flexDirection: "column", gap: 13 }}>
+                  {radar.map((c) => (
+                    <div key={c.id}>
+                      <div className="between" style={{ marginBottom: 4 }}><span style={{ fontSize: 13 }}>{c.name}</span><span className="mono" style={{ fontWeight: 600, fontSize: 13 }}>{c.v}</span></div>
+                      <ScoreBar value={c.v} />
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
           </Card>
 
           <div className="grid" style={{ gridTemplateColumns: "1fr 1fr" }}>
             <Card>
               <CardHead title="ประวัติการประเมิน" sub="คะแนนรวมย้อนหลัง" />
-              <div className="card-pad"><LineChart data={hist} height={210} min={60} /></div>
+              <div className="card-pad">{hist.length ? <LineChart data={hist} height={210} min={60} /> : <div className="muted" style={{ height: 210, display: "grid", placeItems: "center", textAlign: "center" }}>ยังไม่มีประวัติการประเมินย้อนหลัง</div>}</div>
             </Card>
             <Card>
               <CardHead title="KPI หลัก" sub="ผลงานเทียบเป้าหมาย" />
               <div className="card-pad" style={{ display: "flex", flexDirection: "column", gap: 13 }}>
-                {KPI_ITEMS.slice(0, 5).map((k) => (
+                {notRated ? <div className="muted" style={{ textAlign: "center", padding: "22px 0" }}>ยังไม่มีข้อมูล KPI รายบุคคล</div> : KPI_ITEMS.slice(0, 5).map((k) => (
                   <div key={k.id}>
                     <div className="between" style={{ marginBottom: 4 }}>
                       <span style={{ fontSize: 12.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "70%" }}>{k.name}</span>

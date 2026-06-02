@@ -55,12 +55,12 @@ function LoginScreen({ onLogin, logo }) {
             ติดตาม KPI และ Competency รายบุคคล หน่วยงาน และทั้งองค์กร เชื่อมโยงกับ Job Description พร้อมรายงานเชิงลึกสำหรับฝ่าย HR และผู้บริหาร
           </p>
           <div className="row" style={{ gap: 30, marginTop: 32 }}>
-            {[["พนักงานในระบบ", "285 คน"], ["รอบประเมิน", "ปี 2568"], ["หน่วยงาน", "10 ฝ่าย"]].map(([k, v]) => (
+            {[["พนักงานในระบบ", "147 คน"], ["รอบประเมิน", "ปี 2569"], ["หน่วยงาน", "11 ฝ่าย"]].map(([k, v]) => (
               <div key={k}><div style={{ fontSize: 22, fontWeight: 700, fontFamily: "var(--mono)" }}>{v}</div><div style={{ fontSize: 12.5, color: "rgba(255,255,255,.55)" }}>{k}</div></div>
             ))}
           </div>
         </div>
-        <div style={{ fontSize: 12, color: "rgba(255,255,255,.4)" }}>© 2568 {COMPANY.full} · v2.4</div>
+        <div style={{ fontSize: 12, color: "rgba(255,255,255,.4)" }}>© 2569 {COMPANY.full} · v2.4</div>
       </div>
 
       {/* glass login card */}
@@ -116,6 +116,7 @@ const glassInput = { background: "rgba(255,255,255,.08)", border: "1px solid rgb
 function Dashboard({ ctx }) {
   const t = ctx.t;
   const layout = t.dashLayout || "airy";
+  const cy = +(window.CYCLE_YEAR || 2569);
   const topDepts = [...DEPARTMENTS].sort((a, b) => b.score - a.score);
 
   const StatRow = ({ compact }) => (
@@ -132,8 +133,8 @@ function Dashboard({ ctx }) {
     <Card>
       <CardHead title="แนวโน้มคะแนนเฉลี่ย (Performance Trend)" sub="ค่าเฉลี่ยทั้งองค์กรรายเดือน"
         right={<div className="row hide-xs" style={{ gap: 14, fontSize: 12.5 }}>
-          <span className="row" style={{ gap: 6 }}><span style={{ width: 16, height: 3, background: "#2563eb", borderRadius: 2 }} />ปี 2568</span>
-          <span className="row" style={{ gap: 6 }}><span style={{ width: 16, height: 0, borderTop: "2px dashed #cbd5e1" }} />ปี 2567</span>
+          <span className="row" style={{ gap: 6 }}><span style={{ width: 16, height: 3, background: "#2563eb", borderRadius: 2 }} />ปี {cy}</span>
+          <span className="row" style={{ gap: 6 }}><span style={{ width: 16, height: 0, borderTop: "2px dashed #cbd5e1" }} />ปี {cy - 1}</span>
         </div>} />
       <div className="card-pad"><LineChart data={TREND} prev={TREND_PREV} height={tall ? 300 : 250} /></div>
     </Card>
@@ -203,7 +204,7 @@ function Dashboard({ ctx }) {
           <p>สรุปผลการปฏิบัติงานทั้งองค์กร · {COMPANY.cycle}</p>
         </div>
         <div className="row wrap" style={{ gap: 10 }}>
-          <div className="seg"><Seg options={[{value:"2568",label:"ปี 2568"},{value:"2567",label:"ปี 2567"}]} value={ctx.year} onChange={ctx.setYear} /></div>
+          <div className="seg"><Seg options={[{value:String(cy),label:"ปี "+cy},{value:String(cy-1),label:"ปี "+(cy-1)}]} value={ctx.year} onChange={ctx.setYear} /></div>
           <button className="btn btn-ghost" onClick={async () => { await ctx.refresh(); toast("อัปเดตข้อมูลล่าสุดจากฐานข้อมูลแล้ว", "refresh"); }}><Icon name="refresh" size={16} />รีเฟรช</button>
           <button className="btn btn-ghost" onClick={() => { downloadCSV("dashboard_departments.csv", ["รหัส", "หน่วยงาน", "พนักงาน", "ประเมินแล้ว", "คะแนนเฉลี่ย", "แนวโน้ม"], DEPARTMENTS.map((d) => [d.id, d.name, d.head, d.done, d.score, d.trend])); toast("ส่งออกรายงานภาพรวมแล้ว", "download"); }}><Icon name="download" size={16} />ส่งออกรายงาน</button>
         </div>

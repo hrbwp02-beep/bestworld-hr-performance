@@ -110,6 +110,14 @@ async function loadHRData() {
     { label: "รอประเมิน", v: cnt("pending"), color: "#cbd5e1" },
   ];
 
+  // evaluation cycle year — single source of truth from app_settings
+  let cycleYear = 2569;
+  if (appSettings && appSettings.cycle_name) {
+    const ym = String(appSettings.cycle_name).match(/(25\d{2}|20\d{2})/);
+    if (ym) cycleYear = Number(ym[1]);
+  }
+  if (window.COMPANY) window.COMPANY.cycle = "รอบประเมินปี " + cycleYear;
+
   // monthly trend + competency radar from DB (fall back to static defaults if empty)
   const trCur = (trendRows || []).filter((t) => t.kind === "cur").map((t) => ({ m: t.label, v: Number(t.value) }));
   const trPrev = (trendRows || []).filter((t) => t.kind === "prev").map((t) => ({ m: t.label, v: Number(t.value) }));
@@ -119,7 +127,7 @@ async function loadHRData() {
     DEPARTMENTS: departments, COMPETENCIES: competencies, EMPLOYEES,
     JD_LIBRARY: jdLibrary, NOTIFS: notifications, KPI_ITEMS: kpiItems, JD_ITEMS: jdItems,
     KPI_DEFS, SUBMISSIONS, TEAMS: teams, SUMMARY, STATUS_PIE,
-    APP_USERS: appUsers || [], APP_SETTINGS: appSettings || null,
+    APP_USERS: appUsers || [], APP_SETTINGS: appSettings || null, CYCLE_YEAR: cycleYear,
     ...(trCur.length ? { TREND: trCur } : {}),
     ...(trPrev.length ? { TREND_PREV: trPrev } : {}),
     ...(compRadar.length ? { COMP_RADAR: compRadar } : {}),

@@ -384,7 +384,7 @@ function CompetencyModal({ comp, ctx, onClose }) {
 
 function Settings({ ctx }) {
   const s = window.APP_SETTINGS || {};
-  const [cycleName, setCycleName] = useS4(s.cycle_name || "รอบประเมินผลประจำปี 2568");
+  const [cycleName, setCycleName] = useS4(s.cycle_name || "รอบประเมินผลประจำปี 2569");
   const [startDate, setStartDate] = useS4(s.start_date || "2025-05-01");
   const [endDate, setEndDate] = useS4(s.end_date || "2025-06-15");
   const [evalOpen, setEvalOpen] = useS4(s.eval_open !== false);

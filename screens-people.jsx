@@ -454,7 +454,7 @@ function EmployeeProfile({ ctx, empId }) {
     if (error) { toast("ลบไม่สำเร็จ: " + error.message, "x"); return; }
     await ctx.refresh(); toast("ลบพนักงานแล้ว", "check"); ctx.go("employee");
   };
-  const yrs = ["2564","2565","2566","2567","2568"];
+  const yrs = ["2565","2566","2567","2568","2569"];
   const hist = e.history.map((v, i) => ({ m: yrs[yrs.length - e.history.length + i], v }));
   const radar = COMPETENCIES.map((c, i) => ({ id: c.id, name: c.name, v: Math.max(55, Math.min(98, e.comp + [4,-3,2,-5,6][i])) }));
   const sm = statusMeta(e.status);

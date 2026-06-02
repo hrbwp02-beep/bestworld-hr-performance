@@ -88,8 +88,8 @@ function EmployeeModal({ emp, ctx, onClose }) {
 /* ---------- Excel import ---------- */
 function downloadEmpTemplate() {
   downloadCSV("employee_import_template.csv",
-    ["ชื่อ-นามสกุล", "หน่วยงาน", "ตำแหน่ง", "ระดับ", "วันเข้างาน", "อีเมล", "เบอร์โทร", "KPI", "Competency"],
-    [["สมหญิง ใจดี", "prod", "พนักงานควบคุมเครื่องฉีด", "ปฏิบัติการ", "2023-03-15", "somying@bestworld.co.th", "0810000000", "78", "80"]]);
+    ["รหัสพนักงาน", "ชื่อ-นามสกุล", "หน่วยงาน", "ตำแหน่ง", "ระดับ", "วันเข้างาน", "อีเมล", "เบอร์โทร", "KPI", "Competency"],
+    [["EMP001", "สมหญิง ใจดี", "prod", "พนักงานควบคุมเครื่องฉีด", "ปฏิบัติการ", "2023-03-15", "somying@bestworld.co.th", "0810000000", "78", "80"]]);
 }
 
 function ImportEmployeesModal({ ctx, onClose }) {
@@ -155,6 +155,7 @@ function ImportEmployeesModal({ ctx, onClose }) {
         if (!name) { errs.push({ row: i + 2, msg: "ไม่มีชื่อ" }); return; }
         if (!dept) { errs.push({ row: i + 2, msg: "หน่วยงานไม่ถูกต้อง (" + get("หน่วยงาน", "แผนก", "dept") + ")" }); return; }
         ok.push({
+          code: String(get("รหัสพนักงาน", "รหัส", "employee_id", "empid", "emp_id", "code")).trim(),
           name, dept, position: String(get("ตำแหน่ง", "position") || "-").trim(),
           level: String(get("ระดับ", "level") || "ปฏิบัติการ").trim(),
           hire_date: fmtDate(get("วันเข้างาน", "วันที่เข้างาน", "hire_date")),
@@ -175,17 +176,21 @@ function ImportEmployeesModal({ ctx, onClose }) {
     setBusy(true);
     const norm = (s) => String(s || "").replace(/\s+/g, " ").trim().toLowerCase();
     const existing = window.EMPLOYEES || [];
+    const byId = {};
+    existing.forEach((e) => { byId[e.id] = e; });
     const byKey = {};
     existing.forEach((e) => { const k = norm(e.name) + "|" + e.dept; if (!(k in byKey)) byKey[k] = e; });
     const palette = ["#2563eb", "#0d9488", "#7c3aed", "#db2777", "#0ea5e9", "#e08a00", "#16a34a"];
     const nums = existing.map((x) => parseInt(String(x.id).replace(/\D/g, ""), 10)).filter((n) => !isNaN(n));
     let next = (nums.length ? Math.max(...nums) : 999) + 1;
 
-    const inserts = [], updates = [];
+    const inserts = [], updates = [], seen = {};
     rows.forEach((r) => {
-      const match = updateMode ? byKey[norm(r.name) + "|" + r.dept] : null;
+      // match by real employee code first (authoritative), else by name+dept in update mode
+      const match = r.code ? byId[r.code] : (updateMode ? byKey[norm(r.name) + "|" + r.dept] : null);
       if (match) {
         const fields = {};
+        if (r.code) { fields.name = r.name; fields.dept = r.dept; } // code is the key → name/dept may be corrected
         if (r.hire_date) { fields.hire_date = r.hire_date; fields.tenure = tenureFrom(r.hire_date); }
         if (r.position && r.position !== "-") fields.position = r.position;
         if (r.level) fields.level = r.level;
@@ -196,21 +201,33 @@ function ImportEmployeesModal({ ctx, onClose }) {
         inserts.push(r);
       }
     });
-    const payload = inserts.map((r, i) => ({ ...r, id: "E" + (next + i), tenure: r.hire_date ? tenureFrom(r.hire_date) : null, color: palette[(existing.length + i) % 7], history: [], sort: existing.length + i }));
+    const payload = [];
+    inserts.forEach((r, i) => {
+      const { code, ...rest } = r;
+      const id = code || ("E" + (next + i));
+      if (seen[id]) return; // avoid duplicate ids within the same file
+      seen[id] = 1;
+      payload.push({ ...rest, id, tenure: r.hire_date ? tenureFrom(r.hire_date) : null, color: palette[(existing.length + i) % 7], history: [], sort: existing.length + i });
+    });
 
     let okIns = 0, okUpd = 0, errMsg = null;
-    if (payload.length) { const { error } = await window.sb.from("employees").insert(payload); if (error) errMsg = error.message; else okIns = payload.length; }
-    // run updates in parallel chunks
-    for (let i = 0; i < updates.length; i += 25) {
-      const chunk = updates.slice(i, i + 25);
-      const res = await Promise.all(chunk.map((u) => window.sb.from("employees").update(u.fields).eq("id", u.id)));
-      res.forEach((r) => { if (r.error) errMsg = r.error.message; else okUpd++; });
+    try {
+      if (payload.length) { const { error } = await window.sb.from("employees").insert(payload); if (error) errMsg = error.message; else okIns = payload.length; }
+      // run updates in parallel chunks
+      for (let i = 0; i < updates.length; i += 25) {
+        const chunk = updates.slice(i, i + 25);
+        const res = await Promise.all(chunk.map((u) => window.sb.from("employees").update(u.fields).eq("id", u.id)));
+        res.forEach((rr) => { if (rr.error) errMsg = rr.error.message; else okUpd++; });
+      }
+      if (errMsg && !okIns && !okUpd) { toast("นำเข้าไม่สำเร็จ: " + errMsg, "x"); return; }
+      await ctx.refresh();
+      toast("สำเร็จ — เพิ่มใหม่ " + okIns + " · อัปเดต " + okUpd + (errMsg ? " (บางรายการพลาด)" : ""), "check");
+      onClose();
+    } catch (e) {
+      toast("เกิดข้อผิดพลาด: " + (e && e.message ? e.message : e), "x");
+    } finally {
+      setBusy(false);
     }
-    setBusy(false);
-    if (errMsg && !okIns && !okUpd) { toast("นำเข้าไม่สำเร็จ: " + errMsg, "x"); return; }
-    await ctx.refresh();
-    toast("สำเร็จ — เพิ่มใหม่ " + okIns + " · อัปเดต " + okUpd + (errMsg ? " (บางรายการพลาด)" : ""), "check");
-    onClose();
   };
 
   return (
@@ -220,15 +237,15 @@ function ImportEmployeesModal({ ctx, onClose }) {
         <button className="btn btn-pri" onClick={doImport} disabled={busy || !rows.length}><Icon name="upload" size={15} />{busy ? "กำลังนำเข้า…" : ("นำเข้า " + rows.length + " รายการ")}</button>
       </>}>
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-        <div className="muted" style={{ fontSize: 13, lineHeight: 1.7 }}>รองรับ <b>.xlsx / .xls / .csv</b> · คอลัมน์: ชื่อ-นามสกุล, หน่วยงาน, ตำแหน่ง, ระดับ, วันเข้างาน, อีเมล, เบอร์โทร, KPI, Competency · วันเข้างานรับทั้ง <b>วว/ดด/ปปปป</b>, ปี พ.ศ./ค.ศ. และวันที่ของ Excel · <a href="#" onClick={(e) => { e.preventDefault(); downloadEmpTemplate(); }} style={{ color: "var(--accent)", fontWeight: 600 }}>ดาวน์โหลดเทมเพลต</a></div>
+        <div className="muted" style={{ fontSize: 13, lineHeight: 1.7 }}>รองรับ <b>.xlsx / .xls / .csv</b> · คอลัมน์: <b>รหัสพนักงาน</b> (ถ้ามี — ใช้แทนรหัสอัตโนมัติ), ชื่อ-นามสกุล, หน่วยงาน, ตำแหน่ง, ระดับ, วันเข้างาน, อีเมล, เบอร์โทร, KPI, Competency · วันเข้างานรับทั้ง <b>วว/ดด/ปปปป</b>, ปี พ.ศ./ค.ศ. และวันที่ของ Excel · <a href="#" onClick={(e) => { e.preventDefault(); downloadEmpTemplate(); }} style={{ color: "var(--accent)", fontWeight: 600 }}>ดาวน์โหลดเทมเพลต</a></div>
         <input type="file" accept=".xlsx,.xls,.csv" onChange={onFile} className="input" />
         <label className="row" style={{ gap: 8, fontSize: 12.5, cursor: "pointer", alignItems: "flex-start" }}><input type="checkbox" checked={updateMode} onChange={(e) => setUpdateMode(e.target.checked)} style={{ width: 16, height: 16, accentColor: "var(--accent)", marginTop: 1 }} /> <span>อัปเดตถ้ามีชื่อซ้ำ (จับคู่ ชื่อ+หน่วยงาน) แทนการสร้างใหม่ — ใช้ตอนนำเข้าไฟล์เดิมซ้ำเพื่อเติมข้อมูลที่ขาด</span></label>
         {fileName && <div className="muted" style={{ fontSize: 12.5 }}>ไฟล์: {fileName} · พร้อมนำเข้า <b style={{ color: "var(--green)" }}>{rows.length}</b> · ข้าม <b style={{ color: "var(--amber)" }}>{errors.length}</b>{rows.filter((r) => !r.hire_date).length > 0 && <> · <b style={{ color: "var(--amber)" }}>ไม่มีวันเข้างาน {rows.filter((r) => !r.hire_date).length}</b></>}</div>}
         {errors.length > 0 && <div style={{ padding: "10px 13px", borderRadius: 10, background: "var(--amber-soft)", color: "#b45309", fontSize: 12.5, maxHeight: 110, overflowY: "auto" }}>{errors.slice(0, 12).map((e, i) => <div key={i}>แถว {e.row}: {e.msg}</div>)}</div>}
         {rows.length > 0 && (
           <div className="tbl-wrap" style={{ maxHeight: 240, overflowY: "auto", border: "1px solid var(--border)", borderRadius: 10 }}>
-            <table className="tbl"><thead><tr><th>ชื่อ</th><th>หน่วยงาน</th><th>ตำแหน่ง</th><th>วันเข้างาน</th></tr></thead>
-              <tbody>{rows.slice(0, 50).map((r, i) => <tr key={i}><td>{r.name}</td><td>{deptShort(r.dept)}</td><td className="muted">{r.position}</td><td className="mono" style={{ color: r.hire_date ? "var(--text)" : "var(--amber)", fontWeight: r.hire_date ? 400 : 600 }}>{r.hire_date || "ไม่มี"}</td></tr>)}</tbody></table>
+            <table className="tbl"><thead><tr><th>รหัส</th><th>ชื่อ</th><th>หน่วยงาน</th><th>วันเข้างาน</th></tr></thead>
+              <tbody>{rows.slice(0, 50).map((r, i) => <tr key={i}><td className="mono" style={{ fontSize: 12 }}>{r.code || "(อัตโนมัติ)"}</td><td>{r.name}</td><td>{deptShort(r.dept)}</td><td className="mono" style={{ color: r.hire_date ? "var(--text)" : "var(--amber)", fontWeight: r.hire_date ? 400 : 600 }}>{r.hire_date || "ไม่มี"}</td></tr>)}</tbody></table>
           </div>
         )}
       </div>

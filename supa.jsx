@@ -60,7 +60,9 @@ async function loadHRData() {
     const overall = Math.round((e.kpi * 0.6 + e.comp * 0.4) * 10) / 10;
     const parts = (e.name || "").split(" ");
     const initials = (parts[0] ? parts[0][0] : "") + (parts[1] ? parts[1][0] : "");
-    return { ...e, overall, initials, band: bandOf(overall) };
+    // อายุงาน is computed live from hire_date when available
+    const tenure = e.hire_date ? tenureFrom(e.hire_date) : e.tenure;
+    return { ...e, tenure, overall, initials, band: bandOf(overall) };
   });
 
   // kpi_defs → shape back into the nested form { target:{m,q,y}, range:[lo,hi], … }

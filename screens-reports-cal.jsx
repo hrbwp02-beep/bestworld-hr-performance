@@ -366,6 +366,7 @@ function Settings({ ctx }) {
   const [w, setW] = useS4({ kpi: s.w_kpi != null ? s.w_kpi : 50, comp: s.w_comp != null ? s.w_comp : 25, jd: s.w_jd != null ? s.w_jd : 25 });
   const [userModal, setUserModal] = useS4(null);   // false=add(via {}), object=edit, null=closed
   const [compModal, setCompModal] = useS4(null);
+  const [deptModal, setDeptModal] = useS4(null);
   const [busy, setBusy] = useS4(false);
   const total = w.kpi + w.comp + w.jd;
   const users = window.APP_USERS || [];
@@ -472,6 +473,24 @@ function Settings({ ctx }) {
             })}
           </div>
         </Card>
+
+        <Card>
+          <CardHead title="หน่วยงาน (Department)" sub={`${(window.DEPARTMENTS || []).length} หน่วยงาน`} right={<button className="btn btn-soft btn-sm" onClick={() => setDeptModal({})}><Icon name="plus" size={14} />เพิ่มหน่วยงาน</button>} />
+          <div style={{ padding: "8px 12px", maxHeight: 320, overflowY: "auto" }}>
+            {(window.DEPARTMENTS || []).map((dp) => (
+              <div key={dp.id} className="between" style={{ padding: "11px 10px", borderBottom: "1px solid var(--border-2)", gap: 10 }}>
+                <div className="row" style={{ gap: 10, minWidth: 0 }}>
+                  <span className="tag-dot" style={{ background: dp.color, width: 11, height: 11 }} />
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontWeight: 600, fontSize: 13.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{dp.name}</div>
+                    <div className="muted" style={{ fontSize: 12 }}>{dp.short} · {dp.head} คน · เฉลี่ย {dp.score}</div>
+                  </div>
+                </div>
+                <button className="icon-btn" style={{ width: 32, height: 32 }} onClick={() => setDeptModal(dp)}><Icon name="edit" size={14} /></button>
+              </div>
+            ))}
+          </div>
+        </Card>
       </div>
 
       <div className="row" style={{ justifyContent: "flex-end", gap: 10 }}>
@@ -481,6 +500,7 @@ function Settings({ ctx }) {
 
       {userModal && <UserModal user={userModal.id ? userModal : null} ctx={ctx} onClose={() => setUserModal(null)} />}
       {compModal && <CompetencyModal comp={compModal.id ? compModal : null} ctx={ctx} onClose={() => setCompModal(null)} />}
+      {deptModal && <DepartmentModal dep={deptModal.id ? deptModal : null} ctx={ctx} onClose={() => setDeptModal(null)} />}
     </div>
   );
 }

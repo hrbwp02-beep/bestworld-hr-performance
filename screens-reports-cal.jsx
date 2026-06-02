@@ -317,8 +317,15 @@ function UserModal({ user, ctx, onClose }) {
           <div className="field"><label>บทบาท / สิทธิ์</label><select className="select" value={f.role} onChange={(e) => set("role", e.target.value)}>{ROLES.map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}</select></div>
           <div className="field"><label>หน่วยงาน</label><select className="select" value={f.dept} onChange={(e) => set("dept", e.target.value)}><option value="">— ไม่ระบุ —</option>{(window.DEPARTMENTS || []).map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}</select></div>
         </div>
-        <div className="muted" style={{ fontSize: 12.5, background: "var(--surface-2)", borderRadius: 9, padding: "10px 13px" }}>{roleMeta(f.role).desc}</div>
-        <label className="row" style={{ gap: 8, fontSize: 13.5, cursor: "pointer" }}><input type="checkbox" checked={f.active} onChange={(e) => set("active", e.target.checked)} style={{ width: 16, height: 16, accentColor: "var(--accent)" }} /> เปิดใช้งานบัญชี</label>
+        <div style={{ background: "var(--surface-2)", borderRadius: 10, padding: "12px 14px" }}>
+          <div className="row" style={{ gap: 8, marginBottom: 8 }}><Icon name="lock" size={15} color="var(--accent-700)" /><b style={{ fontSize: 13 }}>สิทธิ์ของบทบาท “{roleMeta(f.role).label}”</b></div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+            {(roleMeta(f.role).perms || [roleMeta(f.role).desc]).map((p, i) => (
+              <div key={i} className="row" style={{ gap: 8, fontSize: 12.5, color: "var(--text-2)" }}><Icon name="check" size={14} color="#16a34a" stroke={2.6} />{p}</div>
+            ))}
+          </div>
+        </div>
+        <label className="row" style={{ gap: 8, fontSize: 13.5, cursor: "pointer" }}><input type="checkbox" checked={f.active} onChange={(e) => set("active", e.target.checked)} style={{ width: 16, height: 16, accentColor: "var(--accent)" }} /> เปิดใช้งานบัญชี (ปิดเพื่อระงับการเข้าถึงชั่วคราว)</label>
       </div>
     </Modal>
   );
@@ -450,6 +457,9 @@ function Settings({ ctx }) {
         <Card>
           <CardHead title="สิทธิ์ผู้ใช้งาน" sub={`${users.length} ผู้ใช้ในระบบ`} right={<button className="btn btn-soft btn-sm" onClick={() => setUserModal({})}><Icon name="plus" size={14} />เพิ่มผู้ใช้</button>} />
           <div style={{ padding: "8px 12px" }}>
+            <div style={{ fontSize: 12, background: "var(--accent-soft)", color: "var(--accent-700)", borderRadius: 9, padding: "9px 12px", margin: "4px 2px 10px", lineHeight: 1.7 }}>
+              กำหนด<b>บทบาทและสิทธิ์</b>ของผู้ใช้แต่ละคน · สลับสวิตช์เพื่อ<b>เปิด/ปิดการเข้าถึง</b> · <Icon name="edit" size={12} /> แก้ไข · <Icon name="x" size={12} /> ลบ
+            </div>
             {users.length === 0 && <div className="muted" style={{ padding: "16px 10px", fontSize: 13 }}>ยังไม่มีผู้ใช้ — กด “เพิ่มผู้ใช้”</div>}
             {users.map((u) => {
               const rm = roleMeta(u.role);
@@ -464,9 +474,9 @@ function Settings({ ctx }) {
                   </div>
                   <div className="row" style={{ gap: 6 }}>
                     <Badge cls={rm.cls} dot>{rm.label}</Badge>
-                    <Toggle on={u.active} onChange={(v) => toggleUser(u, v)} />
-                    <button className="icon-btn" style={{ width: 32, height: 32 }} onClick={() => setUserModal(u)}><Icon name="edit" size={14} /></button>
-                    <button className="icon-btn" style={{ width: 32, height: 32 }} onClick={() => delUser(u)}><Icon name="x" size={15} color="var(--red)" /></button>
+                    <span title={u.active ? "กำลังเปิดใช้งาน — กดเพื่อระงับการเข้าถึง" : "ถูกระงับ — กดเพื่อเปิดใช้งาน"}><Toggle on={u.active} onChange={(v) => toggleUser(u, v)} /></span>
+                    <button className="icon-btn" style={{ width: 32, height: 32 }} title="แก้ไขบทบาท/ข้อมูล" onClick={() => setUserModal(u)}><Icon name="edit" size={14} /></button>
+                    <button className="icon-btn" style={{ width: 32, height: 32 }} title="ลบผู้ใช้" onClick={() => delUser(u)}><Icon name="x" size={15} color="var(--red)" /></button>
                   </div>
                 </div>
               );

@@ -31,6 +31,22 @@ function statusMeta(s) {
 const deptName = (id) => ((window.DEPARTMENTS || []).find((d) => d.id === id) || {}).name || id;
 const deptShort = (id) => ((window.DEPARTMENTS || []).find((d) => d.id === id) || {}).short || id;
 
+// อายุงาน — compute from hire date (วันเข้างาน) relative to today
+function tenureFrom(hireDate) {
+  if (!hireDate) return "—";
+  const start = new Date(hireDate);
+  if (isNaN(start.getTime())) return "—";
+  const now = new Date();
+  let months = (now.getFullYear() - start.getFullYear()) * 12 + (now.getMonth() - start.getMonth());
+  if (now.getDate() < start.getDate()) months--;
+  if (months < 0) months = 0;
+  const y = Math.floor(months / 12), m = months % 12;
+  const parts = [];
+  if (y > 0) parts.push(y + " ปี");
+  if (m > 0) parts.push(m + " เดือน");
+  return parts.length ? parts.join(" ") : "น้อยกว่า 1 เดือน";
+}
+
 // ---------- presentational analytics (historical chart constants) ----------
 // performance trend (company avg by month)
 const TREND = [
@@ -70,5 +86,5 @@ const NINEBOX = {
 
 Object.assign(window, {
   COMPANY, TREND, TREND_PREV, COMP_RADAR, NINEBOX,
-  bandOf, statusMeta, deptName, deptShort,
+  bandOf, statusMeta, deptName, deptShort, tenureFrom,
 });

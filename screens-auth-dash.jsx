@@ -90,7 +90,7 @@ function LoginScreen({ onLogin, logo }) {
             <label className="row" style={{ gap: 8, color: "rgba(255,255,255,.78)", fontSize: 13.5, cursor: "pointer" }}>
               <input type="checkbox" defaultChecked style={{ accentColor: "#5b8def", width: 16, height: 16 }} /> จดจำการเข้าสู่ระบบ
             </label>
-            <a href="#" onClick={(e) => { e.preventDefault(); toast("ส่งลิงก์รีเซ็ตรหัสผ่านไปยังอีเมลแล้ว", "mail"); }} style={{ color: "#9dc0ff", fontSize: 13.5, textDecoration: "none", fontWeight: 600 }}>ลืมรหัสผ่าน?</a>
+            <a href="#" onClick={async (e) => { e.preventDefault(); if (!u.trim()) { toast("กรุณากรอกอีเมลก่อน", "mail"); return; } const { error } = await window.sb.auth.resetPasswordForEmail(u.trim()); toast(error ? ("ส่งไม่สำเร็จ: " + error.message) : "ส่งลิงก์รีเซ็ตรหัสผ่านไปยังอีเมลแล้ว", "mail"); }} style={{ color: "#9dc0ff", fontSize: 13.5, textDecoration: "none", fontWeight: 600 }}>ลืมรหัสผ่าน?</a>
           </div>
           {err && (
             <div style={{ marginBottom: 14, padding: "10px 13px", borderRadius: 10, background: "rgba(225,29,72,.18)", border: "1px solid rgba(255,140,160,.4)", color: "#ffd5dd", fontSize: 13 }}>
@@ -204,7 +204,8 @@ function Dashboard({ ctx }) {
         </div>
         <div className="row wrap" style={{ gap: 10 }}>
           <div className="seg"><Seg options={[{value:"2568",label:"ปี 2568"},{value:"2567",label:"ปี 2567"}]} value={ctx.year} onChange={ctx.setYear} /></div>
-          <button className="btn btn-ghost" onClick={() => toast("กำลังเตรียมไฟล์รายงาน…", "download")}><Icon name="download" size={16} />ส่งออกรายงาน</button>
+          <button className="btn btn-ghost" onClick={async () => { await ctx.refresh(); toast("อัปเดตข้อมูลล่าสุดจากฐานข้อมูลแล้ว", "refresh"); }}><Icon name="refresh" size={16} />รีเฟรช</button>
+          <button className="btn btn-ghost" onClick={() => { downloadCSV("dashboard_departments.csv", ["รหัส", "หน่วยงาน", "พนักงาน", "ประเมินแล้ว", "คะแนนเฉลี่ย", "แนวโน้ม"], DEPARTMENTS.map((d) => [d.id, d.name, d.head, d.done, d.score, d.trend])); toast("ส่งออกรายงานภาพรวมแล้ว", "download"); }}><Icon name="download" size={16} />ส่งออกรายงาน</button>
         </div>
       </div>
 

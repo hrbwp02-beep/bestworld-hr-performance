@@ -97,23 +97,43 @@ function ImportEmployeesModal({ ctx, onClose }) {
   const [errors, setErrors] = useS2([]);
   const [fileName, setFileName] = useS2("");
   const [busy, setBusy] = useS2(false);
+  const [updateMode, setUpdateMode] = useS2(true);
 
   const deptKey = (v) => {
     const s = String(v || "").trim();
     const d = (window.DEPARTMENTS || []).find((x) => x.id === s || x.name === s || x.short === s);
     return d ? d.id : null;
   };
+  const iso = (y, mo, d) => (y > 2400 ? y - 543 : y) + "-" + String(mo).padStart(2, "0") + "-" + String(d).padStart(2, "0");
+  const TH_MON = { "ม.ค.": 1, "มกราคม": 1, "ก.พ.": 2, "กุมภาพันธ์": 2, "มี.ค.": 3, "มีนาคม": 3, "เม.ย.": 4, "เมษายน": 4, "พ.ค.": 5, "พฤษภาคม": 5, "มิ.ย.": 6, "มิถุนายน": 6, "ก.ค.": 7, "กรกฎาคม": 7, "ส.ค.": 8, "สิงหาคม": 8, "ก.ย.": 9, "กันยายน": 9, "ต.ค.": 10, "ตุลาคม": 10, "พ.ย.": 11, "พฤศจิกายน": 11, "ธ.ค.": 12, "ธันวาคม": 12 };
   const fmtDate = (v) => {
     if (v == null || v === "") return null;
-    if (v instanceof Date && !isNaN(v.getTime())) return v.toISOString().slice(0, 10);
-    const s = String(v).trim();
-    if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
-    // Excel serial date number (SheetJS may infer dates as serials)
+    // real Date cell (use local parts to avoid UTC off-by-one)
+    if (v instanceof Date && !isNaN(v.getTime())) return iso(v.getFullYear(), v.getMonth() + 1, v.getDate());
+    let s = String(v).trim();
+    if (!s) return null;
+    // Excel serial number
     if (/^\d+(\.\d+)?$/.test(s) && window.XLSX && window.XLSX.SSF) {
       const dc = window.XLSX.SSF.parse_date_code(Number(s));
-      if (dc && dc.y) return dc.y + "-" + String(dc.m).padStart(2, "0") + "-" + String(dc.d).padStart(2, "0");
+      if (dc && dc.y) return iso(dc.y, dc.m, dc.d);
     }
-    const d = new Date(s); return isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
+    // ISO: YYYY-MM-DD or YYYY/MM/DD (year may be Buddhist)
+    let m = s.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/);
+    if (m) return iso(+m[1], +m[2], +m[3]);
+    // Thai month name: "2 ม.ค. 2569" / "2 มกราคม 2569"
+    m = s.match(/^(\d{1,2})\s*([^\d\s]+)\.?\s*(\d{2,4})$/);
+    if (m && TH_MON[m[2]] != null) { let y = +m[3]; if (y < 100) y += 2500; return iso(y, TH_MON[m[2]], +m[1]); }
+    // DD/MM/YYYY (or - .) — Thai style, day first; year may be Buddhist or 2-digit
+    m = s.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})/);
+    if (m) {
+      let a = +m[1], b = +m[2], y = +m[3], d, mo;
+      if (a > 12 && b <= 12) { d = a; mo = b; }
+      else if (b > 12 && a <= 12) { d = b; mo = a; }
+      else { d = a; mo = b; } // ambiguous → assume DD/MM
+      if (y < 100) y += (y >= 50 ? 2443 : 2543); // 2-digit → Buddhist-era guess, iso() converts to CE
+      if (mo >= 1 && mo <= 12 && d >= 1 && d <= 31) return iso(y, mo, d);
+    }
+    const dd = new Date(s); return isNaN(dd.getTime()) ? null : iso(dd.getFullYear(), dd.getMonth() + 1, dd.getDate());
   };
 
   const onFile = async (ev) => {
@@ -124,7 +144,7 @@ function ImportEmployeesModal({ ctx, onClose }) {
       // CSV must be decoded as UTF-8 text (SheetJS treats raw bytes as Latin-1);
       // real .xlsx is a zip with UTF-8 inside, so the binary path is correct there.
       const wb = isCsv
-        ? window.XLSX.read(await file.text(), { type: "string" })
+        ? window.XLSX.read(await file.text(), { type: "string", raw: true }) // raw: keep cells as text so we control date parsing (Thai DD/MM)
         : window.XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: true });
       const data = window.XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: "" });
       const ok = [], errs = [];
@@ -153,16 +173,43 @@ function ImportEmployeesModal({ ctx, onClose }) {
   const doImport = async () => {
     if (!rows.length) return;
     setBusy(true);
-    const nums = (window.EMPLOYEES || []).map((x) => parseInt(String(x.id).replace(/\D/g, ""), 10)).filter((n) => !isNaN(n));
-    let next = (nums.length ? Math.max(...nums) : 999) + 1;
-    const base = (window.EMPLOYEES || []).length;
+    const norm = (s) => String(s || "").replace(/\s+/g, " ").trim().toLowerCase();
+    const existing = window.EMPLOYEES || [];
+    const byKey = {};
+    existing.forEach((e) => { const k = norm(e.name) + "|" + e.dept; if (!(k in byKey)) byKey[k] = e; });
     const palette = ["#2563eb", "#0d9488", "#7c3aed", "#db2777", "#0ea5e9", "#e08a00", "#16a34a"];
-    const payload = rows.map((r, i) => ({ ...r, id: "E" + (next + i), tenure: r.hire_date ? tenureFrom(r.hire_date) : null, color: palette[(base + i) % 7], history: [], sort: base + i }));
-    const { error } = await window.sb.from("employees").insert(payload);
+    const nums = existing.map((x) => parseInt(String(x.id).replace(/\D/g, ""), 10)).filter((n) => !isNaN(n));
+    let next = (nums.length ? Math.max(...nums) : 999) + 1;
+
+    const inserts = [], updates = [];
+    rows.forEach((r) => {
+      const match = updateMode ? byKey[norm(r.name) + "|" + r.dept] : null;
+      if (match) {
+        const fields = {};
+        if (r.hire_date) { fields.hire_date = r.hire_date; fields.tenure = tenureFrom(r.hire_date); }
+        if (r.position && r.position !== "-") fields.position = r.position;
+        if (r.level) fields.level = r.level;
+        if (r.email) fields.email = r.email;
+        if (r.phone) fields.phone = r.phone;
+        if (Object.keys(fields).length) updates.push({ id: match.id, fields });
+      } else {
+        inserts.push(r);
+      }
+    });
+    const payload = inserts.map((r, i) => ({ ...r, id: "E" + (next + i), tenure: r.hire_date ? tenureFrom(r.hire_date) : null, color: palette[(existing.length + i) % 7], history: [], sort: existing.length + i }));
+
+    let okIns = 0, okUpd = 0, errMsg = null;
+    if (payload.length) { const { error } = await window.sb.from("employees").insert(payload); if (error) errMsg = error.message; else okIns = payload.length; }
+    // run updates in parallel chunks
+    for (let i = 0; i < updates.length; i += 25) {
+      const chunk = updates.slice(i, i + 25);
+      const res = await Promise.all(chunk.map((u) => window.sb.from("employees").update(u.fields).eq("id", u.id)));
+      res.forEach((r) => { if (r.error) errMsg = r.error.message; else okUpd++; });
+    }
     setBusy(false);
-    if (error) { toast("นำเข้าไม่สำเร็จ: " + error.message, "x"); return; }
+    if (errMsg && !okIns && !okUpd) { toast("นำเข้าไม่สำเร็จ: " + errMsg, "x"); return; }
     await ctx.refresh();
-    toast("นำเข้าพนักงาน " + payload.length + " คนแล้ว", "check");
+    toast("สำเร็จ — เพิ่มใหม่ " + okIns + " · อัปเดต " + okUpd + (errMsg ? " (บางรายการพลาด)" : ""), "check");
     onClose();
   };
 
@@ -173,14 +220,15 @@ function ImportEmployeesModal({ ctx, onClose }) {
         <button className="btn btn-pri" onClick={doImport} disabled={busy || !rows.length}><Icon name="upload" size={15} />{busy ? "กำลังนำเข้า…" : ("นำเข้า " + rows.length + " รายการ")}</button>
       </>}>
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-        <div className="muted" style={{ fontSize: 13, lineHeight: 1.7 }}>รองรับไฟล์ <b>.xlsx / .xls / .csv</b> · คอลัมน์: ชื่อ-นามสกุล, หน่วยงาน (ชื่อหรือรหัส เช่น prod), ตำแหน่ง, ระดับ, วันเข้างาน (YYYY-MM-DD), อีเมล, เบอร์โทร, KPI, Competency · <a href="#" onClick={(e) => { e.preventDefault(); downloadEmpTemplate(); }} style={{ color: "var(--accent)", fontWeight: 600 }}>ดาวน์โหลดเทมเพลต</a></div>
+        <div className="muted" style={{ fontSize: 13, lineHeight: 1.7 }}>รองรับ <b>.xlsx / .xls / .csv</b> · คอลัมน์: ชื่อ-นามสกุล, หน่วยงาน, ตำแหน่ง, ระดับ, วันเข้างาน, อีเมล, เบอร์โทร, KPI, Competency · วันเข้างานรับทั้ง <b>วว/ดด/ปปปป</b>, ปี พ.ศ./ค.ศ. และวันที่ของ Excel · <a href="#" onClick={(e) => { e.preventDefault(); downloadEmpTemplate(); }} style={{ color: "var(--accent)", fontWeight: 600 }}>ดาวน์โหลดเทมเพลต</a></div>
         <input type="file" accept=".xlsx,.xls,.csv" onChange={onFile} className="input" />
-        {fileName && <div className="muted" style={{ fontSize: 12.5 }}>ไฟล์: {fileName} · พร้อมนำเข้า <b style={{ color: "var(--green)" }}>{rows.length}</b> · ข้าม <b style={{ color: "var(--amber)" }}>{errors.length}</b></div>}
+        <label className="row" style={{ gap: 8, fontSize: 12.5, cursor: "pointer", alignItems: "flex-start" }}><input type="checkbox" checked={updateMode} onChange={(e) => setUpdateMode(e.target.checked)} style={{ width: 16, height: 16, accentColor: "var(--accent)", marginTop: 1 }} /> <span>อัปเดตถ้ามีชื่อซ้ำ (จับคู่ ชื่อ+หน่วยงาน) แทนการสร้างใหม่ — ใช้ตอนนำเข้าไฟล์เดิมซ้ำเพื่อเติมข้อมูลที่ขาด</span></label>
+        {fileName && <div className="muted" style={{ fontSize: 12.5 }}>ไฟล์: {fileName} · พร้อมนำเข้า <b style={{ color: "var(--green)" }}>{rows.length}</b> · ข้าม <b style={{ color: "var(--amber)" }}>{errors.length}</b>{rows.filter((r) => !r.hire_date).length > 0 && <> · <b style={{ color: "var(--amber)" }}>ไม่มีวันเข้างาน {rows.filter((r) => !r.hire_date).length}</b></>}</div>}
         {errors.length > 0 && <div style={{ padding: "10px 13px", borderRadius: 10, background: "var(--amber-soft)", color: "#b45309", fontSize: 12.5, maxHeight: 110, overflowY: "auto" }}>{errors.slice(0, 12).map((e, i) => <div key={i}>แถว {e.row}: {e.msg}</div>)}</div>}
         {rows.length > 0 && (
           <div className="tbl-wrap" style={{ maxHeight: 240, overflowY: "auto", border: "1px solid var(--border)", borderRadius: 10 }}>
             <table className="tbl"><thead><tr><th>ชื่อ</th><th>หน่วยงาน</th><th>ตำแหน่ง</th><th>วันเข้างาน</th></tr></thead>
-              <tbody>{rows.slice(0, 50).map((r, i) => <tr key={i}><td>{r.name}</td><td>{deptShort(r.dept)}</td><td className="muted">{r.position}</td><td className="mono">{r.hire_date || "—"}</td></tr>)}</tbody></table>
+              <tbody>{rows.slice(0, 50).map((r, i) => <tr key={i}><td>{r.name}</td><td>{deptShort(r.dept)}</td><td className="muted">{r.position}</td><td className="mono" style={{ color: r.hire_date ? "var(--text)" : "var(--amber)", fontWeight: r.hire_date ? 400 : 600 }}>{r.hire_date || "ไม่มี"}</td></tr>)}</tbody></table>
           </div>
         )}
       </div>

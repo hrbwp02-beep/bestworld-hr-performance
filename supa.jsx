@@ -83,11 +83,15 @@ async function loadHRData() {
   // submissions: files/versions/audit already arrive as parsed JSON
   const SUBMISSIONS = subRows.map((s) => ({ ...s }));
 
-  // ----- derived company summary (everything from DB) -----
-  const total = departments.reduce((a, d) => a + d.head, 0);
-  const done = departments.reduce((a, d) => a + d.done, 0);
-  const headSum = total || 1;
-  const avgScore = Math.round(departments.reduce((a, d) => a + Number(d.score) * d.head, 0) / headSum * 10) / 10;
+  // ----- company summary: headcount & status from the REAL employee records -----
+  const total = EMPLOYEES.length;
+  const cnt = (s) => EMPLOYEES.filter((e) => e.status === s).length;
+  const done = cnt("done");
+  const scored = EMPLOYEES.filter((e) => e.overall > 0);
+  // weighted dept average (used as a fallback when employee scores aren't entered yet)
+  const headSum = departments.reduce((a, d) => a + d.head, 0) || 1;
+  const deptWavg = Math.round(departments.reduce((a, d) => a + Number(d.score) * d.head, 0) / headSum * 10) / 10;
+  const avgScore = scored.length ? Math.round(scored.reduce((a, e) => a + e.overall, 0) / scored.length * 10) / 10 : deptWavg;
   const avgTrend = Math.round(departments.reduce((a, d) => a + Number(d.trend) * d.head, 0) / headSum * 10) / 10;
   const top = [...departments].sort((a, b) => b.score - a.score)[0] || { name: "—", score: 0 };
   const SUMMARY = {
@@ -95,22 +99,15 @@ async function loadHRData() {
     avgScore, avgTrend,
     topDept: top.name, topDeptScore: Number(top.score),
     highPotential: EMPLOYEES.filter((e) => e.potential >= 3 && e.perf >= 3).length,
-    atRisk: EMPLOYEES.filter((e) => e.perf <= 1 || e.overall < 60).length,
+    atRisk: scored.filter((e) => e.overall < 60).length,
   };
 
-  // status pie: 'ประเมินแล้ว' is the org aggregate; split the remainder by the
-  // actual status mix of the detailed employee records
-  const remaining = Math.max(0, total - done);
-  const cnt = (s) => EMPLOYEES.filter((e) => e.status === s).length;
-  const prog = cnt("progress"), rev = cnt("review"), pend = cnt("pending");
-  const base = (prog + rev + pend) || 1;
-  const pProg = Math.round(remaining * prog / base);
-  const pRev = Math.round(remaining * rev / base);
+  // status pie — real counts straight from the employee records (sums to total)
   const STATUS_PIE = [
     { label: "ประเมินแล้ว", v: done, color: "#16a34a" },
-    { label: "กำลังประเมิน", v: pProg, color: "#2563eb" },
-    { label: "รออนุมัติ", v: pRev, color: "#e08a00" },
-    { label: "รอประเมิน", v: remaining - pProg - pRev, color: "#cbd5e1" },
+    { label: "กำลังประเมิน", v: cnt("progress"), color: "#2563eb" },
+    { label: "รออนุมัติ", v: cnt("review"), color: "#e08a00" },
+    { label: "รอประเมิน", v: cnt("pending"), color: "#cbd5e1" },
   ];
 
   // monthly trend + competency radar from DB (fall back to static defaults if empty)

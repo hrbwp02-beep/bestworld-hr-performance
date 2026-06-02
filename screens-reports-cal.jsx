@@ -284,22 +284,31 @@ function UserModal({ user, ctx, onClose }) {
   const [f, setF] = useS4(() => ({
     name: (user && user.name) || "", email: (user && user.email) || "",
     role: (user && user.role) || "viewer", dept: (user && user.dept) || "", active: user ? !!user.active : true,
+    password: "",
   }));
   const [busy, setBusy] = useS4(false);
   const [err, setErr] = useS4("");
   const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
+  const genPwd = () => set("password", "Bw" + Math.random().toString(36).slice(2, 8) + Math.floor(Math.random() * 90 + 10) + "!");
 
   const save = async () => {
     if (!f.name.trim()) { setErr("กรุณากรอกชื่อผู้ใช้"); return; }
     if (!f.email.trim()) { setErr("กรุณากรอกอีเมล"); return; }
     setErr(""); setBusy(true);
-    const row = { name: f.name.trim(), email: f.email.trim(), role: f.role, dept: f.dept || null, active: !!f.active };
-    let error;
-    if (isEdit) { ({ error } = await window.sb.from("app_users").update(row).eq("id", user.id)); }
-    else { row.sort = (window.APP_USERS || []).length; ({ error } = await window.sb.from("app_users").insert(row)); }
-    if (error) { setBusy(false); setErr("บันทึกไม่สำเร็จ: " + error.message); return; }
+    if (isEdit) {
+      // editing only updates role/dept/active (email/login are fixed)
+      const { error } = await window.sb.from("app_users").update({ name: f.name.trim(), role: f.role, dept: f.dept || null, active: !!f.active }).eq("id", user.id);
+      if (error) { setBusy(false); setErr("บันทึกไม่สำเร็จ: " + error.message); return; }
+      await ctx.refresh(); toast("อัปเดตสิทธิ์ผู้ใช้แล้ว", "check"); onClose(); return;
+    }
+    // creating a NEW user → provision a real login account via the secure edge function
+    if (f.password.length < 6) { setBusy(false); setErr("กรุณาตั้งรหัสผ่านอย่างน้อย 6 ตัวอักษร"); return; }
+    const { data, error } = await window.sb.functions.invoke("admin-users", {
+      body: { action: "create", name: f.name.trim(), email: f.email.trim(), password: f.password, role: f.role, dept: f.dept || null, active: f.active },
+    });
+    if (error || !data || !data.ok) { setBusy(false); setErr((data && data.error) || (error && error.message) || "สร้างบัญชีไม่สำเร็จ"); return; }
     await ctx.refresh();
-    toast(isEdit ? "อัปเดตสิทธิ์ผู้ใช้แล้ว" : "เพิ่มผู้ใช้ “" + f.name.trim() + "” แล้ว", "check");
+    toast("สร้างบัญชี “" + f.name.trim() + "” แล้ว — ล็อกอินได้ทันที", "check");
     onClose();
   };
 
@@ -312,7 +321,16 @@ function UserModal({ user, ctx, onClose }) {
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         {err && <div style={{ padding: "10px 13px", borderRadius: 10, background: "var(--red-soft)", color: "#be123c", fontSize: 13 }}>{err}</div>}
         <div className="field"><label>ชื่อ-นามสกุล *</label><input className="input" value={f.name} onChange={(e) => set("name", e.target.value)} placeholder="เช่น สมชาย ศรีสุข" /></div>
-        <div className="field"><label>อีเมล *</label><input className="input" value={f.email} onChange={(e) => set("email", e.target.value)} placeholder="name@bestworld.co.th" disabled={isEdit} /></div>
+        <div className="field"><label>อีเมล (ใช้ล็อกอิน) *</label><input className="input" value={f.email} onChange={(e) => set("email", e.target.value)} placeholder="name@bestworld.co.th" disabled={isEdit} /></div>
+        {!isEdit && (
+          <div className="field"><label>รหัสผ่านเริ่มต้น *</label>
+            <div className="row" style={{ gap: 8 }}>
+              <input className="input" value={f.password} onChange={(e) => set("password", e.target.value)} placeholder="อย่างน้อย 6 ตัวอักษร" />
+              <button type="button" className="btn btn-ghost btn-sm" onClick={genPwd}>สุ่ม</button>
+            </div>
+            <span className="muted" style={{ fontSize: 12 }}>ผู้ใช้จะล็อกอินด้วยอีเมล + รหัสนี้ได้ทันที (แนะนำให้เปลี่ยนภายหลัง)</span>
+          </div>
+        )}
         <div className="grid" style={{ gridTemplateColumns: "1fr 1fr" }}>
           <div className="field"><label>บทบาท / สิทธิ์</label><select className="select" value={f.role} onChange={(e) => set("role", e.target.value)}>{ROLES.map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}</select></div>
           <div className="field"><label>หน่วยงาน</label><select className="select" value={f.dept} onChange={(e) => set("dept", e.target.value)}><option value="">— ไม่ระบุ —</option>{(window.DEPARTMENTS || []).map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}</select></div>
@@ -390,9 +408,9 @@ function Settings({ ctx }) {
     toast("บันทึกการตั้งค่าเรียบร้อย", "check");
   };
   const delUser = async (u) => {
-    if (!window.confirm("ลบผู้ใช้ " + u.name + " ออกจากระบบ?")) return;
-    const { error } = await window.sb.from("app_users").delete().eq("id", u.id);
-    if (error) { toast("ลบไม่สำเร็จ: " + error.message, "x"); return; }
+    if (!window.confirm("ลบผู้ใช้ " + u.name + " และบัญชีล็อกอินออกจากระบบ?")) return;
+    const { data, error } = await window.sb.functions.invoke("admin-users", { body: { action: "delete", app_user_id: u.id } });
+    if (error || !data || !data.ok) { toast((data && data.error) || "ลบไม่สำเร็จ", "x"); return; }
     await ctx.refresh(); toast("ลบผู้ใช้แล้ว", "check");
   };
   const toggleUser = async (u, v) => {

@@ -204,6 +204,7 @@ function Dashboard({ ctx }) {
         </div>
         <div className="row wrap" style={{ gap: 10 }}>
           <div className="seg"><Seg options={[{value:"2568",label:"ปี 2568"},{value:"2567",label:"ปี 2567"}]} value={ctx.year} onChange={ctx.setYear} /></div>
+          <button className="btn btn-ghost" onClick={async () => { await ctx.refresh(); toast("อัปเดตข้อมูลล่าสุดจากฐานข้อมูลแล้ว", "refresh"); }}><Icon name="refresh" size={16} />รีเฟรช</button>
           <button className="btn btn-ghost" onClick={() => { downloadCSV("dashboard_departments.csv", ["รหัส", "หน่วยงาน", "พนักงาน", "ประเมินแล้ว", "คะแนนเฉลี่ย", "แนวโน้ม"], DEPARTMENTS.map((d) => [d.id, d.name, d.head, d.done, d.score, d.trend])); toast("ส่งออกรายงานภาพรวมแล้ว", "download"); }}><Icon name="download" size={16} />ส่งออกรายงาน</button>
         </div>
       </div>

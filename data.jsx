@@ -31,6 +31,20 @@ function statusMeta(s) {
 const deptName = (id) => ((window.DEPARTMENTS || []).find((d) => d.id === id) || {}).name || id;
 const deptShort = (id) => ((window.DEPARTMENTS || []).find((d) => d.id === id) || {}).short || id;
 
+// ---------- ระดับพนักงาน (employee levels) ----------
+const LEVELS = ["ผู้จัดการ", "หัวหน้างาน", "วิศวกร", "วิชาชีพ", "เจ้าหน้าที่", "ช่างฝีมือ", "ปฏิบัติการ"];
+// เดา "ระดับ" จากชื่อตำแหน่ง (ใช้เป็นค่าเริ่มต้น/เมื่อไฟล์ไม่ระบุระดับ)
+function levelFromPosition(pos) {
+  const p = String(pos || "");
+  if (/ผู้จัดการ|ผจก|กรรมการ|ผู้อำนวยการ|ผู้ช่วยผู้จัดการ/.test(p)) return "ผู้จัดการ";
+  if (/หัวหน้า|ซุปเปอร์ไวเซอร์|หัวหน้ากะ|foreman|โฟร์แมน|supervisor/i.test(p)) return "หัวหน้างาน";
+  if (/วิศวกร|engineer/i.test(p)) return "วิศวกร";
+  if (/นักวิจัย|นักวิเคราะห์|วิชาชีพ/.test(p)) return "วิชาชีพ";
+  if (/เจ้าหน้าที่|ธุรการ|เลขานุการ|officer|admin/i.test(p)) return "เจ้าหน้าที่";
+  if (/ช่าง/.test(p)) return "ช่างฝีมือ";
+  return "ปฏิบัติการ";
+}
+
 // อายุงาน — compute from hire date (วันเข้างาน) relative to today
 function tenureFrom(hireDate) {
   if (!hireDate) return "—";
@@ -86,5 +100,5 @@ const NINEBOX = {
 
 Object.assign(window, {
   COMPANY, TREND, TREND_PREV, COMP_RADAR, NINEBOX,
-  bandOf, statusMeta, deptName, deptShort, tenureFrom,
+  bandOf, statusMeta, deptName, deptShort, tenureFrom, LEVELS, levelFromPosition,
 });

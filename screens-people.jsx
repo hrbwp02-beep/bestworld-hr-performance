@@ -61,9 +61,9 @@ function EmployeeModal({ emp, ctx, onClose }) {
         <div className="field"><label>ชื่อ-นามสกุล *</label><input className="input" value={f.name} onChange={(e) => set("name", e.target.value)} placeholder="เช่น สมชาย ศรีสุข" /></div>
         <div className="grid" style={{ gridTemplateColumns: "1fr 1fr" }}>
           <div className="field"><label>หน่วยงาน</label><select className="select" value={f.dept} onChange={(e) => set("dept", e.target.value)}>{(window.DEPARTMENTS || []).map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}</select></div>
-          <div className="field"><label>ระดับ</label><select className="select" value={f.level} onChange={(e) => set("level", e.target.value)}>{["ผู้จัดการ", "หัวหน้างาน", "วิชาชีพ", "ปฏิบัติการ"].map((l) => <option key={l} value={l}>{l}</option>)}</select></div>
+          <div className="field"><label>ระดับ</label><select className="select" value={f.level} onChange={(e) => set("level", e.target.value)}>{[...new Set([...(window.LEVELS || []), ...(window.EMPLOYEES || []).map((x) => x.level).filter(Boolean), f.level].filter(Boolean))].map((l) => <option key={l} value={l}>{l}</option>)}</select></div>
         </div>
-        <div className="field"><label>ตำแหน่ง *</label><input className="input" value={f.position} onChange={(e) => set("position", e.target.value)} placeholder="เช่น หัวหน้าแผนกฉีดพลาสติก" /></div>
+        <div className="field"><label>ตำแหน่ง *</label><input className="input" value={f.position} onChange={(e) => setF((p) => ({ ...p, position: e.target.value, level: levelFromPosition(e.target.value) }))} placeholder="เช่น หัวหน้าแผนกฉีดพลาสติก" /><span className="muted" style={{ fontSize: 12 }}>ระดับจะถูกแนะนำจากตำแหน่งโดยอัตโนมัติ (เปลี่ยนเองได้)</span></div>
         <div className="grid" style={{ gridTemplateColumns: "1fr 1fr" }}>
           <div className="field"><label>อีเมล</label><input className="input" value={f.email} onChange={(e) => set("email", e.target.value)} placeholder="name@bestworld.co.th" /></div>
           <div className="field"><label>เบอร์โทร</label><input className="input" value={f.phone} onChange={(e) => set("phone", e.target.value)} placeholder="08xxxxxxxx" /></div>
@@ -157,7 +157,7 @@ function ImportEmployeesModal({ ctx, onClose }) {
         ok.push({
           code: String(get("รหัสพนักงาน", "รหัส", "employee_id", "empid", "emp_id", "code")).trim(),
           name, dept, position: String(get("ตำแหน่ง", "position") || "-").trim(),
-          level: String(get("ระดับ", "level") || "ปฏิบัติการ").trim(),
+          level: String(get("ระดับ", "level")).trim() || levelFromPosition(get("ตำแหน่ง", "position")),
           hire_date: fmtDate(get("วันเข้างาน", "วันที่เข้างาน", "hire_date")),
           email: String(get("อีเมล", "email")).trim() || null,
           phone: String(get("เบอร์โทร", "เบอร์", "phone")).trim() || null,

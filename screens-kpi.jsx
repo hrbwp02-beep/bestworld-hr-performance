@@ -50,14 +50,21 @@ function KPIOverview({ ctx }) {
   const achData = depts.map((d) => { const a = deptAchievement(d.id); return { ...d, score: a, color: trafficOf(a).c, short: d.short }; });
   const ranked = [...achData].sort((a, b) => b.score - a.score);
   const greenN = achData.filter((d) => d.score >= 100).length;
-  const subDone = SUBMISSIONS.filter((s) => s.status === "approved" || s.status === "submitted").length;
-  const overdue = SUBMISSIONS.filter((s) => s.status === "overdue");
+  // ----- report metrics, tied to the current evaluation cycle -----
+  const cy = +(window.CYCLE_YEAR || 2569);
+  const inCycle = (s) => String(s.id).includes("-" + cy + "-") || String(s.period || "").includes(String(cy));
+  const cycleSubs = SUBMISSIONS.filter(inCycle);
+  const subByDept = {}; cycleSubs.forEach((s) => { subByDept[s.dept] = s; });
+  const isSubmitted = (id) => { const s = subByDept[id]; return !!s && (s.status === "submitted" || s.status === "approved"); };
+  const subDone = KPI_DEPTS.filter((id) => isSubmitted(id)).length;
+  const overdue = cycleSubs.filter((s) => s.status === "overdue");
+  const missing = KPI_DEPTS.filter((id) => !subByDept[id]);
   const allKpis = KPI_DEFS.filter((k) => k.status === "approved").map((k) => ({ ...k, score: kpiScore(k) }));
   const topKpis = [...allKpis].sort((a, b) => b.score - a.score).slice(0, 5);
   const botKpis = [...allKpis].sort((a, b) => a.score - b.score).slice(0, 5);
   const companyTrend = KPI_MONTHS.map((m, i) => ({ m, v: Math.round((96 - (5 - i) * 0.9) * 10) / 10 }));
   const subStatusPie = ["approved", "submitted", "rejected", "overdue", "draft"].map((k) => ({
-    label: SUB_STATUS[k].l, v: SUBMISSIONS.filter((s) => s.status === k).length, color: SUB_STATUS[k].c,
+    label: SUB_STATUS[k].l, v: cycleSubs.filter((s) => s.status === k).length, color: SUB_STATUS[k].c,
   })).filter((x) => x.v > 0);
   const heatVals = depts.map((d) => deptKpiTrend(d.id).map((p) => p.v));
 
@@ -66,8 +73,8 @@ function KPIOverview({ ctx }) {
       <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(200px,1fr))" }}>
         <Stat icon="target" label="KPI เฉลี่ยองค์กร" value={Math.round(achData.reduce((a, d) => a + d.score, 0) / achData.length * 10) / 10} unit="%" tone="#2563eb" soft="#e8effb" sub="Achievement รวม" />
         <Stat icon="checkCircle" label="หน่วยงานบรรลุเป้า" value={greenN} unit={`/ ${achData.length}`} tone="#16a34a" soft="#e7f6ec" sub="ไฟเขียว" />
-        <Stat icon="upload" label="รายงานส่งแล้ว" value={subDone} unit={`/ ${SUBMISSIONS.length}`} tone="#0d9488" soft="#e2f4f2" sub="รอบนี้" />
-        <Stat icon="alert" label="รายงานเกินกำหนด" value={overdue.length} unit="ฉบับ" tone="#e11d48" soft="#fbe7ec" sub="ต้องติดตาม" />
+        <Stat icon="upload" label="รายงานส่งแล้ว" value={subDone} unit={`/ ${KPI_DEPTS.length}`} tone="#0d9488" soft="#e2f4f2" sub={"รอบปี " + cy} />
+        <Stat icon="alert" label="รายงานค้างส่ง" value={missing.length + overdue.length} unit="ฉบับ" tone="#e11d48" soft="#fbe7ec" sub={overdue.length + " เกินกำหนด · " + missing.length + " ยังไม่ส่ง"} />
       </div>
 
       {/* traffic light grid */}
@@ -87,7 +94,7 @@ function KPIOverview({ ctx }) {
                   <span className="muted" style={{ fontSize: 13 }}>%</span>
                   <span className={"badge " + (d.trend >= 0 ? "b-green" : "b-red")} style={{ marginLeft: "auto", padding: "2px 8px" }}>{d.trend >= 0 ? "▲" : "▼"} {Math.abs(d.trend)}</span>
                 </div>
-                <div className="muted" style={{ fontSize: 11.5, marginTop: 4 }}>{kpisOf(d.id).length} ตัวชี้วัด · {t.l}</div>
+                <div className="muted" style={{ fontSize: 11.5, marginTop: 4 }}>{kpisOf(d.id).length} ตัวชี้วัด · {t.l} · รายงาน: <span style={{ color: isSubmitted(d.id) ? "#16a34a" : "#e08a00", fontWeight: 600 }}>{isSubmitted(d.id) ? "ส่งแล้ว" : "ยังไม่ส่ง"}</span></div>
               </button>
             );
           })}
@@ -101,7 +108,7 @@ function KPIOverview({ ctx }) {
         </Card>
         <Card>
           <CardHead title="สถานะการส่งรายงาน" sub="KPI Submission Status" />
-          <div className="card-pad"><Donut data={subStatusPie} centerLabel="รายงาน" centerValue={SUBMISSIONS.length} size={170} /></div>
+          <div className="card-pad">{cycleSubs.length ? <Donut data={subStatusPie} centerLabel="รายงาน" centerValue={cycleSubs.length} size={170} /> : <div className="muted" style={{ height: 170, display: "grid", placeItems: "center", textAlign: "center" }}>ยังไม่มีรายงานรอบปี {cy}<br />— กด “ส่งรายงาน”</div>}</div>
         </Card>
       </div>
 
@@ -111,17 +118,22 @@ function KPIOverview({ ctx }) {
           <div className="card-pad"><LineChart data={companyTrend} height={240} min={88} max={100} /></div>
         </Card>
         <Card>
-          <CardHead title="ติดตามรายงานล่าช้า" sub="Late Report Tracking" right={<Badge cls="b-amber" dot>{overdue.length}</Badge>} />
+          <CardHead title="ติดตามรายงานล่าช้า" sub="Late Report Tracking" right={<Badge cls="b-amber" dot>{missing.length + overdue.length}</Badge>} />
           <div style={{ padding: "8px 12px" }}>
-            {SUBMISSIONS.filter((s) => s.status === "overdue" || s.status === "draft" || s.status === "rejected").map((s) => {
-              const st = SUB_STATUS[s.status];
+            {[
+              ...cycleSubs.filter((s) => ["overdue", "draft", "rejected"].includes(s.status)).map((s) => ({ dept: s.dept, period: s.period, due: s.due, status: s.status, id: s.id, real: true })),
+              ...missing.map((id) => ({ dept: id, period: "รอบปี " + cy, due: "—", status: "missing", id: "missing-" + id, real: false })),
+            ].map((item) => {
+              const st = item.status === "missing" ? { l: "ยังไม่ส่ง", cls: "b-gray" } : SUB_STATUS[item.status];
+              const Tag = item.real ? "button" : "div";
               return (
-                <button key={s.id} onClick={() => ctx.openSub(s.id)} className="between" style={{ width: "100%", border: "none", background: "none", cursor: "pointer", padding: "11px 10px", borderBottom: "1px solid var(--border-2)", textAlign: "left", gap: 10 }}>
-                  <div><div style={{ fontWeight: 600, fontSize: 13 }}>{deptName(s.dept)}</div><div className="muted" style={{ fontSize: 11.5 }}>{s.period} · ครบกำหนด {s.due}</div></div>
+                <Tag key={item.id} onClick={item.real ? () => ctx.openSub(item.id) : undefined} className="between" style={{ width: "100%", border: "none", background: "none", cursor: item.real ? "pointer" : "default", padding: "11px 10px", borderBottom: "1px solid var(--border-2)", textAlign: "left", gap: 10 }}>
+                  <div><div style={{ fontWeight: 600, fontSize: 13 }}>{deptName(item.dept)}</div><div className="muted" style={{ fontSize: 11.5 }}>{item.period} · ครบกำหนด {item.due}</div></div>
                   <Badge cls={st.cls} dot>{st.l}</Badge>
-                </button>
+                </Tag>
               );
             })}
+            {missing.length + overdue.length === 0 && cycleSubs.length > 0 && <div className="muted" style={{ padding: "16px 10px", fontSize: 13 }}>ทุกหน่วยงานส่งรายงานครบแล้ว ✓</div>}
           </div>
         </Card>
       </div>

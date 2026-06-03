@@ -12,11 +12,23 @@ function EmployeeModal({ emp, ctx, onClose }) {
     hire_date: (emp && emp.hire_date) || "", email: (emp && emp.email) || "", phone: (emp && emp.phone) || "",
     status: (emp && emp.status) || "pending", kpi: emp ? emp.kpi : "", comp: emp ? emp.comp : "",
     potential: emp ? emp.potential : 2, perf: emp ? emp.perf : 2, reviewer: (emp && emp.reviewer) || "",
-    female: emp ? !!emp.female : false,
+    female: emp ? !!emp.female : false, photo_url: (emp && emp.photo_url) || "",
   }));
   const [busy, setBusy] = useS2(false);
   const [err, setErr] = useS2("");
+  const [uploading, setUploading] = useS2(false);
   const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
+  const onPhoto = async (ev) => {
+    const file = ev.target.files[0]; if (!file) return;
+    setUploading(true);
+    const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+    const path = (isEdit ? emp.id : "new") + "/" + Date.now() + "." + ext;
+    const up = await window.sb.storage.from("employee-photos").upload(path, file, { upsert: true, contentType: file.type });
+    if (up.error) { setUploading(false); toast("อัปโหลดรูปไม่สำเร็จ: " + up.error.message, "x"); return; }
+    const { data } = window.sb.storage.from("employee-photos").getPublicUrl(path);
+    set("photo_url", data.publicUrl);
+    setUploading(false);
+  };
   const palette = ["#2563eb", "#0d9488", "#7c3aed", "#db2777", "#0ea5e9", "#e08a00", "#16a34a"];
   const nextId = () => {
     const nums = (window.EMPLOYEES || []).map((x) => parseInt(String(x.id).replace(/\D/g, ""), 10)).filter((n) => !isNaN(n));
@@ -33,6 +45,7 @@ function EmployeeModal({ emp, ctx, onClose }) {
       email: f.email.trim() || null, phone: f.phone.trim() || null,
       status: f.status, kpi: Number(f.kpi) || 0, comp: Number(f.comp) || 0,
       potential: Number(f.potential) || 1, perf: Number(f.perf) || 1, reviewer: f.reviewer || null,
+      photo_url: f.photo_url || null,
     };
     let error;
     if (isEdit) {
@@ -58,6 +71,18 @@ function EmployeeModal({ emp, ctx, onClose }) {
       </>}>
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         {err && <div style={{ padding: "10px 13px", borderRadius: 10, background: "var(--red-soft)", color: "#be123c", fontSize: 13 }}>{err}</div>}
+        <div className="row" style={{ gap: 16, alignItems: "center" }}>
+          {f.photo_url
+            ? <Avatar name={f.name} src={f.photo_url} size={68} />
+            : <div className="placeholder-img" style={{ width: 68, height: 68, borderRadius: 999, fontSize: 10, flex: "0 0 68px" }}>รูป</div>}
+          <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+            <label className="btn btn-ghost btn-sm" style={{ cursor: uploading ? "default" : "pointer" }}>
+              <Icon name="upload" size={14} />{uploading ? "กำลังอัปโหลด…" : (f.photo_url ? "เปลี่ยนรูป" : "อัปโหลดรูป")}
+              <input type="file" accept="image/*" onChange={onPhoto} disabled={uploading} style={{ display: "none" }} />
+            </label>
+            {f.photo_url && <button type="button" className="btn btn-ghost btn-sm" style={{ color: "var(--red)" }} onClick={() => set("photo_url", "")}>ลบรูป</button>}
+          </div>
+        </div>
         <div className="field"><label>ชื่อ-นามสกุล *</label><input className="input" value={f.name} onChange={(e) => set("name", e.target.value)} placeholder="เช่น สมชาย ศรีสุข" /></div>
         <div className="grid" style={{ gridTemplateColumns: "1fr 1fr" }}>
           <div className="field"><label>หน่วยงาน</label><select className="select" value={f.dept} onChange={(e) => set("dept", e.target.value)}>{(window.DEPARTMENTS || []).map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}</select></div>
@@ -387,7 +412,7 @@ function EmployeeList({ ctx }) {
                     <tr key={e.id} style={{ cursor: "pointer" }} onClick={() => ctx.openEmp(e.id)}>
                       <td>
                         <div className="row" style={{ gap: 11 }}>
-                          <Avatar name={e.name} initials={e.initials} color={e.color} size={38} />
+                          <Avatar name={e.name} initials={e.initials} color={e.color} src={e.photo_url} size={38} />
                           <div><div style={{ fontWeight: 600, fontSize: 13.5 }}>{e.name}</div><div className="muted" style={{ fontSize: 12 }}>{e.position}</div></div>
                         </div>
                       </td>
@@ -424,7 +449,7 @@ function EmployeeList({ ctx }) {
               <Card key={e.id} className="card-pad" style={{ cursor: "pointer", display: "flex", flexDirection: "column", gap: 12 }} >
                 <div onClick={() => ctx.openEmp(e.id)} style={{ display: "contents" }}>
                   <div className="row" style={{ gap: 12 }}>
-                    <Avatar name={e.name} initials={e.initials} color={e.color} size={48} />
+                    <Avatar name={e.name} initials={e.initials} color={e.color} src={e.photo_url} size={48} />
                     <div style={{ minWidth: 0 }}><div style={{ fontWeight: 600, fontSize: 14, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{e.name}</div><div className="muted" style={{ fontSize: 12, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{e.position}</div></div>
                   </div>
                   <div className="between"><Badge cls="b-gray">{deptShort(e.dept)}</Badge><Badge cls={sm.cls} dot>{sm.label}</Badge></div>
@@ -469,7 +494,9 @@ function EmployeeProfile({ ctx, empId }) {
       <Card className="card-pad">
         <div className="row wrap" style={{ gap: 20 }}>
           <div style={{ position: "relative" }}>
-            <div className="placeholder-img" style={{ width: 104, height: 104, borderRadius: 18 }}>รูปพนักงาน<br/>104×104</div>
+            {e.photo_url
+              ? <img src={e.photo_url} alt={e.name} style={{ width: 104, height: 104, borderRadius: 18, objectFit: "cover", display: "block" }} />
+              : <div className="placeholder-img" style={{ width: 104, height: 104, borderRadius: 18 }}>รูปพนักงาน<br/>104×104</div>}
           </div>
           <div style={{ flex: 1, minWidth: 220 }}>
             <div className="row wrap" style={{ gap: 10, marginBottom: 4 }}>
@@ -646,7 +673,7 @@ function DepartmentKPI({ ctx }) {
                 const m = statusMeta(e.status);
                 return (
                   <tr key={e.id} style={{ cursor: "pointer" }} onClick={() => ctx.openEmp(e.id)}>
-                    <td><div className="row" style={{ gap: 10 }}><Avatar name={e.name} initials={e.initials} color={e.color} size={34} /><span style={{ fontWeight: 600, fontSize: 13.5 }}>{e.name}</span></div></td>
+                    <td><div className="row" style={{ gap: 10 }}><Avatar name={e.name} initials={e.initials} color={e.color} src={e.photo_url} size={34} /><span style={{ fontWeight: 600, fontSize: 13.5 }}>{e.name}</span></div></td>
                     <td className="muted" style={{ fontSize: 13 }}>{e.position}</td>
                     <td><Badge cls={m.cls} dot>{m.label}</Badge></td>
                     <td className="num">{e.kpi}</td>

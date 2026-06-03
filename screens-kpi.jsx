@@ -319,9 +319,120 @@ function KPIDefine({ ctx }) {
   );
 }
 
+/* ---------- shared file helpers ---------- */
+const TH_ABBR = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
+const TH_FULL = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"];
+function thaiToday() { const d = new Date(); return String(d.getDate()).padStart(2, "0") + " " + TH_ABBR[d.getMonth()] + " " + (d.getFullYear() + 543); }
+function fileKind(name) {
+  const e = (String(name).split(".").pop() || "").toLowerCase();
+  if (["xlsx", "xls", "csv"].includes(e)) return "excel";
+  if (e === "pdf") return "pdf";
+  if (["ppt", "pptx"].includes(e)) return "ppt";
+  if (["png", "jpg", "jpeg", "gif", "webp"].includes(e)) return "image";
+  return "pdf";
+}
+function fmtBytes(b) { return b >= 1048576 ? (b / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round(b / 1024)) + " KB"; }
+async function uploadReportFiles(fileList, folder) {
+  const added = [];
+  for (const file of fileList) {
+    const path = folder + "/" + Date.now() + "-" + Math.random().toString(36).slice(2, 6) + "-" + file.name;
+    const up = await window.sb.storage.from("kpi-reports").upload(path, file, { contentType: file.type, upsert: true });
+    if (up.error) { toast("อัปโหลด " + file.name + " ไม่สำเร็จ", "x"); continue; }
+    const { data } = window.sb.storage.from("kpi-reports").getPublicUrl(path);
+    added.push({ name: file.name, type: fileKind(file.name), size: fmtBytes(file.size), url: data.publicUrl });
+  }
+  return added;
+}
+
+/* ---------- New submission modal ---------- */
+function NewSubmissionModal({ ctx, onClose }) {
+  const cy = +(window.CYCLE_YEAR || 2569);
+  const [dept, setDept] = useK(KPI_DEPTS[0]);
+  const [cycle, setCycle] = useK("monthly");
+  const [period, setPeriod] = useK(TH_FULL[new Date().getMonth()] + " " + cy);
+  const [due, setDue] = useK("");
+  const [note, setNote] = useK("");
+  const [files, setFiles] = useK([]);
+  const [busy, setBusy] = useK(false);
+  const [uploading, setUploading] = useK(false);
+  const [err, setErr] = useK("");
+
+  const onFiles = async (ev) => {
+    const list = [...ev.target.files]; if (!list.length) return;
+    setUploading(true);
+    const added = await uploadReportFiles(list, "new");
+    setFiles((p) => [...p, ...added]);
+    setUploading(false);
+    ev.target.value = "";
+  };
+  const nextId = () => {
+    const nums = (window.SUBMISSIONS || []).map((s) => parseInt((String(s.id).match(/(\d+)$/) || [])[1], 10)).filter((n) => !isNaN(n));
+    return "RPT-" + cy + "-" + String((nums.length ? Math.max(...nums) : 50) + 1).padStart(3, "0");
+  };
+  const submit = async () => {
+    if (!period.trim()) { setErr("กรุณาระบุรอบรายงาน เช่น มิถุนายน " + cy); return; }
+    setErr(""); setBusy(true);
+    const id = nextId(), t = thaiToday();
+    const row = {
+      id, dept, period: period.trim(), cycle, due: due.trim() || "—", submitted: t,
+      submitter: "คุณสุดารัตน์ (HR)", status: "submitted", note: note.trim() || null, ver: "v1",
+      files, versions: [{ v: "v1", date: t, by: "สุดารัตน์", note: "ฉบับแรก" }],
+      audit: [{ act: "ส่งรายงาน v1", by: "คุณสุดารัตน์ (HR)", time: t }], sort: 999,
+    };
+    const { error } = await window.sb.from("submissions").insert(row);
+    setBusy(false);
+    if (error) { setErr("ส่งรายงานไม่สำเร็จ: " + error.message); return; }
+    await ctx.refresh();
+    toast("ส่งรายงาน " + id + " แล้ว", "check");
+    onClose();
+  };
+
+  return (
+    <Modal title="ส่งรายงาน KPI" onClose={onClose}
+      footer={<>
+        <button className="btn btn-ghost" onClick={onClose} disabled={busy}>ยกเลิก</button>
+        <button className="btn btn-pri" onClick={submit} disabled={busy || uploading}><Icon name="upload" size={15} />{busy ? "กำลังส่ง…" : "ส่งรายงาน"}</button>
+      </>}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        {err && <div style={{ padding: "10px 13px", borderRadius: 10, background: "var(--red-soft)", color: "#be123c", fontSize: 13 }}>{err}</div>}
+        <div className="grid" style={{ gridTemplateColumns: "1fr 1fr" }}>
+          <div className="field"><label>หน่วยงาน</label><select className="select" value={dept} onChange={(e) => setDept(e.target.value)}>{KPI_DEPTS.map((id) => <option key={id} value={id}>{deptName(id)}</option>)}</select></div>
+          <div className="field"><label>รอบรายงาน</label><select className="select" value={cycle} onChange={(e) => setCycle(e.target.value)}><option value="monthly">รายเดือน</option><option value="quarterly">รายไตรมาส</option><option value="yearly">รายปี</option></select></div>
+        </div>
+        <div className="grid" style={{ gridTemplateColumns: "1fr 1fr" }}>
+          <div className="field"><label>งวด *</label><input className="input" value={period} onChange={(e) => setPeriod(e.target.value)} placeholder={"เช่น มิถุนายน " + cy} /></div>
+          <div className="field"><label>ครบกำหนดส่ง</label><input className="input" value={due} onChange={(e) => setDue(e.target.value)} placeholder="เช่น 05 ก.ค. 2569" /></div>
+        </div>
+        <div className="field"><label>หมายเหตุ</label><textarea className="input" value={note} onChange={(e) => setNote(e.target.value)} rows={2} placeholder="สรุปสั้นๆ เกี่ยวกับรายงานนี้" /></div>
+        <div className="field">
+          <label>เอกสารหลักฐาน (Excel / PDF / รูป …)</label>
+          <label className="btn btn-ghost btn-sm" style={{ alignSelf: "flex-start", cursor: uploading ? "default" : "pointer" }}>
+            <Icon name="paperclip" size={14} />{uploading ? "กำลังอัปโหลด…" : "แนบไฟล์"}
+            <input type="file" multiple accept=".xlsx,.xls,.csv,.pdf,.ppt,.pptx,image/*" onChange={onFiles} disabled={uploading} style={{ display: "none" }} />
+          </label>
+          {files.length > 0 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 8 }}>
+              {files.map((f, i) => {
+                const fk = FILE_KINDS[f.type];
+                return (
+                  <div key={i} className="between" style={{ border: "1px solid var(--border)", borderRadius: 9, padding: "8px 11px" }}>
+                    <span className="row" style={{ gap: 9, fontSize: 13, minWidth: 0 }}><Icon name={fk.icon} size={15} color={fk.c} /><span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{f.name}</span><span className="muted-3" style={{ fontSize: 11.5 }}>{f.size}</span></span>
+                    <button className="icon-btn" style={{ width: 28, height: 28 }} onClick={() => setFiles((p) => p.filter((_, j) => j !== i))}><Icon name="x" size={14} color="var(--red)" /></button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 /* ---------- Submissions ---------- */
 function KPISubmissions({ ctx }) {
   const [filter, setFilter] = useK("all");
+  const [showNew, setShowNew] = useK(false);
   const rows = SUBMISSIONS.filter((s) => filter === "all" || s.status === filter);
   const counts = { all: SUBMISSIONS.length };
   Object.keys(SUB_STATUS).forEach((k) => counts[k] = SUBMISSIONS.filter((s) => s.status === k).length);
@@ -333,9 +444,10 @@ function KPISubmissions({ ctx }) {
             <button className={"chip" + (filter === "all" ? " on" : "")} onClick={() => setFilter("all")}>ทั้งหมด <span className="mono" style={{ opacity: .7 }}>{counts.all}</span></button>
             {Object.keys(SUB_STATUS).map((k) => <button key={k} className={"chip" + (filter === k ? " on" : "")} onClick={() => setFilter(k)}>{SUB_STATUS[k].l} <span className="mono" style={{ opacity: .7 }}>{counts[k]}</span></button>)}
           </div>
-          <button className="btn btn-pri btn-sm" onClick={() => toast("เปิดฟอร์มอัปโหลดรายงาน KPI", "upload")}><Icon name="upload" size={15} />ส่งรายงาน</button>
+          <button className="btn btn-pri btn-sm" onClick={() => setShowNew(true)}><Icon name="upload" size={15} />ส่งรายงาน</button>
         </div>
       </Card>
+      {showNew && <NewSubmissionModal ctx={ctx} onClose={() => setShowNew(false)} />}
       <Card>
         <div className="tbl-wrap">
           <table className="tbl">
@@ -368,9 +480,24 @@ function KPISubmissions({ ctx }) {
 
 /* ---------- Submission drawer ---------- */
 function SubmissionDrawer({ subId, onClose, ctx }) {
+  const [uploading, setUploading] = useK(false);
   const s = SUBMISSIONS.find((x) => x.id === subId);
   if (!s) return null;
   const st = SUB_STATUS[s.status];
+  const attach = async (ev) => {
+    const list = [...ev.target.files]; if (!list.length) return;
+    setUploading(true);
+    const added = await uploadReportFiles(list, s.id);
+    if (added.length) {
+      const newFiles = [...(s.files || []), ...added];
+      const newAudit = [...(s.audit || []), { act: "แนบไฟล์เพิ่ม " + added.length + " รายการ", by: "คุณสุดารัตน์ (HR)", time: thaiToday() }];
+      const { error } = await window.sb.from("submissions").update({ files: newFiles, audit: newAudit }).eq("id", s.id);
+      if (error) { setUploading(false); toast("แนบไฟล์ไม่สำเร็จ: " + error.message, "x"); return; }
+      await ctx.refresh();
+      toast("แนบไฟล์แล้ว " + added.length + " รายการ", "check");
+    }
+    setUploading(false); ev.target.value = "";
+  };
   const steps = [
     { l: "จัดทำรายงาน", done: true }, { l: "อัปโหลดเข้าระบบ", done: s.status !== "draft" }, { l: "ผู้จัดการอนุมัติ", done: s.status === "approved" }, { l: "HR ตรวจสอบ", done: s.status === "approved" },
   ];
@@ -408,7 +535,11 @@ function SubmissionDrawer({ subId, onClose, ctx }) {
 
         {/* evidence */}
         <div>
-          <div className="between" style={{ marginBottom: 10 }}><b style={{ fontSize: 14 }}>เอกสารหลักฐาน ({s.files.length})</b><button className="btn btn-soft btn-sm" onClick={() => toast("เลือกไฟล์แนบ", "upload")}><Icon name="plus" size={13} />แนบไฟล์</button></div>
+          <div className="between" style={{ marginBottom: 10 }}><b style={{ fontSize: 14 }}>เอกสารหลักฐาน ({s.files.length})</b>
+            <label className="btn btn-soft btn-sm" style={{ cursor: uploading ? "default" : "pointer" }}><Icon name="plus" size={13} />{uploading ? "กำลังอัปโหลด…" : "แนบไฟล์"}
+              <input type="file" multiple accept=".xlsx,.xls,.csv,.pdf,.ppt,.pptx,image/*" onChange={attach} disabled={uploading} style={{ display: "none" }} />
+            </label>
+          </div>
           {s.files.length === 0 ? <div className="placeholder-img" style={{ height: 70 }}>ยังไม่มีเอกสารแนบ</div> : (
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {s.files.map((f, i) => {
@@ -420,8 +551,8 @@ function SubmissionDrawer({ subId, onClose, ctx }) {
                       <div style={{ minWidth: 0 }}><div style={{ fontSize: 13, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{f.name}</div><div className="muted" style={{ fontSize: 11.5 }}>{fk.label} · {f.size}</div></div>
                     </div>
                     <div className="row" style={{ gap: 4 }}>
-                      <button className="icon-btn" style={{ width: 32, height: 32 }} title="Preview" onClick={() => toast("เปิดดูตัวอย่าง " + f.name, "eye")}><Icon name="eye" size={15} /></button>
-                      <button className="icon-btn" style={{ width: 32, height: 32 }} title="ดาวน์โหลด" onClick={() => toast("ดาวน์โหลด " + f.name, "download")}><Icon name="download" size={15} /></button>
+                      <button className="icon-btn" style={{ width: 32, height: 32 }} title="เปิดดู" onClick={() => f.url ? window.open(f.url, "_blank") : toast("ไฟล์ตัวอย่าง (ไม่มีไฟล์จริงแนบ)", "eye")}><Icon name="eye" size={15} /></button>
+                      <button className="icon-btn" style={{ width: 32, height: 32 }} title="ดาวน์โหลด" onClick={() => f.url ? window.open(f.url, "_blank") : toast("ไฟล์ตัวอย่าง (ไม่มีไฟล์จริงแนบ)", "download")}><Icon name="download" size={15} /></button>
                     </div>
                   </div>
                 );

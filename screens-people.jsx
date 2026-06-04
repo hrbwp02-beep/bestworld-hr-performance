@@ -600,6 +600,88 @@ function EmployeeProfile({ ctx, empId }) {
 }
 
 /* =========================================================
+   EVALUATION TRACKING — ติดตามงานที่ต้องประเมิน แยกหน่วยงาน
+   ========================================================= */
+function EvalTracking({ ctx }) {
+  const [open, setOpen] = useS2({});
+  const [view, setView] = useS2("pending");
+  const cy = +(window.CYCLE_YEAR || 2569);
+  const groups = (DEPARTMENTS || []).map((d) => {
+    const emps = EMPLOYEES.filter((e) => e.dept === d.id);
+    const done = emps.filter((e) => e.status === "done").length;
+    const pendingList = emps.filter((e) => e.status !== "done");
+    return { d, total: emps.length, done, pendingList, pct: emps.length ? Math.round(done / emps.length * 100) : 0 };
+  }).filter((g) => g.total > 0);
+  const totalEmp = EMPLOYEES.length;
+  const totalDone = EMPLOYEES.filter((e) => e.status === "done").length;
+  const fullDepts = groups.filter((g) => g.pendingList.length === 0).length;
+  const shown = view === "pending" ? groups.filter((g) => g.pendingList.length > 0) : groups;
+  const toggle = (id) => setOpen((p) => ({ ...p, [id]: !p[id] }));
+  const exportCSV = () => { downloadCSV("eval_pending_" + cy + ".csv", ["รหัส", "ชื่อ", "หน่วยงาน", "ตำแหน่ง", "สถานะ"],
+    EMPLOYEES.filter((e) => e.status !== "done").map((e) => [e.id, e.name, deptName(e.dept), e.position, (statusMeta(e.status) || {}).label || e.status])); toast("ส่งออกรายชื่อค้างประเมินแล้ว", "download"); };
+
+  return (
+    <div className="grid">
+      <div className="page-head">
+        <div><h1>ติดตามการประเมินผล</h1><p>สถานะและรายชื่อที่ต้องประเมิน แยกตามหน่วยงาน · รอบประเมินปี {cy}</p></div>
+        <div className="row wrap" style={{ gap: 10 }}>
+          <div className="seg"><Seg options={[{ value: "pending", label: "เฉพาะค้างประเมิน" }, { value: "all", label: "ทุกหน่วยงาน" }]} value={view} onChange={setView} /></div>
+          <button className="btn btn-ghost" onClick={exportCSV}><Icon name="download" size={16} />ส่งออกรายชื่อค้างประเมิน</button>
+        </div>
+      </div>
+
+      <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(190px,1fr))" }}>
+        <Stat icon="users" label="พนักงานทั้งหมด" value={totalEmp} unit="คน" tone="#2563eb" soft="#e8effb" />
+        <Stat icon="checkCircle" label="ประเมินแล้ว" value={totalDone} unit="คน" tone="#16a34a" soft="#e7f6ec" sub={totalEmp ? Math.round(totalDone / totalEmp * 100) + "% ของทั้งหมด" : ""} />
+        <Stat icon="clock" label="รอประเมิน" value={totalEmp - totalDone} unit="คน" tone="#e08a00" soft="#fdf1dc" />
+        <Stat icon="trophy" label="หน่วยงานเสร็จครบ" value={fullDepts} unit={"/ " + groups.length} tone="#0d9488" soft="#e2f4f2" />
+      </div>
+
+      <div className="grid">
+        {shown.map((g) => {
+          const isOpen = !!open[g.d.id];
+          return (
+            <Card key={g.d.id}>
+              <button className="between" onClick={() => toggle(g.d.id)} style={{ width: "100%", border: "none", background: "none", cursor: "pointer", padding: "16px 20px", gap: 14, textAlign: "left" }}>
+                <div className="row" style={{ gap: 12, minWidth: 0, flex: 1 }}>
+                  <span className="tag-dot" style={{ background: g.d.color, width: 12, height: 12 }} />
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div className="row" style={{ gap: 8 }}><b style={{ fontSize: 15 }}>{g.d.name}</b>{g.pendingList.length > 0 ? <Badge cls="b-amber" dot>ค้าง {g.pendingList.length}</Badge> : <Badge cls="b-green" dot>ครบ</Badge>}</div>
+                    <div style={{ marginTop: 8, maxWidth: 440 }}><ScoreBar value={g.pct} color={g.pct === 100 ? "#16a34a" : g.d.color} /></div>
+                  </div>
+                </div>
+                <div className="row" style={{ gap: 14 }}>
+                  <div style={{ textAlign: "right" }}><div className="num" style={{ fontWeight: 700, fontSize: 18 }}>{g.done}/{g.total}</div><div className="muted" style={{ fontSize: 11.5 }}>ประเมินแล้ว · {g.pct}%</div></div>
+                  <Icon name={isOpen ? "chevDown" : "chevRight"} size={18} color="var(--text-3)" />
+                </div>
+              </button>
+              {isOpen && g.pendingList.length > 0 && (
+                <div style={{ borderTop: "1px solid var(--border-2)", padding: "6px 10px 10px" }}>
+                  {g.pendingList.map((e) => { const sm = statusMeta(e.status); return (
+                    <div key={e.id} className="between" style={{ gap: 10, padding: "9px 10px", borderBottom: "1px solid var(--border-2)" }}>
+                      <button className="row" onClick={() => ctx.openEmp(e.id)} style={{ gap: 11, border: "none", background: "none", cursor: "pointer", minWidth: 0, flex: 1, textAlign: "left", padding: 0 }}>
+                        <Avatar name={e.name} initials={e.initials} color={e.color} src={e.photo_url} size={34} />
+                        <div style={{ minWidth: 0 }}><div style={{ fontWeight: 600, fontSize: 13.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{e.name}</div><div className="muted" style={{ fontSize: 12 }}>{e.position}</div></div>
+                      </button>
+                      <div className="row" style={{ gap: 8 }}>
+                        <Badge cls={sm.cls} dot>{sm.label}</Badge>
+                        <button className="btn btn-pri btn-sm" onClick={() => ctx.startEval(e.id)}><Icon name="eval" size={14} />ประเมิน</button>
+                      </div>
+                    </div>
+                  ); })}
+                </div>
+              )}
+              {isOpen && g.pendingList.length === 0 && <div className="muted" style={{ padding: "0 20px 16px", fontSize: 13 }}>ทุกคนในหน่วยงานนี้ประเมินครบแล้ว ✓</div>}
+            </Card>
+          );
+        })}
+        {shown.length === 0 && <Card className="card-pad"><div className="muted" style={{ textAlign: "center", padding: "22px 0" }}>ทุกหน่วยงานประเมินครบแล้ว 🎉</div></Card>}
+      </div>
+    </div>
+  );
+}
+
+/* =========================================================
    DEPARTMENT KPI
    ========================================================= */
 function DepartmentKPI({ ctx }) {

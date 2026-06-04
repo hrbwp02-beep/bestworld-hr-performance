@@ -21,6 +21,7 @@ const NAV = [
   { id: "dashboard", label: "ภาพรวม", icon: "dashboard" },
   { id: "exec", label: "มุมมองผู้บริหาร", icon: "trend" },
   { id: "employee", label: "พนักงาน", icon: "employee" },
+  { id: "evaltrack", label: "ติดตามการประเมิน", icon: "checkCircle" },
   { id: "kpi", label: "KPI หน่วยงาน", icon: "deptkpi" },
   { id: "eval", label: "ฟอร์มประเมิน", icon: "eval" },
   { id: "jd", label: "จัดการ JD", icon: "jd" },
@@ -31,6 +32,7 @@ const TITLES = {
   dashboard: ["ภาพรวมการประเมิน", "Performance Dashboard"],
   exec: ["มุมมองผู้บริหาร", "Executive Drill-down"],
   employee: ["พนักงาน", "Employee Directory"],
+  evaltrack: ["ติดตามการประเมิน", "Evaluation Tracking"],
   profile: ["ข้อมูลพนักงาน", "Employee Profile"],
   kpi: ["KPI หน่วยงาน", "Department KPI"],
   eval: ["ฟอร์มประเมินผล", "Evaluation Form"],
@@ -241,6 +243,7 @@ function App() {
           {route === "dashboard" && <Dashboard ctx={ctx} />}
           {route === "exec" && <ExecDashboard ctx={ctx} />}
           {route === "employee" && <EmployeeList ctx={ctx} />}
+          {route === "evaltrack" && <EvalTracking ctx={ctx} />}
           {route === "profile" && <EmployeeProfile ctx={ctx} empId={empId} />}
           {route === "kpi" && <KPIModule ctx={ctx} />}
           {route === "eval" && <Evaluation ctx={ctx} />}

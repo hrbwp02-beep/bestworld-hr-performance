@@ -28,18 +28,20 @@ function statusMeta(s) {
 }
 
 // ผลสรุปการประเมิน → เกรด + โบนัส + การปรับเงินเดือน (มีใบเตือน = ไม่ปรับเงิน)
+const BONUS_TIERS_DEFAULT = {
+  A: { bonus: 2.0, raise: 10 }, B: { bonus: 1.5, raise: 6 }, C: { bonus: 1.0, raise: 3 },
+  D: { bonus: 0.5, raise: 0 }, E: { bonus: 0, raise: 0 },
+};
 function evalOutcome(overall, warnings) {
   const b = bandOf(overall);
-  const tiers = {
-    A: { bonus: 2.0, raise: 10 }, B: { bonus: 1.5, raise: 6 }, C: { bonus: 1.0, raise: 3 },
-    D: { bonus: 0.5, raise: 0 }, E: { bonus: 0, raise: 0 },
-  };
-  const t = tiers[b.key] || tiers.E;
+  const tiers = (window.APP_SETTINGS && window.APP_SETTINGS.bonus_tiers) || BONUS_TIERS_DEFAULT;
+  const t = tiers[b.key] || BONUS_TIERS_DEFAULT[b.key] || { bonus: 0, raise: 0 };
+  const bonus = Number(t.bonus) || 0, raise = Number(t.raise) || 0;
   const hasWarning = (warnings || 0) > 0;
   return {
     grade: b.key, gradeLabel: b.label, color: b.color, cls: b.cls,
-    bonusMonths: t.bonus, bonusEligible: t.bonus > 0,
-    raisePct: hasWarning ? 0 : t.raise, raiseEligible: !hasWarning && t.raise > 0,
+    bonusMonths: bonus, bonusEligible: bonus > 0,
+    raisePct: hasWarning ? 0 : raise, raiseEligible: !hasWarning && raise > 0,
     hasWarning, warnings: warnings || 0,
   };
 }
@@ -117,5 +119,5 @@ const NINEBOX = {
 
 Object.assign(window, {
   COMPANY, TREND, TREND_PREV, COMP_RADAR, NINEBOX,
-  bandOf, statusMeta, deptName, deptShort, tenureFrom, LEVELS, levelFromPosition, evalOutcome,
+  bandOf, statusMeta, deptName, deptShort, tenureFrom, LEVELS, levelFromPosition, evalOutcome, BONUS_TIERS_DEFAULT,
 });

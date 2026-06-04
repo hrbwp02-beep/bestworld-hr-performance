@@ -393,6 +393,8 @@ function Settings({ ctx }) {
   const [compModal, setCompModal] = useS4(null);
   const [deptModal, setDeptModal] = useS4(null);
   const [busy, setBusy] = useS4(false);
+  const [tiers, setTiers] = useS4(() => JSON.parse(JSON.stringify(s.bonus_tiers || window.BONUS_TIERS_DEFAULT)));
+  const setTier = (g, f, v) => setTiers((p) => ({ ...p, [g]: { ...p[g], [f]: v === "" ? 0 : Number(v) } }));
   const total = w.kpi + w.comp + w.jd;
   const users = window.APP_USERS || [];
 
@@ -400,7 +402,7 @@ function Settings({ ctx }) {
     setBusy(true);
     const { error } = await window.sb.from("app_settings").update({
       cycle_name: cycleName, start_date: startDate || null, end_date: endDate || null,
-      w_kpi: w.kpi, w_comp: w.comp, w_jd: w.jd, eval_open: evalOpen, updated_at: new Date().toISOString(),
+      w_kpi: w.kpi, w_comp: w.comp, w_jd: w.jd, eval_open: evalOpen, bonus_tiers: tiers, updated_at: new Date().toISOString(),
     }).eq("id", 1);
     setBusy(false);
     if (error) { toast("บันทึกไม่สำเร็จ: " + error.message, "x"); return; }
@@ -517,6 +519,24 @@ function Settings({ ctx }) {
                 <button className="icon-btn" style={{ width: 32, height: 32 }} onClick={() => setDeptModal(dp)}><Icon name="edit" size={14} /></button>
               </div>
             ))}
+          </div>
+        </Card>
+        <Card>
+          <CardHead title="เกณฑ์โบนัส & ปรับเงินเดือน" sub="กำหนดตามเกรดผลประเมิน (มีใบเตือน = ไม่ปรับเงิน)" />
+          <div className="tbl-wrap">
+            <table className="tbl">
+              <thead><tr><th>เกรด</th><th>เกณฑ์</th><th style={{ width: 130 }}>โบนัส (เท่า)</th><th style={{ width: 130 }}>ปรับเงิน (%)</th></tr></thead>
+              <tbody>
+                {[["A", "ดีเยี่ยม (≥90)", "#16a34a"], ["B", "ดีมาก (≥80)", "#0d9488"], ["C", "ตามเป้า (≥70)", "#2563eb"], ["D", "ต้องพัฒนา (≥60)", "#e08a00"], ["E", "ต่ำกว่าเกณฑ์ (<60)", "#e11d48"]].map(([g, lab, c]) => (
+                  <tr key={g}>
+                    <td><span className="badge" style={{ background: c + "22", color: c, fontWeight: 700 }}>{g}</span></td>
+                    <td className="muted" style={{ fontSize: 13 }}>{lab}</td>
+                    <td><input className="input" type="number" min="0" step="0.5" value={(tiers[g] || {}).bonus ?? 0} onChange={(e) => setTier(g, "bonus", e.target.value)} style={{ padding: "6px 10px" }} /></td>
+                    <td><input className="input" type="number" min="0" step="1" value={(tiers[g] || {}).raise ?? 0} onChange={(e) => setTier(g, "raise", e.target.value)} style={{ padding: "6px 10px" }} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </Card>
       </div>

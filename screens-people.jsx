@@ -494,7 +494,8 @@ function EmployeeProfile({ ctx, empId }) {
   // align competency + KPI sections with the employee's JD / department
   const jdComps = (empJd && empJd.competencies && empJd.competencies.length) ? empJd.competencies : (COMPETENCIES || []).map((c) => c.name);
   const compRows = jdComps.map((name, i) => ({ id: i, name, v: Math.max(55, Math.min(98, (e.comp || 70) + [4, -3, 2, -5, 6, 1, -2, 3, -4][i % 9])) }));
-  const deptKpis = (window.KPI_DEFS || []).filter((k) => k.dept === e.dept && k.status === "approved");
+  const kpiDept = (empJd && (empJd.kpi_dept || empJd.dept)) || e.dept; // KPI อ้างอิงตาม JD
+  const deptKpis = (window.KPI_DEFS || []).filter((k) => k.dept === kpiDept && k.status === "approved");
 
   return (
     <div className="grid">
@@ -592,7 +593,7 @@ function EmployeeProfile({ ctx, empId }) {
               <div className="card-pad">{hist.length ? <LineChart data={hist} height={210} min={60} /> : <div className="muted" style={{ height: 210, display: "grid", placeItems: "center", textAlign: "center" }}>ยังไม่มีประวัติการประเมินย้อนหลัง</div>}</div>
             </Card>
             <Card>
-              <CardHead title="KPI หน่วยงาน" sub={deptName(e.dept) + " · เป้าหมายปีนี้"} />
+              <CardHead title="KPI หน่วยงาน" sub={deptName(kpiDept) + " · ตาม JD"} />
               <div className="card-pad" style={{ display: "flex", flexDirection: "column", gap: 11 }}>
                 {deptKpis.length === 0 ? <div className="muted" style={{ textAlign: "center", padding: "22px 0" }}>ยังไม่มี KPI ของหน่วยงานนี้</div> : deptKpis.slice(0, 6).map((k) => (
                   <div key={k.id} className="between" style={{ gap: 10 }}>

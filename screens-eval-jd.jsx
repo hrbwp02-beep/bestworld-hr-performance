@@ -13,7 +13,8 @@ function Evaluation({ ctx }) {
     || _jdlib.find((j) => norm(j.title) === norm(e.position))
     || _jdlib.find((j) => norm(j.title) && (norm(j.title).includes(norm(e.position)) || norm(e.position).includes(norm(j.title))))
     || _jdlib.find((j) => j.dept === e.dept) || null;
-  const deptKpis = (window.KPI_DEFS || []).filter((k) => k.dept === e.dept && k.status === "approved");
+  const kpiDept = (empJD && (empJD.kpi_dept || empJD.dept)) || e.dept; // KPI อ้างอิงตาม JD
+  const deptKpis = (window.KPI_DEFS || []).filter((k) => k.dept === kpiDept && k.status === "approved");
   const W = window.APP_SETTINGS || {};
   const wK = W.w_kpi != null ? W.w_kpi : 50, wC = W.w_comp != null ? W.w_comp : 25, wJ = W.w_jd != null ? W.w_jd : 25;
   const wSum = (wK + wC + wJ) || 100;
@@ -113,7 +114,7 @@ function Evaluation({ ctx }) {
         {/* A. KPI — ของแผนกจริง */}
         {tab === "kpi" && (
           <div className="card-pad fade-up" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            <p className="muted" style={{ marginTop: 0, fontSize: 13.5 }}>ให้คะแนนผลงานตาม KPI ของ <b>{deptName(e.dept)}</b> (1–5 ดาว) · ถ่วงน้ำหนักตามที่กำหนดในระบบ KPI</p>
+            <p className="muted" style={{ marginTop: 0, fontSize: 13.5 }}>ให้คะแนนผลงานตาม KPI ของ <b>{deptName(kpiDept)}</b> (อ้างอิงตาม JD) (1–5 ดาว) · ถ่วงน้ำหนักตามที่กำหนด</p>
             {kpi.length === 0 && <div className="placeholder-img" style={{ height: 72 }}>ยังไม่มี KPI ของหน่วยงานนี้ — ตั้งค่าได้ที่ KPI หน่วยงาน → กำหนด KPI</div>}
             {kpi.map((k, i) => (
               <div key={k.id} style={{ border: "1px solid var(--border)", borderRadius: 12, padding: 16 }}>
@@ -374,9 +375,9 @@ function JDManagement({ ctx }) {
               </div>
             </div>
             <div>
-              <b style={{ fontSize: 14, display: "block", marginBottom: 10 }}>KPI หน่วยงาน ({deptName(jd.dept)}) ที่อ้างอิง</b>
+              <b style={{ fontSize: 14, display: "block", marginBottom: 10 }}>KPI หน่วยงาน ({deptName(jd.kpi_dept || jd.dept)}) ที่อ้างอิง</b>
               {(() => {
-                const ks = (window.KPI_DEFS || []).filter((k) => k.dept === jd.dept);
+                const ks = (window.KPI_DEFS || []).filter((k) => k.dept === (jd.kpi_dept || jd.dept));
                 return ks.length ? (
                   <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
                     {ks.map((k) => (

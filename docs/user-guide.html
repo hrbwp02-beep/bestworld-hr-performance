@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8" />
+<title>คู่มือการใช้งาน — ระบบประเมินผลพนักงาน เบสท์เวิลด์ อินเตอร์พลาส</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root { --blue:#2563eb; --navy:#0f2147; --ink:#16223a; --muted:#5b6b86; --line:#e4e9f2; --soft:#eff4ff; }
+  * { box-sizing: border-box; }
+  html,body { margin:0; padding:0; }
+  body { font-family:"IBM Plex Sans Thai","Leelawadee UI","Tahoma",sans-serif; color:var(--ink); font-size:13px; line-height:1.65; }
+  h1,h2,h3 { color:var(--navy); margin:0; }
+  p { margin:6px 0; }
+  .page { padding:40px 48px; }
+  /* cover */
+  .cover { min-height:100vh; display:flex; flex-direction:column; justify-content:center;
+    background:radial-gradient(900px 600px at 80% 10%, rgba(37,99,235,.25), transparent 60%), linear-gradient(135deg,#0a1832,#0f2147 60%,#0a1832); color:#fff; padding:60px; }
+  .cover .logo { width:62px;height:62px;border-radius:16px;background:linear-gradient(135deg,#2563eb,#5b8def);display:grid;place-items:center;font-weight:700;font-size:24px;box-shadow:0 10px 30px rgba(37,99,235,.4);margin-bottom:28px;}
+  .cover h1 { color:#fff; font-size:38px; font-weight:700; line-height:1.25; letter-spacing:-.01em; }
+  .cover .sub { color:rgba(255,255,255,.72); font-size:17px; margin-top:14px; max-width:560px; }
+  .cover .meta { margin-top:40px; color:rgba(255,255,255,.6); font-size:13px; }
+  .cover .badge { display:inline-block; background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.2); border-radius:999px; padding:6px 16px; font-size:13px; margin-bottom:24px; }
+
+  h2.section { font-size:21px; border-bottom:3px solid var(--blue); padding-bottom:8px; margin:34px 0 14px; }
+  h2.section:first-child { margin-top:0; }
+  h3.sub { font-size:15px; margin:18px 0 6px; color:var(--blue); }
+  .lead { color:var(--muted); font-size:13.5px; margin-bottom:10px; }
+  ol,ul { margin:6px 0 10px; padding-left:22px; }
+  li { margin:4px 0; }
+  .tag { display:inline-block; background:var(--soft); color:var(--blue); border-radius:6px; padding:1px 7px; font-weight:600; font-size:12px; }
+  .note { background:#fdf6e8; border-left:4px solid #e08a00; padding:10px 14px; border-radius:6px; margin:10px 0; font-size:12.5px; color:#7a5b1e; }
+  .ok { background:#e7f6ec; border-left:4px solid #16a34a; padding:10px 14px; border-radius:6px; margin:10px 0; font-size:12.5px; color:#1c5b34; }
+  table { width:100%; border-collapse:collapse; margin:10px 0; font-size:12.5px; }
+  th,td { border:1px solid var(--line); padding:7px 10px; text-align:left; vertical-align:top; }
+  th { background:var(--soft); color:var(--navy); font-weight:600; }
+  .toc li { margin:6px 0; }
+  .menu { font-weight:600; color:var(--navy); }
+  .kbd { font-family:"IBM Plex Mono",monospace; background:#f1f4fa; border:1px solid var(--line); border-radius:4px; padding:1px 6px; font-size:12px; }
+  .foot { color:var(--muted); font-size:11px; text-align:center; border-top:1px solid var(--line); margin-top:26px; padding-top:10px; }
+  @page { size:A4; margin:14mm 0; }
+  @media print { .cover { min-height:auto; height:297mm; } h2.section { page-break-after:avoid; } table,li,.note,.ok { page-break-inside:avoid; } .pb { page-break-before:always; } }
+</style>
+</head>
+<body>
+
+<!-- COVER -->
+<div class="cover">
+  <div class="logo">BW</div>
+  <div class="badge">คู่มือการใช้งานเบื้องต้น · ฉบับผู้ใช้</div>
+  <h1>ระบบประเมินผล<br/>การปฏิบัติงานประจำปี</h1>
+  <div class="sub">บริษัท เบสท์เวิลด์ อินเตอร์พลาส จำกัด — ติดตาม KPI, Competency และ Job Description รายบุคคล หน่วยงาน และทั้งองค์กร</div>
+  <div class="meta">รอบประเมินปี 2569 · เวอร์ชัน 2.4<br/>เว็บไซต์: https://hrbwp02-beep.github.io/bestworld-hr-performance/</div>
+</div>
+
+<div class="page">
+
+<!-- TOC -->
+<h2 class="section">สารบัญ</h2>
+<ol class="toc">
+  <li>การเข้าสู่ระบบ</li>
+  <li>ภาพรวมการใช้งาน &amp; เมนูหลัก</li>
+  <li>หน้าภาพรวม (Dashboard)</li>
+  <li>จัดการพนักงาน (เพิ่ม / แก้ไข / นำเข้า Excel / รูป)</li>
+  <li>ประเมินผลพนักงาน</li>
+  <li>KPI หน่วยงาน (กำหนด KPI / ส่งรายงาน / คำนวณคะแนน)</li>
+  <li>จัดการ Job Description (JD)</li>
+  <li>รายงาน &amp; Calibration</li>
+  <li>ตั้งค่าระบบ &amp; สิทธิ์ผู้ใช้งาน</li>
+  <li>คำถามที่พบบ่อย</li>
+</ol>
+
+<!-- 1 -->
+<h2 class="section pb">1. การเข้าสู่ระบบ</h2>
+<p class="lead">เปิดเว็บไซต์ของระบบผ่านเบราว์เซอร์ (รองรับทั้งคอมพิวเตอร์และมือถือ)</p>
+<ol>
+  <li>เปิด <span class="kbd">https://hrbwp02-beep.github.io/bestworld-hr-performance/</span></li>
+  <li>กรอก <b>อีเมล</b> และ <b>รหัสผ่าน</b> ที่ได้รับ แล้วกด <span class="tag">เข้าสู่ระบบ</span></li>
+  <li>หากลืมรหัสผ่าน กด “ลืมรหัสผ่าน?” ระบบจะส่งลิงก์รีเซ็ตไปยังอีเมล</li>
+</ol>
+<div class="note">บัญชีผู้ดูแลระบบ (HR) เป็นผู้สร้างบัญชีให้ผู้ใช้คนอื่น (ดูหัวข้อ 9) · เปิดครั้งแรกอาจใช้เวลาโหลด 2–3 วินาที</div>
+
+<!-- 2 -->
+<h2 class="section">2. ภาพรวมการใช้งาน &amp; เมนูหลัก</h2>
+<p class="lead">เมนูอยู่แถบด้านซ้าย แตะไอคอนเมนู (☰) เพื่อย่อ/เปิดบนมือถือ</p>
+<table>
+  <tr><th>เมนู</th><th>ใช้ทำอะไร</th></tr>
+  <tr><td class="menu">ภาพรวม</td><td>สรุปผลทั้งองค์กร: จำนวนพนักงาน, ความคืบหน้าการประเมิน, คะแนนเฉลี่ย, กราฟแนวโน้ม</td></tr>
+  <tr><td class="menu">มุมมองผู้บริหาร</td><td>เจาะลึก KPI บริษัท → หน่วยงาน → ทีม → รายบุคคล</td></tr>
+  <tr><td class="menu">พนักงาน</td><td>ทะเบียนพนักงาน เพิ่ม/แก้ไข/นำเข้า/ดูโปรไฟล์</td></tr>
+  <tr><td class="menu">KPI หน่วยงาน</td><td>กำหนดตัวชี้วัด, ส่งรายงาน KPI, คำนวณคะแนน, ไฟจราจร</td></tr>
+  <tr><td class="menu">ฟอร์มประเมิน</td><td>ประเมิน KPI + Competency + ตาม JD พร้อมสายอนุมัติ</td></tr>
+  <tr><td class="menu">จัดการ JD</td><td>คลัง Job Description แยกตามตำแหน่ง</td></tr>
+  <tr><td class="menu">รายงาน</td><td>9-Box, Heatmap, จัดอันดับ, เปรียบเทียบย้อนหลัง, Export</td></tr>
+  <tr><td class="menu">Calibration</td><td>ปรับเทียบคะแนน, Talent Matrix, ผู้สืบทอด</td></tr>
+  <tr><td class="menu">ตั้งค่า</td><td>รอบประเมิน, น้ำหนักคะแนน, สมรรถนะ, สิทธิ์ผู้ใช้, หน่วยงาน</td></tr>
+</table>
+<p>ด้านบนขวามีปุ่ม <b>แจ้งเตือน</b> 🔔 และเมนูโปรไฟล์ (ออกจากระบบ)</p>
+
+<!-- 3 -->
+<h2 class="section pb">3. หน้าภาพรวม (Dashboard)</h2>
+<ul>
+  <li>การ์ดสรุป: พนักงานทั้งหมด, ประเมินแล้ว (%), รอดำเนินการ, คะแนนเฉลี่ยองค์กร, หน่วยงานอันดับ 1</li>
+  <li>กราฟ: แนวโน้มคะแนนรายเดือน, KPI ตามหน่วยงาน, การกระจาย Competency, สถานะการประเมิน</li>
+  <li>ปุ่ม <span class="tag">รีเฟรช</span> ดึงข้อมูลล่าสุดจากฐานข้อมูล · ปุ่ม <span class="tag">ส่งออกรายงาน</span> ดาวน์โหลดไฟล์ CSV</li>
+  <li>เลือกปีรอบประเมินได้ที่มุมขวาบน (ปี 2569 / 2568)</li>
+</ul>
+<div class="ok">ตัวเลขทั้งหมดคำนวณจากข้อมูลจริงในระบบ และอัปเดตอัตโนมัติเมื่อมีการเพิ่มพนักงานหรือบันทึกผลประเมิน</div>
+
+<!-- 4 -->
+<h2 class="section">4. จัดการพนักงาน</h2>
+<h3 class="sub">เพิ่มพนักงานทีละคน</h3>
+<ol>
+  <li>เมนู <span class="menu">พนักงาน</span> → ปุ่ม <span class="tag">เพิ่มพนักงาน</span></li>
+  <li>อัปโหลดรูป (กด “อัปโหลดรูป”), กรอกชื่อ, หน่วยงาน, ตำแหน่ง</li>
+  <li><b>ระดับ</b> จะถูกแนะนำจากตำแหน่งอัตโนมัติ (แก้เองได้)</li>
+  <li>เลือก <b>วันเข้างาน</b> — ระบบคำนวณ “อายุงาน” ให้อัตโนมัติ</li>
+  <li>กด <span class="tag">บันทึก</span></li>
+</ol>
+<h3 class="sub">นำเข้าพนักงานจาก Excel (จำนวนมาก)</h3>
+<ol>
+  <li>กด <span class="tag">นำเข้า Excel</span> → กด “ดาวน์โหลดเทมเพลต” เพื่อดูคอลัมน์ที่ต้องใช้</li>
+  <li>คอลัมน์: <b>รหัสพนักงาน</b> (ถ้ามี จะใช้เป็นรหัสจริง), ชื่อ-นามสกุล, หน่วยงาน, ตำแหน่ง, ระดับ, วันเข้างาน, อีเมล, เบอร์โทร, KPI, Competency</li>
+  <li>วันเข้างานรองรับทั้ง <span class="kbd">วว/ดด/ปปปป</span>, ปี พ.ศ./ค.ศ. และวันที่ของ Excel</li>
+  <li>เลือกไฟล์ → ดูตัวอย่าง (ระบบจะเตือนแถวที่ข้อมูลไม่ครบ) → กด “นำเข้า”</li>
+  <li>ติ๊ก “อัปเดตถ้ามีชื่อ/รหัสซ้ำ” เพื่อนำเข้าไฟล์เดิมซ้ำได้โดยไม่สร้างข้อมูลซ้ำ</li>
+</ol>
+<h3 class="sub">โปรไฟล์พนักงาน</h3>
+<p>คลิกชื่อพนักงานเพื่อดูโปรไฟล์: รูป, ข้อมูลพื้นฐาน, อายุงาน, คะแนนรวม, เรดาร์สมรรถนะ, ประวัติการประเมิน · มีปุ่ม <span class="tag">Export</span>, <span class="tag">แก้ไข</span>, <span class="tag">ลบ</span>, <span class="tag">ประเมินผล</span></p>
+<div class="note">ถ้ายังไม่ได้ประเมิน โปรไฟล์จะแสดง “ยังไม่ได้ประเมินรอบนี้” แทนคะแนน 0</div>
+
+<!-- 5 -->
+<h2 class="section pb">5. ประเมินผลพนักงาน</h2>
+<p class="lead">เข้าได้จากโปรไฟล์พนักงาน → ปุ่ม “ประเมินผล” แบ่งเป็น 3 ส่วน + ขั้นอนุมัติ</p>
+<ol>
+  <li><b>A · KPI</b> — กรอกผลจริงเทียบเป้าหมาย คะแนนคำนวณอัตโนมัติ (น้ำหนัก 50%)</li>
+  <li><b>B · Competency</b> — ให้ดาว 5 สมรรถนะ พร้อมความเห็น (น้ำหนัก 25%)</li>
+  <li><b>C · ตาม JD</b> — ให้คะแนนหัวข้อหน้าที่ตาม Job Description (น้ำหนัก 25%)</li>
+  <li><b>สรุป &amp; อนุมัติ</b> — ตรวจคะแนนรวม, ใส่ความเห็น แล้วกด <span class="tag">อนุมัติผลการประเมิน</span></li>
+</ol>
+<div class="ok">เมื่ออนุมัติ ระบบจะบันทึกคะแนนเข้าฐานข้อมูล อัปเดตโปรไฟล์ (วงแหวนคะแนน/เรดาร์/ประวัติ) และตัวเลขบน Dashboard ทันที · กด “บันทึกร่าง” เพื่อบันทึกไว้ก่อนได้</div>
+
+<!-- 6 -->
+<h2 class="section">6. KPI หน่วยงาน</h2>
+<table>
+  <tr><th>แท็บ</th><th>การใช้งาน</th></tr>
+  <tr><td class="menu">ภาพรวม</td><td>ไฟจราจรทุกหน่วยงาน (เขียว/เหลือง/แดง), Achievement, Heatmap, สถานะการส่งรายงาน, รายการล่าช้า</td></tr>
+  <tr><td class="menu">กำหนด KPI</td><td>เพิ่ม/แก้ไขตัวชี้วัดแยกตามหน่วยงาน (น้ำหนัก/เป้า/ผลจริง/วิธีคิด) · อนุมัติ/ปฏิเสธ KPI ที่ผู้จัดการเสนอ</td></tr>
+  <tr><td class="menu">ส่งรายงาน</td><td>กด <span class="tag">ส่งรายงาน</span> เลือกหน่วยงาน/งวด + แนบไฟล์ (Excel/PDF/รูป) → คลิกรายการเพื่อดู/อนุมัติ/ตีกลับ/แนบไฟล์เพิ่ม</td></tr>
+  <tr><td class="menu">คำนวณคะแนน</td><td>เครื่องคิดเลข 4 สูตร (ยิ่งสูงดี/ยิ่งต่ำดี/อยู่ในช่วง/กำหนดเอง)</td></tr>
+</table>
+<div class="ok">เมื่อส่ง/อนุมัติรายงานในแท็บ “ส่งรายงาน” ตัวเลข “รายงานส่งแล้ว X/7” และรายการติดตามในแท็บ “ภาพรวม” จะอัปเดตเองตามรอบปีปัจจุบัน</div>
+
+<!-- 7 -->
+<h2 class="section pb">7. จัดการ Job Description (JD)</h2>
+<ul>
+  <li>เมนู <span class="menu">จัดการ JD</span> → ปุ่ม <span class="tag">สร้าง JD</span> (ระบุตำแหน่ง, หน่วยงาน, จำนวน KPI/Competency, หน้าที่ความรับผิดชอบ)</li>
+  <li>คลิกการ์ด JD เพื่อดูรายละเอียด · กด “แก้ไข JD” เพื่อปรับปรุง</li>
+  <li>กรองตามหน่วยงานได้จากแถบชิปด้านบน</li>
+</ul>
+
+<!-- 8 -->
+<h2 class="section">8. รายงาน &amp; Calibration</h2>
+<ul>
+  <li><b>รายงาน:</b> 9-Box Matrix, Heatmap, จัดอันดับพนักงาน, High Potential / กลุ่มเสี่ยง, เปรียบเทียบย้อนหลังรายปี · ปุ่ม “Export Excel” (CSV) และ “PDF” (สั่งพิมพ์)</li>
+  <li><b>Calibration:</b> เปรียบเทียบคะแนนระหว่างหน่วยงาน, Talent Matrix, ผู้สืบทอดตำแหน่ง</li>
+</ul>
+
+<!-- 9 -->
+<h2 class="section pb">9. ตั้งค่าระบบ &amp; สิทธิ์ผู้ใช้งาน</h2>
+<p class="lead">เมนู <span class="menu">ตั้งค่า</span> (เฉพาะผู้ดูแลระบบ)</p>
+<h3 class="sub">รอบการประเมิน &amp; น้ำหนักคะแนน</h3>
+<p>กำหนดชื่อรอบ (ใส่ปี เช่น “รอบประเมินผลประจำปี 2569”), วันเริ่ม–ครบกำหนด, เปิด/ปิดให้ประเมิน และน้ำหนัก KPI/Competency/JD (รวม 100%) → กด <span class="tag">บันทึกการตั้งค่า</span></p>
+<div class="note">เปลี่ยนปีในชื่อรอบ แล้วทั้งระบบ (หัวข้อ, ตัวกรองปี, รายงาน) จะอ้างอิงปีนั้นโดยอัตโนมัติ</div>
+<h3 class="sub">สิทธิ์ผู้ใช้งาน (สร้างบัญชีล็อกอินจริง)</h3>
+<ol>
+  <li>กด <span class="tag">เพิ่มผู้ใช้</span> → กรอกชื่อ, อีเมล, <b>รหัสผ่านเริ่มต้น</b> (มีปุ่มสุ่ม), เลือกบทบาท</li>
+  <li>ผู้ใช้จะ <b>ล็อกอินได้ทันที</b> ด้วยอีเมล + รหัสนั้น</li>
+  <li>สลับสวิตช์เพื่อเปิด/ปิดการเข้าถึง · ไอคอนดินสอ=แก้ไข · กากบาท=ลบ (ลบบัญชีล็อกอินด้วย)</li>
+</ol>
+<table>
+  <tr><th>บทบาท</th><th>สิทธิ์โดยย่อ</th></tr>
+  <tr><td>ผู้ดูแลระบบ</td><td>เข้าถึงทุกฟังก์ชัน + จัดการผู้ใช้/ตั้งค่า</td></tr>
+  <tr><td>ฝ่ายบุคคล (HR)</td><td>จัดการพนักงาน/หน่วยงาน, รอบประเมิน, อนุมัติผล</td></tr>
+  <tr><td>ผู้จัดการฝ่าย</td><td>ดู/ประเมิน/อนุมัติทีม, เสนอ KPI หน่วยงาน</td></tr>
+  <tr><td>หัวหน้างาน</td><td>ประเมินผู้ใต้บังคับบัญชา</td></tr>
+  <tr><td>พนักงานทั่วไป</td><td>ดูผล + ประเมินตนเอง</td></tr>
+</table>
+<h3 class="sub">สมรรถนะ &amp; หน่วยงาน</h3>
+<p>เพิ่ม/แก้ไข/ลบหัวข้อสมรรถนะ (Competency) และเพิ่ม/แก้ไขหน่วยงาน (รหัส, ชื่อ, สี, จำนวนคน) ได้ในหน้าตั้งค่า</p>
+
+<!-- 10 -->
+<h2 class="section">10. คำถามที่พบบ่อย</h2>
+<table>
+  <tr><th>คำถาม</th><th>คำตอบ</th></tr>
+  <tr><td>เพิ่มพนักงานแล้วทำไม Dashboard “ประเมินแล้ว” ยังเป็น 0?</td><td>เพราะยังไม่ได้ประเมิน เมื่อประเมินผ่านปุ่ม “ประเมินผล” ตัวเลขจะขึ้นเอง</td></tr>
+  <tr><td>นำเข้า Excel แล้วบางคนอายุงานไม่ขึ้น?</td><td>เพราะช่องวันเข้างานว่างหรือรูปแบบวันที่ไม่ถูกต้อง แก้วันเข้างานในไฟล์แล้วนำเข้าซ้ำ (ติ๊กอัปเดตถ้าซ้ำ)</td></tr>
+  <tr><td>แก้ข้อมูลแล้วเห็นของเก่า?</td><td>กด “รีเฟรช” หรือรีเฟรชหน้าเว็บ (Ctrl+F5)</td></tr>
+  <tr><td>เพิ่มผู้ใช้แล้วล็อกอินไม่ได้?</td><td>ตรวจอีเมล/รหัสผ่านที่ตั้งไว้ หรือให้ผู้ดูแลตั้งรหัสใหม่</td></tr>
+  <tr><td>ข้อมูลปลอดภัยไหม?</td><td>ทุกตารางเปิด Row Level Security เฉพาะผู้ล็อกอินเข้าถึงได้ · ไฟล์/รูปเก็บบน Supabase Storage</td></tr>
+</table>
+
+<div class="foot">© 2569 บริษัท เบสท์เวิลด์ อินเตอร์พลาส จำกัด — คู่มือการใช้งานระบบประเมินผลพนักงาน (เบื้องต้น)</div>
+</div>
+</body>
+</html>

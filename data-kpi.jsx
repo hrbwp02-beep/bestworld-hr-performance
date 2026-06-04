@@ -9,6 +9,7 @@
 function kpiScore(k) {
   const t = (k.target && k.target.y != null) ? k.target.y : k.target;
   const a = k.actual;
+  if (a == null || a === "") return null; // ยังไม่ได้บันทึกผลจริง
   let s;
   if (k.method === "lower") s = (a <= 0 ? 150 : (t / a) * 100);
   else if (k.method === "range") {
@@ -22,6 +23,7 @@ const METHOD_LABEL = { higher: "ยิ่งสูงยิ่งดี", lower:
 
 // traffic light
 function trafficOf(score) {
+  if (score == null || isNaN(score)) return { key: "none", c: "#94a3b8", soft: "#eef1f7", l: "รอผล" };
   if (score >= 100) return { key: "green", c: "#16a34a", soft: "#e7f6ec", l: "บรรลุเป้า" };
   if (score >= 95)  return { key: "yellow", c: "#e08a00", soft: "#fdf1dc", l: "ใกล้เป้า" };
   return { key: "red", c: "#e11d48", soft: "#fbe7ec", l: "ต่ำกว่าเป้า" };
@@ -30,7 +32,8 @@ function trafficOf(score) {
 // ---------- derivations over the live KPI definitions ----------
 const kpisOf = (dept) => (window.KPI_DEFS || []).filter((k) => k.dept === dept && k.status === "approved");
 function deptAchievement(dept) {
-  const ks = kpisOf(dept);
+  const ks = kpisOf(dept).filter((k) => kpiScore(k) != null);
+  if (!ks.length) return null; // ยังไม่มีผลจริงในหน่วยงานนี้
   const w = ks.reduce((a, k) => a + k.weight, 0) || 1;
   return Math.round(ks.reduce((a, k) => a + kpiScore(k) * k.weight, 0) / w * 10) / 10;
 }
@@ -41,6 +44,7 @@ const KPI_DEPTS = ["prod", "qc", "wh", "hr", "purch", "eng", "plan"];
 const KPI_MONTHS = ["ธ.ค.", "ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค."];
 function deptKpiTrend(dept) {
   const base = deptAchievement(dept);
+  if (base == null) return KPI_MONTHS.map((m) => ({ m, v: 0 }));
   const seed = dept.charCodeAt(0);
   return KPI_MONTHS.map((m, i) => ({ m, v: Math.round((base - (5 - i) * 1.1 + ((seed + i) % 5 - 2) * 0.8) * 10) / 10 }));
 }

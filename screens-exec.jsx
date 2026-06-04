@@ -10,7 +10,8 @@ function ExecDashboard({ ctx }) {
 
   const depts = KPI_DEPTS.map((id) => DEPARTMENTS.find((d) => d.id === id)).filter(Boolean)
     .map((d) => ({ ...d, ach: deptAchievement(d.id) }));
-  const companyAch = Math.round(depts.reduce((a, d) => a + d.ach, 0) / depts.length * 10) / 10;
+  const scoredD = depts.filter((d) => d.ach != null);
+  const companyAch = scoredD.length ? Math.round(scoredD.reduce((a, d) => a + d.ach, 0) / scoredD.length * 10) / 10 : null;
   const risks = kpiRisks();
 
   const crumb = (
@@ -39,8 +40,8 @@ function ExecDashboard({ ctx }) {
           <div className="grid" style={{ gridTemplateColumns: "320px 1fr" }}>
             <Card className="card-pad" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 14 }}>
               <div className="muted" style={{ fontWeight: 600, fontSize: 13.5 }}>KPI Achievement ทั้งบริษัท</div>
-              <Ring value={Math.min(companyAch, 100)} size={172} color={trafficOf(companyAch).c} sub={<div className="num" style={{ fontSize: 14, fontWeight: 700, color: trafficOf(companyAch).c, marginTop: 2 }}>{companyAch}%</div>} />
-              <Badge cls={companyAch >= 100 ? "b-green" : companyAch >= 95 ? "b-amber" : "b-red"} dot>{trafficOf(companyAch).l}</Badge>
+              <Ring value={Math.min(companyAch == null ? 0 : companyAch, 100)} size={172} color={trafficOf(companyAch).c} sub={<div className="num" style={{ fontSize: 14, fontWeight: 700, color: trafficOf(companyAch).c, marginTop: 2 }}>{companyAch == null ? "รอผล" : companyAch + "%"}</div>} />
+              <Badge cls={companyAch == null ? "b-gray" : companyAch >= 100 ? "b-green" : companyAch >= 95 ? "b-amber" : "b-red"} dot>{trafficOf(companyAch).l}</Badge>
               <div className="row" style={{ gap: 22, marginTop: 4 }}>
                 <div style={{ textAlign: "center" }}><div className="num" style={{ fontWeight: 700, fontSize: 20, color: "#16a34a" }}>{depts.filter((d) => d.ach >= 100).length}</div><div className="muted" style={{ fontSize: 11.5 }}>บรรลุเป้า</div></div>
                 <div style={{ width: 1, background: "var(--border)" }} />
@@ -49,7 +50,7 @@ function ExecDashboard({ ctx }) {
             </Card>
             <Card>
               <CardHead title="KPI Achievement ตามหน่วยงาน" sub="คลิกแท่งเพื่อเจาะลึก · เส้นประแดง = เป้า 100%" />
-              <div className="card-pad"><BarChart data={depts.map((d) => ({ ...d, score: d.ach, color: trafficOf(d.ach).c }))} max={130} baseline={100} /></div>
+              <div className="card-pad"><BarChart data={depts.map((d) => ({ ...d, score: d.ach == null ? 0 : d.ach, color: trafficOf(d.ach).c }))} max={130} baseline={100} /></div>
             </Card>
           </div>
 
@@ -93,7 +94,7 @@ function ExecDashboard({ ctx }) {
         return (
           <div className="grid fade-up">
             <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(190px,1fr))" }}>
-              <Stat icon="target" label="Achievement หน่วยงาน" value={ach} unit="%" tone={t.c} soft={t.soft} sub={t.l} />
+              <Stat icon="target" label="Achievement หน่วยงาน" value={ach == null ? "—" : ach} unit={ach == null ? "" : "%"} tone={t.c} soft={t.soft} sub={t.l} />
               <Stat icon="deptkpi" label="ตัวชี้วัด" value={kpis.length} unit="KPI" tone="#2563eb" soft="#e8effb" sub={`${kpis.filter((k) => k.score >= 100).length} บรรลุเป้า`} />
               <Stat icon="users" label="พนักงาน" value={d.head} unit="คน" tone="#0d9488" soft="#e2f4f2" sub={`${teams.length} ทีม`} />
               <Stat icon="trend" label="แนวโน้ม YoY" value={(d.trend >= 0 ? "+" : "") + d.trend} tone={d.trend >= 0 ? "#16a34a" : "#e11d48"} soft={d.trend >= 0 ? "#e7f6ec" : "#fbe7ec"} sub="เทียบปีก่อน" />
@@ -111,9 +112,9 @@ function ExecDashboard({ ctx }) {
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div className="between" style={{ marginBottom: 4 }}>
                             <span style={{ fontSize: 13, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "60%" }}>{k.name}</span>
-                            <span className="muted" style={{ fontSize: 11.5 }}>เป้า {k.target.y}{k.unit} · จริง {k.actual}{k.unit}</span>
+                            <span className="muted" style={{ fontSize: 11.5 }}>เป้า {k.target.y}{k.unit} · จริง {k.actual == null ? "—" : k.actual + (k.unit || "")}</span>
                           </div>
-                          <div className="row" style={{ gap: 10 }}><div style={{ flex: 1 }}><ScoreBar value={Math.min(k.score, 100)} color={kt.c} height={7} /></div><span className="num" style={{ fontWeight: 700, color: kt.c, minWidth: 44 }}>{k.score}%</span></div>
+                          <div className="row" style={{ gap: 10 }}><div style={{ flex: 1 }}><ScoreBar value={Math.min(k.score == null ? 0 : k.score, 100)} color={kt.c} height={7} /></div><span className="num" style={{ fontWeight: 700, color: kt.c, minWidth: 44 }}>{k.score == null ? "รอผล" : k.score + "%"}</span></div>
                         </div>
                       </div>
                     );

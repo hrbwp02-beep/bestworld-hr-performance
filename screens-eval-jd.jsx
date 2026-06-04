@@ -317,7 +317,7 @@ function JDManagement({ ctx }) {
 
       <div className="row wrap" style={{ gap: 8 }}>
         <button className={"chip" + (dept === "all" ? " on" : "")} onClick={() => setDept("all")}>ทุกหน่วยงาน</button>
-        {DEPARTMENTS.slice(0, 7).map((d) => <button key={d.id} className={"chip" + (dept === d.id ? " on" : "")} onClick={() => setDept(d.id)}>{d.short}</button>)}
+        {DEPARTMENTS.map((d) => <button key={d.id} className={"chip" + (dept === d.id ? " on" : "")} onClick={() => setDept(d.id)}>{d.short}</button>)}
       </div>
 
       <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))" }}>
@@ -364,20 +364,28 @@ function JDManagement({ ctx }) {
               </div>
             </div>
             <div>
-              <b style={{ fontSize: 14, display: "block", marginBottom: 10 }}>เชื่อมโยง KPI ({jd.kpis} หัวข้อ)</b>
-              <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-                {KPI_ITEMS.slice(0, jd.kpis).map((k) => (
-                  <div key={k.id} className="between" style={{ border: "1px solid var(--border)", borderRadius: 9, padding: "9px 13px" }}>
-                    <span className="row" style={{ gap: 9, fontSize: 13 }}><Icon name="target" size={15} color="#2563eb" />{k.name}</span>
-                    <span className="num muted" style={{ fontSize: 12 }}>{k.weight}%</span>
+              <b style={{ fontSize: 14, display: "block", marginBottom: 10 }}>KPI หน่วยงาน ({deptName(jd.dept)}) ที่อ้างอิง</b>
+              {(() => {
+                const ks = (window.KPI_DEFS || []).filter((k) => k.dept === jd.dept);
+                return ks.length ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+                    {ks.map((k) => (
+                      <div key={k.id} className="between" style={{ border: "1px solid var(--border)", borderRadius: 9, padding: "9px 13px", gap: 10 }}>
+                        <span className="row" style={{ gap: 9, fontSize: 13, minWidth: 0 }}><Icon name="target" size={15} color="#2563eb" /><span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{k.name}</span></span>
+                        <span className="num muted" style={{ fontSize: 12, whiteSpace: "nowrap" }}>เป้า {k.target.y}{k.unit || ""}</span>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                ) : <div className="muted" style={{ fontSize: 13 }}>ยังไม่มี KPI ของหน่วยงานนี้</div>;
+              })()}
             </div>
             <div>
-              <b style={{ fontSize: 14, display: "block", marginBottom: 10 }}>เชื่อมโยง Competency ({jd.comps} ด้าน)</b>
-              <div className="row wrap" style={{ gap: 8 }}>
-                {COMPETENCIES.slice(0, jd.comps).map((c) => <Badge key={c.id} cls="b-blue" dot>{c.name}</Badge>)}
+              <b style={{ fontSize: 14, display: "block", marginBottom: 10 }}>สมรรถนะตามตำแหน่ง ({(jd.competencies || []).length} ด้าน)</b>
+              <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+                {(jd.competencies || []).map((c, i) => (
+                  <div key={i} className="row" style={{ gap: 9, fontSize: 13, background: "var(--surface-2)", borderRadius: 9, padding: "9px 13px" }}><span style={{ color: "#7c3aed", flex: "0 0 auto" }}><Icon name="award" size={15} /></span>{c}</div>
+                ))}
+                {(jd.competencies || []).length === 0 && <div className="muted" style={{ fontSize: 13 }}>—</div>}
               </div>
             </div>
           </div>

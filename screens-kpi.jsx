@@ -48,7 +48,9 @@ function KPIModule({ ctx }) {
 function KPIOverview({ ctx }) {
   const depts = KPI_DEPTS.map((id) => DEPARTMENTS.find((d) => d.id === id)).filter(Boolean);
   const achData = depts.map((d) => { const a = deptAchievement(d.id); return { ...d, score: a, color: trafficOf(a).c, short: d.short }; });
-  const ranked = [...achData].sort((a, b) => b.score - a.score);
+  const scoredDepts = achData.filter((d) => d.score != null);
+  const avgAch = scoredDepts.length ? Math.round(scoredDepts.reduce((a, d) => a + d.score, 0) / scoredDepts.length * 10) / 10 : null;
+  const barData = achData.map((d) => ({ ...d, score: d.score == null ? 0 : d.score }));
   const greenN = achData.filter((d) => d.score >= 100).length;
   // ----- report metrics, tied to the current evaluation cycle -----
   const cy = +(window.CYCLE_YEAR || 2569);
@@ -59,7 +61,7 @@ function KPIOverview({ ctx }) {
   const subDone = KPI_DEPTS.filter((id) => isSubmitted(id)).length;
   const overdue = cycleSubs.filter((s) => s.status === "overdue");
   const missing = KPI_DEPTS.filter((id) => !subByDept[id]);
-  const allKpis = KPI_DEFS.filter((k) => k.status === "approved").map((k) => ({ ...k, score: kpiScore(k) }));
+  const allKpis = KPI_DEFS.filter((k) => k.status === "approved").map((k) => ({ ...k, score: kpiScore(k) })).filter((k) => k.score != null);
   const topKpis = [...allKpis].sort((a, b) => b.score - a.score).slice(0, 5);
   const botKpis = [...allKpis].sort((a, b) => a.score - b.score).slice(0, 5);
   const companyTrend = KPI_MONTHS.map((m, i) => ({ m, v: Math.round((96 - (5 - i) * 0.9) * 10) / 10 }));
@@ -71,7 +73,7 @@ function KPIOverview({ ctx }) {
   return (
     <div className="grid fade-up">
       <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(200px,1fr))" }}>
-        <Stat icon="target" label="KPI เฉลี่ยองค์กร" value={Math.round(achData.reduce((a, d) => a + d.score, 0) / achData.length * 10) / 10} unit="%" tone="#2563eb" soft="#e8effb" sub="Achievement รวม" />
+        <Stat icon="target" label="KPI เฉลี่ยองค์กร" value={avgAch == null ? "—" : avgAch} unit={avgAch == null ? "" : "%"} tone="#2563eb" soft="#e8effb" sub={avgAch == null ? "รอบันทึกผลจริง" : "Achievement รวม"} />
         <Stat icon="checkCircle" label="หน่วยงานบรรลุเป้า" value={greenN} unit={`/ ${achData.length}`} tone="#16a34a" soft="#e7f6ec" sub="ไฟเขียว" />
         <Stat icon="upload" label="รายงานส่งแล้ว" value={subDone} unit={`/ ${KPI_DEPTS.length}`} tone="#0d9488" soft="#e2f4f2" sub={"รอบปี " + cy} />
         <Stat icon="alert" label="รายงานค้างส่ง" value={missing.length + overdue.length} unit="ฉบับ" tone="#e11d48" soft="#fbe7ec" sub={overdue.length + " เกินกำหนด · " + missing.length + " ยังไม่ส่ง"} />
@@ -90,8 +92,8 @@ function KPIOverview({ ctx }) {
                   <TrafficDot score={d.score} size={12} />
                 </div>
                 <div className="row" style={{ alignItems: "baseline", gap: 6 }}>
-                  <span className="num" style={{ fontWeight: 700, fontSize: 26, color: t.c }}>{d.score}</span>
-                  <span className="muted" style={{ fontSize: 13 }}>%</span>
+                  <span className="num" style={{ fontWeight: 700, fontSize: 26, color: t.c }}>{d.score == null ? "รอผล" : d.score}</span>
+                  {d.score != null && <span className="muted" style={{ fontSize: 13 }}>%</span>}
                   <span className={"badge " + (d.trend >= 0 ? "b-green" : "b-red")} style={{ marginLeft: "auto", padding: "2px 8px" }}>{d.trend >= 0 ? "▲" : "▼"} {Math.abs(d.trend)}</span>
                 </div>
                 <div className="muted" style={{ fontSize: 11.5, marginTop: 4 }}>{kpisOf(d.id).length} ตัวชี้วัด · {t.l} · รายงาน: <span style={{ color: isSubmitted(d.id) ? "#16a34a" : "#e08a00", fontWeight: 600 }}>{isSubmitted(d.id) ? "ส่งแล้ว" : "ยังไม่ส่ง"}</span></div>
@@ -104,7 +106,7 @@ function KPIOverview({ ctx }) {
       <div className="grid" style={{ gridTemplateColumns: "1.6fr 1fr" }}>
         <Card>
           <CardHead title="KPI Achievement ตามหน่วยงาน" sub="เส้นประแดง = เป้าหมาย 100%" />
-          <div className="card-pad"><BarChart data={achData} max={130} baseline={100} /></div>
+          <div className="card-pad"><BarChart data={barData} max={130} baseline={100} /></div>
         </Card>
         <Card>
           <CardHead title="สถานะการส่งรายงาน" sub="KPI Submission Status" />
@@ -142,13 +144,13 @@ function KPIOverview({ ctx }) {
         <Card>
           <CardHead title="KPI ที่ทำได้ดีที่สุด" sub="Top KPI Achievement" right={<Icon name="trophy" size={18} color="#e08a00" />} />
           <div className="card-pad" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            {topKpis.map((k) => <KpiMiniRow key={k.id} k={k} />)}
+            {topKpis.length ? topKpis.map((k) => <KpiMiniRow key={k.id} k={k} />) : <div className="muted" style={{ fontSize: 13, padding: "12px 0" }}>ยังไม่มีผลการประเมิน KPI</div>}
           </div>
         </Card>
         <Card>
           <CardHead title="KPI ที่ต้องเร่งปรับปรุง" sub="Bottom KPI Achievement" right={<Icon name="alert" size={18} color="#e11d48" />} />
           <div className="card-pad" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            {botKpis.map((k) => <KpiMiniRow key={k.id} k={k} />)}
+            {botKpis.length ? botKpis.map((k) => <KpiMiniRow key={k.id} k={k} />) : <div className="muted" style={{ fontSize: 13, padding: "12px 0" }}>ยังไม่มีผลการประเมิน KPI</div>}
           </div>
         </Card>
       </div>
@@ -289,11 +291,11 @@ function KPIDefine({ ctx }) {
                     <td><span className="muted" style={{ fontSize: 12.5 }}>{METHOD_LABEL[k.method]}</span></td>
                     <td className="num" style={{ fontWeight: 600 }}>{k.weight}%</td>
                     <td className="num">{k.target[cycle]}<span className="muted" style={{ fontSize: 11 }}> {k.unit}</span></td>
-                    <td className="num" style={{ fontWeight: 600 }}>{k.actual}<span className="muted" style={{ fontSize: 11 }}> {k.unit}</span></td>
+                    <td className="num" style={{ fontWeight: 600 }}>{k.actual == null ? <span className="muted-3">—</span> : <>{k.actual}<span className="muted" style={{ fontSize: 11 }}> {k.unit}</span></>}</td>
                     <td>
                       <div className="row" style={{ gap: 8 }}>
                         <TrafficDot score={sc} />
-                        <span className="num" style={{ fontWeight: 700, color: t.c }}>{sc}%</span>
+                        <span className="num" style={{ fontWeight: 700, color: t.c }}>{sc == null ? "รอผล" : sc + "%"}</span>
                       </div>
                     </td>
                     <td><button className="icon-btn" style={{ width: 32, height: 32 }} onClick={() => setEditKpi(k)}><Icon name="edit" size={14} /></button></td>

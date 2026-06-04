@@ -128,6 +128,7 @@ async function loadHRData() {
     JD_LIBRARY: jdLibrary, NOTIFS: notifications, KPI_ITEMS: kpiItems, JD_ITEMS: jdItems,
     KPI_DEFS, SUBMISSIONS, TEAMS: teams, SUMMARY, STATUS_PIE,
     APP_USERS: appUsers || [], APP_SETTINGS: appSettings || null, CYCLE_YEAR: cycleYear,
+    KPI_DEPTS: departments.filter((d) => KPI_DEFS.some((k) => k.dept === d.id)).map((d) => d.id),
     ...(trCur.length ? { TREND: trCur } : {}),
     ...(trPrev.length ? { TREND_PREV: trPrev } : {}),
     ...(compRadar.length ? { COMP_RADAR: compRadar } : {}),

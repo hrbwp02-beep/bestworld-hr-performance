@@ -26,6 +26,7 @@ function Evaluation({ ctx }) {
   const [submitted, setSubmitted] = useS3(false);
   const [comment, setComment] = useS3("");
   const [saving, setSaving] = useS3(false);
+  const [pickDept, setPickDept] = useS3(e.dept);
 
   const kpiTotal = useM3(() => { if (!kpi.length) return 0; const w = kpi.reduce((a, k) => a + (k.weight || 0), 0) || 1; return Math.round(kpi.reduce((a, k) => a + k.score * 20 * (k.weight || 0), 0) / w * 10) / 10; }, [kpi]);
   const compTotal = useM3(() => comp.length ? Math.round(comp.reduce((a, c) => a + c.score * 20, 0) / comp.length * 10) / 10 : 0, [comp]);
@@ -102,9 +103,15 @@ function Evaluation({ ctx }) {
             </div>
           </div>
           <div className="row wrap" style={{ gap: 10 }}>
-            <select className="select" style={{ minWidth: 220 }} value={e.id} onChange={(ev) => ctx.startEval(ev.target.value)} title="เลือกพนักงานที่จะประเมิน">
-              {(EMPLOYEES || []).slice().sort((a, b) => (a.dept || "").localeCompare(b.dept || "") || (a.name || "").localeCompare(b.name || "")).map((emp) => (
-                <option key={emp.id} value={emp.id}>{emp.name} · {deptShort(emp.dept)} {emp.status === "done" ? "✓" : ""}</option>
+            <select className="select" style={{ minWidth: 150 }} value={pickDept} onChange={(ev) => setPickDept(ev.target.value)} title="เลือกหน่วยงาน">
+              {(window.DEPARTMENTS || []).filter((d) => (EMPLOYEES || []).some((emp) => emp.dept === d.id)).map((d) => (
+                <option key={d.id} value={d.id}>{d.name} ({(EMPLOYEES || []).filter((emp) => emp.dept === d.id).length})</option>
+              ))}
+            </select>
+            <select className="select" style={{ minWidth: 180 }} value={e.dept === pickDept ? e.id : ""} onChange={(ev) => ev.target.value && ctx.startEval(ev.target.value)} title="เลือกพนักงาน">
+              {e.dept !== pickDept && <option value="">— เลือกพนักงาน —</option>}
+              {(EMPLOYEES || []).filter((emp) => emp.dept === pickDept).slice().sort((a, b) => (a.name || "").localeCompare(b.name || "")).map((emp) => (
+                <option key={emp.id} value={emp.id}>{emp.name} {emp.status === "done" ? "✓" : ""}</option>
               ))}
             </select>
             <button className="btn btn-ghost" onClick={() => saveEval("progress")} disabled={saving}>{saving ? "กำลังบันทึก…" : "บันทึกร่าง"}</button>

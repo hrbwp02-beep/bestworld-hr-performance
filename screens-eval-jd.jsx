@@ -9,7 +9,8 @@ function Evaluation({ ctx }) {
   // align the form with the employee's real JD + department KPIs
   const norm = (s) => String(s || "").replace(/\s+/g, "").trim();
   const _jdlib = window.JD_LIBRARY || [];
-  const empJD = _jdlib.find((j) => norm(j.title) === norm(e.position))
+  const empJD = _jdlib.find((j) => j.id === e.jd_id)
+    || _jdlib.find((j) => norm(j.title) === norm(e.position))
     || _jdlib.find((j) => norm(j.title) && (norm(j.title).includes(norm(e.position)) || norm(e.position).includes(norm(j.title))))
     || _jdlib.find((j) => j.dept === e.dept) || null;
   const deptKpis = (window.KPI_DEFS || []).filter((k) => k.dept === e.dept && k.status === "approved");

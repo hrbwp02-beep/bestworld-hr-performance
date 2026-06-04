@@ -12,7 +12,7 @@ function EmployeeModal({ emp, ctx, onClose }) {
     hire_date: (emp && emp.hire_date) || "", email: (emp && emp.email) || "", phone: (emp && emp.phone) || "",
     status: (emp && emp.status) || "pending", kpi: emp ? emp.kpi : "", comp: emp ? emp.comp : "",
     potential: emp ? emp.potential : 2, perf: emp ? emp.perf : 2, reviewer: (emp && emp.reviewer) || "",
-    female: emp ? !!emp.female : false, photo_url: (emp && emp.photo_url) || "",
+    female: emp ? !!emp.female : false, photo_url: (emp && emp.photo_url) || "", jd_id: (emp && emp.jd_id) || "",
   }));
   const [busy, setBusy] = useS2(false);
   const [err, setErr] = useS2("");
@@ -45,7 +45,7 @@ function EmployeeModal({ emp, ctx, onClose }) {
       email: f.email.trim() || null, phone: f.phone.trim() || null,
       status: f.status, kpi: Number(f.kpi) || 0, comp: Number(f.comp) || 0,
       potential: Number(f.potential) || 1, perf: Number(f.perf) || 1, reviewer: f.reviewer || null,
-      photo_url: f.photo_url || null,
+      photo_url: f.photo_url || null, jd_id: f.jd_id || null,
     };
     let error;
     if (isEdit) {
@@ -89,6 +89,7 @@ function EmployeeModal({ emp, ctx, onClose }) {
           <div className="field"><label>ระดับ</label><select className="select" value={f.level} onChange={(e) => set("level", e.target.value)}>{[...new Set([...(window.LEVELS || []), ...(window.EMPLOYEES || []).map((x) => x.level).filter(Boolean), f.level].filter(Boolean))].map((l) => <option key={l} value={l}>{l}</option>)}</select></div>
         </div>
         <div className="field"><label>ตำแหน่ง *</label><input className="input" value={f.position} onChange={(e) => setF((p) => ({ ...p, position: e.target.value, level: levelFromPosition(e.target.value) }))} placeholder="เช่น หัวหน้าแผนกฉีดพลาสติก" /><span className="muted" style={{ fontSize: 12 }}>ระดับจะถูกแนะนำจากตำแหน่งโดยอัตโนมัติ (เปลี่ยนเองได้)</span></div>
+        <div className="field"><label>Job Description (ผูกตามตำแหน่ง)</label><select className="select" value={f.jd_id} onChange={(e) => set("jd_id", e.target.value)}><option value="">— ไม่ผูก —</option>{(window.JD_LIBRARY || []).map((j) => <option key={j.id} value={j.id}>{j.id} · {j.title}</option>)}</select></div>
         <div className="grid" style={{ gridTemplateColumns: "1fr 1fr" }}>
           <div className="field"><label>อีเมล</label><input className="input" value={f.email} onChange={(e) => set("email", e.target.value)} placeholder="name@bestworld.co.th" /></div>
           <div className="field"><label>เบอร์โทร</label><input className="input" value={f.phone} onChange={(e) => set("phone", e.target.value)} placeholder="08xxxxxxxx" /></div>
@@ -485,6 +486,7 @@ function EmployeeProfile({ ctx, empId }) {
   const sm = statusMeta(e.status);
   const notRated = (e.kpi === 0 && e.comp === 0); // imported but not evaluated yet
   const dash = (v) => (v == null || v === "" ? "—" : v);
+  const empJd = (window.JD_LIBRARY || []).find((j) => j.id === e.jd_id);
 
   return (
     <div className="grid">
@@ -545,7 +547,7 @@ function EmployeeProfile({ ctx, empId }) {
           <Card>
             <CardHead title="ข้อมูลติดต่อ" />
             <div className="card-pad" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              {[["mail", e.email || "ยังไม่ระบุอีเมล"], ["phone", e.phone || "ยังไม่ระบุเบอร์โทร"], ["briefcase", e.position + " · " + deptName(e.dept)], ["calendar", e.hire_date ? ("เข้างาน " + e.hire_date + " (" + e.tenure + ")") : "ยังไม่ระบุวันเข้างาน"]].map(([ic, v], idx) => (
+              {[["mail", e.email || "ยังไม่ระบุอีเมล"], ["phone", e.phone || "ยังไม่ระบุเบอร์โทร"], ["briefcase", e.position + " · " + deptName(e.dept)], ["jd", empJd ? (empJd.id + " · " + empJd.title) : "ยังไม่ผูก JD"], ["calendar", e.hire_date ? ("เข้างาน " + e.hire_date + " (" + e.tenure + ")") : "ยังไม่ระบุวันเข้างาน"]].map(([ic, v], idx) => (
                 <div key={idx} className="row" style={{ gap: 11 }}><span style={{ color: "var(--text-3)" }}><Icon name={ic} size={17} /></span><span style={{ fontSize: 13.5, color: ((ic === "mail" && !e.email) || (ic === "phone" && !e.phone) || (ic === "calendar" && !e.hire_date)) ? "var(--text-3)" : "var(--text)" }}>{v}</span></div>
               ))}
             </div>

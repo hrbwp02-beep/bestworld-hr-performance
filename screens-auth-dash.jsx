@@ -150,7 +150,7 @@ function Dashboard({ ctx }) {
 
   const StatusCard = () => (
     <Card>
-      <CardHead title="สถานะการประเมิน" sub={`รอบ ${COMPANY.cycle}`} />
+      <CardHead title="สถานะการประเมิน" sub={COMPANY.cycle} />
       <div className="card-pad"><Donut data={STATUS_PIE} centerLabel="พนักงาน" /></div>
     </Card>
   );

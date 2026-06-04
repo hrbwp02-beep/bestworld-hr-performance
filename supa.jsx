@@ -60,14 +60,43 @@ async function loadHRData() {
     kpiItems, jdItems, kpiDefRows, subRows, teams, appUsers, trendRows, appSettings,
   ] = results.map((r) => r.data);
 
+  // evaluation cycle year — derived early so we can match this year's records
+  let cycleYear = 2569;
+  if (appSettings && appSettings.cycle_name) {
+    const ym = String(appSettings.cycle_name).match(/(25\d{2}|20\d{2})/);
+    if (ym) cycleYear = Number(ym[1]);
+  }
+
+  // evaluations are the single source of truth for an employee's final score & grade
+  // (weighted KPI+Competency+JD per app_settings). Fall back to kpi/comp when not evaluated.
+  const evalRes = await sb.from("evaluations").select("*").eq("cycle_year", cycleYear);
+  if (evalRes.error) throw new Error(evalRes.error.message);
+  const evalByEmp = {};
+  (evalRes.data || []).forEach((r) => { evalByEmp[r.employee_id] = r; });
+
   // employees → re-attach computed fields the screens expect
   const EMPLOYEES = empRows.map((e) => {
-    const overall = Math.round((e.kpi * 0.6 + e.comp * 0.4) * 10) / 10;
+    const ev = evalByEmp[e.id];
+    const overall = ev && ev.overall != null
+      ? Math.round(Number(ev.overall) * 10) / 10
+      : Math.round((e.kpi * 0.6 + e.comp * 0.4) * 10) / 10;
     const parts = (e.name || "").split(" ");
     const initials = (parts[0] ? parts[0][0] : "") + (parts[1] ? parts[1][0] : "");
     // อายุงาน is computed live from hire_date when available
     const tenure = e.hire_date ? tenureFrom(e.hire_date) : e.tenure;
-    return { ...e, tenure, overall, initials, band: bandOf(overall) };
+    return {
+      ...e, tenure, overall, initials, band: bandOf(overall),
+      eval: ev || null, jd_score: ev ? _num(ev.jd_score) : null,
+    };
+  });
+
+  // department aggregates (head / done / avg score) computed LIVE from employees — never stale
+  departments.forEach((d) => {
+    const es = EMPLOYEES.filter((e) => e.dept === d.id);
+    const dn = es.filter((e) => e.status === "done");
+    d.head = es.length;
+    d.done = dn.length;
+    d.score = dn.length ? Math.round(dn.reduce((a, e) => a + e.overall, 0) / dn.length * 10) / 10 : 0;
   });
 
   // kpi_defs → shape back into the nested form { target:{m,q,y}, range:[lo,hi], … }
@@ -110,12 +139,6 @@ async function loadHRData() {
     { label: "รอประเมิน", v: cnt("pending"), color: "#cbd5e1" },
   ];
 
-  // evaluation cycle year — single source of truth from app_settings
-  let cycleYear = 2569;
-  if (appSettings && appSettings.cycle_name) {
-    const ym = String(appSettings.cycle_name).match(/(25\d{2}|20\d{2})/);
-    if (ym) cycleYear = Number(ym[1]);
-  }
   if (window.COMPANY) window.COMPANY.cycle = "รอบประเมินปี " + cycleYear;
 
   // monthly trend + competency radar from DB (fall back to static defaults if empty)

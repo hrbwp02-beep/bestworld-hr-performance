@@ -63,7 +63,7 @@ function App() {
   const [loadErr, setLoadErr] = useA(null);
   const [route, setRoute] = useA("dashboard");
   const [empId, setEmpId] = useA("E1000");
-  const [evalEmp, setEvalEmp] = useA("E1000");
+  const [evalEmp, setEvalEmp] = useA("");
   const [year, setYear] = useA(String(window.CYCLE_YEAR || "2569"));
   const [collapsed, setCollapsed] = useA(false);
   const [mobileOpen, setMobileOpen] = useA(false);

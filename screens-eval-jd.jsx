@@ -283,6 +283,7 @@ function AddJDModal({ defaultDept, jd, ctx, onClose }) {
   const [kpis, setKpis] = useS3(jd ? String(jd.kpis) : "");
   const [comps, setComps] = useS3(jd ? String(jd.comps) : "");
   const [duties, setDuties] = useS3(jd && jd.duties ? jd.duties.join("\n") : "");
+  const [compList, setCompList] = useS3(jd && jd.competencies ? jd.competencies.join("\n") : "");
   const [busy, setBusy] = useS3(false);
   const [err, setErr] = useS3("");
 
@@ -300,14 +301,16 @@ function AddJDModal({ defaultDept, jd, ctx, onClose }) {
   const save = async () => {
     if (!title.trim()) { setErr("กรุณากรอกชื่อตำแหน่ง"); return; }
     const dutyArr = duties.split("\n").map((s) => s.trim()).filter(Boolean);
+    const compArr = compList.split("\n").map((s) => s.trim()).filter(Boolean);
+    const compCount = compArr.length || Number(comps) || 0;
     setErr(""); setBusy(true);
     let error;
     if (isEdit) {
-      ({ error } = await window.sb.from("jd_library").update({ title: title.trim(), dept, kpis: Number(kpis) || 0, comps: Number(comps) || 0, duties: dutyArr, updated: today() }).eq("id", jd.id));
+      ({ error } = await window.sb.from("jd_library").update({ title: title.trim(), dept, kpis: Number(kpis) || 0, comps: compCount, competencies: compArr, duties: dutyArr, updated: today() }).eq("id", jd.id));
     } else {
       ({ error } = await window.sb.from("jd_library").insert({
         id: nextId(dept), title: title.trim(), dept, version: "v1.0", updated: today(),
-        status: "draft", kpis: Number(kpis) || 0, comps: Number(comps) || 0, duties: dutyArr, sort: 999,
+        status: "draft", kpis: Number(kpis) || 0, comps: compCount, competencies: compArr, duties: dutyArr, sort: 999,
       }));
     }
     if (error) { setBusy(false); setErr("บันทึกไม่สำเร็จ: " + error.message); return; }
@@ -326,11 +329,9 @@ function AddJDModal({ defaultDept, jd, ctx, onClose }) {
         {err && <div style={{ padding: "10px 13px", borderRadius: 10, background: "var(--red-soft)", color: "#be123c", fontSize: 13 }}>{err}</div>}
         <div className="field"><label>ชื่อตำแหน่ง *</label><input className="input" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="เช่น หัวหน้าแผนกควบคุมคุณภาพ" /></div>
         <div className="field"><label>หน่วยงาน</label><select className="select" value={dept} onChange={(e) => setDept(e.target.value)}>{(window.DEPARTMENTS || []).map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}</select></div>
-        <div className="grid" style={{ gridTemplateColumns: "1fr 1fr" }}>
-          <div className="field"><label>จำนวน KPI ที่เชื่อมโยง</label><input className="input" type="number" value={kpis} onChange={(e) => setKpis(e.target.value)} placeholder="5" /></div>
-          <div className="field"><label>จำนวน Competency</label><input className="input" type="number" value={comps} onChange={(e) => setComps(e.target.value)} placeholder="5" /></div>
-        </div>
-        <div className="field"><label>หน้าที่ความรับผิดชอบ (บรรทัดละ 1 ข้อ)</label><textarea className="input" value={duties} onChange={(e) => setDuties(e.target.value)} rows={5} placeholder={"ควบคุมคุณภาพงานให้เป็นไปตามมาตรฐาน\nวางแผนการผลิตและจัดสรรกำลังคน"} /></div>
+        <div className="field"><label>จำนวน KPI ที่เชื่อมโยง</label><input className="input" type="number" value={kpis} onChange={(e) => setKpis(e.target.value)} placeholder="5" /></div>
+        <div className="field"><label>สมรรถนะตามตำแหน่ง (Competency · บรรทัดละ 1 ข้อ — แนะนำ ≥ 5 ข้อ)</label><textarea className="input" value={compList} onChange={(e) => setCompList(e.target.value)} rows={5} placeholder={"ความรับผิดชอบและตรงต่อเวลา\nการทำงานเป็นทีมและการสื่อสาร\nวินัย ความปลอดภัย และกิจกรรม 5ส\nการแก้ปัญหาและการตัดสินใจ\nความรู้ความสามารถในงาน"} /><div className="muted" style={{ fontSize: 12, marginTop: 4 }}>ใช้เป็นหัวข้อให้คะแนนในฟอร์มประเมิน (ส่วน B) · ตอนนี้ {compList.split("\n").map((s) => s.trim()).filter(Boolean).length} ข้อ</div></div>
+        <div className="field"><label>หน้าที่ความรับผิดชอบ (ตาม JD · บรรทัดละ 1 ข้อ)</label><textarea className="input" value={duties} onChange={(e) => setDuties(e.target.value)} rows={5} placeholder={"ควบคุมคุณภาพงานให้เป็นไปตามมาตรฐาน\nวางแผนการผลิตและจัดสรรกำลังคน"} /></div>
       </div>
     </Modal>
   );

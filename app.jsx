@@ -246,7 +246,7 @@ function App() {
           {route === "evaltrack" && <EvalTracking ctx={ctx} />}
           {route === "profile" && <EmployeeProfile ctx={ctx} empId={empId} />}
           {route === "kpi" && <KPIModule ctx={ctx} />}
-          {route === "eval" && <Evaluation ctx={ctx} />}
+          {route === "eval" && <Evaluation key={ctx.evalEmp} ctx={ctx} />}
           {route === "jd" && <JDManagement ctx={ctx} />}
           {route === "reports" && <Reports ctx={ctx} />}
           {route === "calibration" && <Calibration ctx={ctx} />}

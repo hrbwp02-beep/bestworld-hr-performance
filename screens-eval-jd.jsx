@@ -101,7 +101,12 @@ function Evaluation({ ctx }) {
               <div className="muted" style={{ fontSize: 13.5 }}>{e.position} · {deptName(e.dept)} · {COMPANY.cycle}</div>
             </div>
           </div>
-          <div className="row" style={{ gap: 10 }}>
+          <div className="row wrap" style={{ gap: 10 }}>
+            <select className="select" style={{ minWidth: 220 }} value={e.id} onChange={(ev) => ctx.startEval(ev.target.value)} title="เลือกพนักงานที่จะประเมิน">
+              {(EMPLOYEES || []).slice().sort((a, b) => (a.dept || "").localeCompare(b.dept || "") || (a.name || "").localeCompare(b.name || "")).map((emp) => (
+                <option key={emp.id} value={emp.id}>{emp.name} · {deptShort(emp.dept)} {emp.status === "done" ? "✓" : ""}</option>
+              ))}
+            </select>
             <button className="btn btn-ghost" onClick={() => saveEval("progress")} disabled={saving}>{saving ? "กำลังบันทึก…" : "บันทึกร่าง"}</button>
             <button className="btn btn-pri" onClick={() => { setTab("approve"); }}>ไปขั้นอนุมัติ <Icon name="chevRight" size={15} /></button>
           </div>

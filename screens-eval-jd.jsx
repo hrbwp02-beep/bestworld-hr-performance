@@ -27,6 +27,11 @@ function Evaluation({ ctx }) {
   const [comment, setComment] = useS3("");
   const [saving, setSaving] = useS3(false);
   const [pickDept, setPickDept] = useS3(e.dept);
+  const [pickSec, setPickSec] = useS3(window.sectionOf(e.position));
+  const deptEmps = (EMPLOYEES || []).filter((emp) => emp.dept === pickDept);
+  const secList = [...new Set(deptEmps.map((emp) => window.sectionOf(emp.position)))];
+  const effSec = secList.includes(pickSec) ? pickSec : secList[0];
+  const pickEmps = secList.length > 1 ? deptEmps.filter((emp) => window.sectionOf(emp.position) === effSec) : deptEmps;
 
   const kpiTotal = useM3(() => { if (!kpi.length) return 0; const w = kpi.reduce((a, k) => a + (k.weight || 0), 0) || 1; return Math.round(kpi.reduce((a, k) => a + k.score * 20 * (k.weight || 0), 0) / w * 10) / 10; }, [kpi]);
   const compTotal = useM3(() => comp.length ? Math.round(comp.reduce((a, c) => a + c.score * 20, 0) / comp.length * 10) / 10 : 0, [comp]);
@@ -108,9 +113,16 @@ function Evaluation({ ctx }) {
                 <option key={d.id} value={d.id}>{d.name} ({(EMPLOYEES || []).filter((emp) => emp.dept === d.id).length})</option>
               ))}
             </select>
-            <select className="select" style={{ minWidth: 180 }} value={e.dept === pickDept ? e.id : ""} onChange={(ev) => ev.target.value && ctx.startEval(ev.target.value)} title="เลือกพนักงาน">
-              {e.dept !== pickDept && <option value="">— เลือกพนักงาน —</option>}
-              {(EMPLOYEES || []).filter((emp) => emp.dept === pickDept).slice().sort((a, b) => (a.name || "").localeCompare(b.name || "")).map((emp) => (
+            {secList.length > 1 && (
+              <select className="select" style={{ minWidth: 140 }} value={effSec} onChange={(ev) => setPickSec(ev.target.value)} title="เลือกส่วนงาน">
+                {secList.map((s) => (
+                  <option key={s} value={s}>{s} ({deptEmps.filter((emp) => window.sectionOf(emp.position) === s).length})</option>
+                ))}
+              </select>
+            )}
+            <select className="select" style={{ minWidth: 180 }} value={pickEmps.some((emp) => emp.id === e.id) ? e.id : ""} onChange={(ev) => ev.target.value && ctx.startEval(ev.target.value)} title="เลือกพนักงาน">
+              {!pickEmps.some((emp) => emp.id === e.id) && <option value="">— เลือกพนักงาน —</option>}
+              {pickEmps.slice().sort((a, b) => (a.name || "").localeCompare(b.name || "")).map((emp) => (
                 <option key={emp.id} value={emp.id}>{emp.name} {emp.status === "done" ? "✓" : ""}</option>
               ))}
             </select>

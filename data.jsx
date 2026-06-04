@@ -64,6 +64,18 @@ function levelFromPosition(pos) {
   return "ปฏิบัติการ";
 }
 
+// ส่วนงาน (section) — แยกย่อยภายในหน่วยงานจากชื่อตำแหน่ง (ใช้กับฝ่ายที่มีคนเยอะ เช่น ผลิต)
+function sectionOf(position) {
+  const p = String(position || "");
+  if (/เป่า/.test(p)) return "ส่วนงานเป่า";
+  if (/พิมพ์/.test(p)) return "ส่วนงานพิมพ์";
+  if (/สลิท|สลิต/.test(p)) return "ส่วนงานสลิท";
+  if (/กรอ/.test(p)) return "ส่วนงานกรอ";
+  if (/ผสม/.test(p)) return "ส่วนงานผสมเม็ด";
+  if (/ซีล/.test(p)) return "ส่วนงานโรงซีล";
+  return "ส่วนกลาง";
+}
+
 // อายุงาน — compute from hire date (วันเข้างาน) relative to today
 function tenureFrom(hireDate) {
   if (!hireDate) return "—";
@@ -119,5 +131,5 @@ const NINEBOX = {
 
 Object.assign(window, {
   COMPANY, TREND, TREND_PREV, COMP_RADAR, NINEBOX,
-  bandOf, statusMeta, deptName, deptShort, tenureFrom, LEVELS, levelFromPosition, evalOutcome, BONUS_TIERS_DEFAULT,
+  bandOf, statusMeta, deptName, deptShort, tenureFrom, LEVELS, levelFromPosition, evalOutcome, BONUS_TIERS_DEFAULT, sectionOf,
 });

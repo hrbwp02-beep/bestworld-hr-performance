@@ -31,6 +31,7 @@ function Evaluation({ ctx }) {
   const jdTotal = useM3(() => jd.length ? Math.round(jd.reduce((a, j) => a + j.score * 20, 0) / jd.length * 10) / 10 : 0, [jd]);
   const overall = Math.round((kpiTotal * wK + compTotal * wC + jdTotal * wJ) / wSum * 10) / 10;
   const band = window.bandOf(overall);
+  const outcome = window.evalOutcome(overall, e.warnings);
 
   // save the evaluation to Supabase: record it + write scores back to the employee
   const saveEval = async (finalStatus) => {
@@ -42,6 +43,7 @@ function Evaluation({ ctx }) {
     const { error: evErr } = await window.sb.from("evaluations").insert({
       employee_id: e.id, cycle_year: cy, kpi_score: kScore, comp_score: cScore, jd_score: jScore,
       overall: Math.round(overall), comment: comment.trim() || null, evaluator: "คุณสุดารัตน์ (HR)", status: finalStatus,
+      grade: outcome.grade, bonus_months: outcome.bonusMonths, raise_pct: outcome.raisePct, has_warning: outcome.hasWarning,
     });
     const newHist = finalStatus === "done" ? [...(e.history || []), histVal] : (e.history || []);
     const { error: upErr } = await window.sb.from("employees").update({
@@ -186,9 +188,21 @@ function Evaluation({ ctx }) {
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16, padding: "10px 0" }}>
                 <Ring value={overall} size={170} label={band.label} />
                 <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 10 }}>
-                  {[["KPI (50%)", kpiTotal, "#2563eb"], ["Competency (25%)", compTotal, "#7c3aed"], ["JD-Based (25%)", jdTotal, "#0d9488"]].map(([l, v, c]) => (
+                  {[["KPI (" + wK + "%)", kpiTotal, "#2563eb"], ["Competency (" + wC + "%)", compTotal, "#7c3aed"], ["JD-Based (" + wJ + "%)", jdTotal, "#0d9488"]].map(([l, v, c]) => (
                     <div key={l} className="between" style={{ fontSize: 13.5 }}><span className="muted">{l}</span><span className="num" style={{ fontWeight: 700, color: c }}>{v}</span></div>
                   ))}
+                </div>
+                {/* outcome: grade + bonus + raise */}
+                <div style={{ width: "100%", border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden" }}>
+                  <div className="between" style={{ background: outcome.color + "14", padding: "12px 14px" }}>
+                    <span style={{ fontWeight: 600, fontSize: 13.5 }}>ผลสรุป</span>
+                    <span className="badge" style={{ background: outcome.color + "22", color: outcome.color, fontWeight: 700 }}>เกรด {outcome.grade} · {outcome.gradeLabel}</span>
+                  </div>
+                  <div style={{ padding: "10px 14px", display: "flex", flexDirection: "column", gap: 9 }}>
+                    <div className="between" style={{ fontSize: 13 }}><span className="row" style={{ gap: 7 }}><Icon name="trophy" size={15} color="#e08a00" />โบนัส</span>{outcome.bonusEligible ? <span style={{ fontWeight: 700, color: "#16a34a" }}>ได้รับ · {outcome.bonusMonths} เท่าของเงินเดือน</span> : <span className="muted" style={{ fontWeight: 600 }}>ไม่ได้รับ</span>}</div>
+                    <div className="between" style={{ fontSize: 13 }}><span className="row" style={{ gap: 7 }}><Icon name="trend" size={15} color="#2563eb" />ปรับเงินเดือน</span>{outcome.raiseEligible ? <span style={{ fontWeight: 700, color: "#16a34a" }}>+{outcome.raisePct}%</span> : <span style={{ fontWeight: 600, color: "var(--red)" }}>ไม่ปรับเงิน</span>}</div>
+                    {outcome.hasWarning && <div style={{ background: "var(--red-soft)", color: "#be123c", borderRadius: 8, padding: "8px 11px", fontSize: 12.5 }}><Icon name="alert" size={14} /> มีใบเตือน {outcome.warnings} ใบ — ระงับการปรับเงินเดือนรอบนี้</div>}
+                  </div>
                 </div>
               </div>
               <div>

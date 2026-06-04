@@ -27,6 +27,23 @@ function statusMeta(s) {
   })[s];
 }
 
+// ผลสรุปการประเมิน → เกรด + โบนัส + การปรับเงินเดือน (มีใบเตือน = ไม่ปรับเงิน)
+function evalOutcome(overall, warnings) {
+  const b = bandOf(overall);
+  const tiers = {
+    A: { bonus: 2.0, raise: 10 }, B: { bonus: 1.5, raise: 6 }, C: { bonus: 1.0, raise: 3 },
+    D: { bonus: 0.5, raise: 0 }, E: { bonus: 0, raise: 0 },
+  };
+  const t = tiers[b.key] || tiers.E;
+  const hasWarning = (warnings || 0) > 0;
+  return {
+    grade: b.key, gradeLabel: b.label, color: b.color, cls: b.cls,
+    bonusMonths: t.bonus, bonusEligible: t.bonus > 0,
+    raisePct: hasWarning ? 0 : t.raise, raiseEligible: !hasWarning && t.raise > 0,
+    hasWarning, warnings: warnings || 0,
+  };
+}
+
 // department lookups — read the live DEPARTMENTS loaded from Supabase
 const deptName = (id) => ((window.DEPARTMENTS || []).find((d) => d.id === id) || {}).name || id;
 const deptShort = (id) => ((window.DEPARTMENTS || []).find((d) => d.id === id) || {}).short || id;
@@ -100,5 +117,5 @@ const NINEBOX = {
 
 Object.assign(window, {
   COMPANY, TREND, TREND_PREV, COMP_RADAR, NINEBOX,
-  bandOf, statusMeta, deptName, deptShort, tenureFrom, LEVELS, levelFromPosition,
+  bandOf, statusMeta, deptName, deptShort, tenureFrom, LEVELS, levelFromPosition, evalOutcome,
 });

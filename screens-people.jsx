@@ -12,7 +12,7 @@ function EmployeeModal({ emp, ctx, onClose }) {
     hire_date: (emp && emp.hire_date) || "", email: (emp && emp.email) || "", phone: (emp && emp.phone) || "",
     status: (emp && emp.status) || "pending", kpi: emp ? emp.kpi : "", comp: emp ? emp.comp : "",
     potential: emp ? emp.potential : 2, perf: emp ? emp.perf : 2, reviewer: (emp && emp.reviewer) || "",
-    female: emp ? !!emp.female : false, photo_url: (emp && emp.photo_url) || "", jd_id: (emp && emp.jd_id) || "",
+    female: emp ? !!emp.female : false, photo_url: (emp && emp.photo_url) || "", jd_id: (emp && emp.jd_id) || "", warnings: emp ? (emp.warnings || 0) : 0,
   }));
   const [busy, setBusy] = useS2(false);
   const [err, setErr] = useS2("");
@@ -45,7 +45,7 @@ function EmployeeModal({ emp, ctx, onClose }) {
       email: f.email.trim() || null, phone: f.phone.trim() || null,
       status: f.status, kpi: Number(f.kpi) || 0, comp: Number(f.comp) || 0,
       potential: Number(f.potential) || 1, perf: Number(f.perf) || 1, reviewer: f.reviewer || null,
-      photo_url: f.photo_url || null, jd_id: f.jd_id || null,
+      photo_url: f.photo_url || null, jd_id: f.jd_id || null, warnings: Number(f.warnings) || 0,
     };
     let error;
     if (isEdit) {
@@ -104,7 +104,10 @@ function EmployeeModal({ emp, ctx, onClose }) {
           <div className="field"><label>ศักยภาพ</label><select className="select" value={f.potential} onChange={(e) => set("potential", +e.target.value)}>{[1, 2, 3].map((n) => <option key={n} value={n}>{n}</option>)}</select></div>
           <div className="field"><label>ผลงาน</label><select className="select" value={f.perf} onChange={(e) => set("perf", +e.target.value)}>{[1, 2, 3].map((n) => <option key={n} value={n}>{n}</option>)}</select></div>
         </div>
-        <div className="field"><label>ผู้ประเมิน (หัวหน้า)</label><input className="input" value={f.reviewer} onChange={(e) => set("reviewer", e.target.value)} placeholder="ชื่อผู้บังคับบัญชา" /></div>
+        <div className="grid" style={{ gridTemplateColumns: "2fr 1fr" }}>
+          <div className="field"><label>ผู้ประเมิน (หัวหน้า)</label><input className="input" value={f.reviewer} onChange={(e) => set("reviewer", e.target.value)} placeholder="ชื่อผู้บังคับบัญชา" /></div>
+          <div className="field"><label>ใบเตือน (ใบ)</label><input className="input" type="number" min="0" value={f.warnings} onChange={(e) => set("warnings", e.target.value)} /><span className="muted" style={{ fontSize: 12 }}>มีใบเตือน = ไม่ปรับเงิน</span></div>
+        </div>
         <label className="row" style={{ gap: 8, fontSize: 13.5, cursor: "pointer" }}><input type="checkbox" checked={f.female} onChange={(e) => set("female", e.target.checked)} style={{ width: 16, height: 16, accentColor: "var(--accent)" }} /> เพศหญิง</label>
       </div>
     </Modal>
@@ -487,6 +490,7 @@ function EmployeeProfile({ ctx, empId }) {
   const notRated = (e.kpi === 0 && e.comp === 0); // imported but not evaluated yet
   const dash = (v) => (v == null || v === "" ? "—" : v);
   const empJd = (window.JD_LIBRARY || []).find((j) => j.id === e.jd_id);
+  const outcome = window.evalOutcome(e.overall, e.warnings);
 
   return (
     <div className="grid">
@@ -504,6 +508,7 @@ function EmployeeProfile({ ctx, empId }) {
             <div className="row wrap" style={{ gap: 10, marginBottom: 4 }}>
               <h1 style={{ margin: 0, fontSize: 23 }}>{e.name}</h1>
               <Badge cls={sm.cls} dot>{sm.label}</Badge>
+              {e.warnings > 0 && <Badge cls="b-red" dot>ใบเตือน {e.warnings}</Badge>}
             </div>
             <div className="muted" style={{ fontSize: 15 }}>{e.position} · {deptName(e.dept)}</div>
             <div className="row wrap" style={{ gap: 18, marginTop: 14 }}>
@@ -540,6 +545,11 @@ function EmployeeProfile({ ctx, empId }) {
                   <div style={{ flex: 1 }}><div className="num" style={{ fontWeight: 700, fontSize: 20, color: "#2563eb" }}>{e.kpi}</div><div className="muted" style={{ fontSize: 12 }}>KPI (60%)</div></div>
                   <div style={{ width: 1, background: "var(--border)" }} />
                   <div style={{ flex: 1 }}><div className="num" style={{ fontWeight: 700, fontSize: 20, color: "#7c3aed" }}>{e.comp}</div><div className="muted" style={{ fontSize: 12 }}>Competency (40%)</div></div>
+                </div>
+                <div style={{ width: "100%", borderTop: "1px solid var(--border-2)", paddingTop: 12, display: "flex", flexDirection: "column", gap: 8 }}>
+                  <div className="between" style={{ fontSize: 13 }}><span className="muted">เกรด</span><span className="badge" style={{ background: outcome.color + "22", color: outcome.color, fontWeight: 700 }}>{outcome.grade} · {outcome.gradeLabel}</span></div>
+                  <div className="between" style={{ fontSize: 13 }}><span className="muted">โบนัส</span>{outcome.bonusEligible ? <span style={{ fontWeight: 700, color: "#16a34a" }}>{outcome.bonusMonths} เท่า</span> : <span className="muted" style={{ fontWeight: 600 }}>ไม่ได้รับ</span>}</div>
+                  <div className="between" style={{ fontSize: 13 }}><span className="muted">ปรับเงินเดือน</span>{outcome.raiseEligible ? <span style={{ fontWeight: 700, color: "#16a34a" }}>+{outcome.raisePct}%</span> : <span style={{ fontWeight: 700, color: "var(--red)" }}>ไม่ปรับ{outcome.hasWarning ? " (มีใบเตือน)" : ""}</span>}</div>
                 </div>
               </>)}
             </div>

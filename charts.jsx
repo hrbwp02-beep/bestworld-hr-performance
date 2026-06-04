@@ -56,7 +56,7 @@ function LineChart({ data, prev, height = 260, max = 100, min = 70 }) {
   const [hi, setHi] = useStateC(-1);
   const W = 760, padL = 36, padB = 30, padT = 16, padR = 14;
   const innerW = W - padL - padR, innerH = height - padB - padT;
-  const xOf = (i) => padL + (innerW * i) / (data.length - 1);
+  const xOf = (i) => data.length <= 1 ? padL + innerW / 2 : padL + (innerW * i) / (data.length - 1);
   const yOf = (v) => padT + innerH * (1 - (v - min) / (max - min));
   const path = (arr) => arr.map((d, i) => (i ? "L" : "M") + xOf(i) + " " + yOf(d.v)).join(" ");
   const area = path(data) + ` L${xOf(data.length - 1)} ${padT + innerH} L${padL} ${padT + innerH} Z`;

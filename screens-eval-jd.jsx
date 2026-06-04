@@ -41,6 +41,8 @@ function Evaluation({ ctx }) {
     const kScore = Math.round(kpiTotal), cScore = Math.round(compTotal), jScore = Math.round(jdTotal);
     const cy = +(window.CYCLE_YEAR || 2569);
     const histVal = Math.round(kScore * 0.6 + cScore * 0.4);
+    // keep exactly one evaluation record per (employee, cycle_year): clear prior then insert
+    await window.sb.from("evaluations").delete().eq("employee_id", e.id).eq("cycle_year", cy);
     const { error: evErr } = await window.sb.from("evaluations").insert({
       employee_id: e.id, cycle_year: cy, kpi_score: kScore, comp_score: cScore, jd_score: jScore,
       overall: Math.round(overall), comment: comment.trim() || null, evaluator: "คุณสุดารัตน์ (HR)", status: finalStatus,

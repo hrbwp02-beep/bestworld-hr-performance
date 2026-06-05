@@ -43,9 +43,9 @@ function Evaluation({ ctx }) {
 
   // ===== แบบประเมิน 2 ส่วนตามไฟล์ : A ผลงาน/KPI (70%) + B สมรรถนะ (30%) =====
   const buildA = () => {
-    if (empJD && empJD.eval_a && empJD.eval_a.length) return empJD.eval_a.map((it, i) => ({ id: "a" + i, name: it.name, weight: Number(it.weight) || 0, score: 3, note: "" }));
+    if (empJD && empJD.eval_a && empJD.eval_a.length) return empJD.eval_a.map((it, i) => ({ id: "a" + i, name: it.name, weight: Number(it.weight) || 0, grp: it.grp || "a1", target: it.target || null, score: 3, note: "" }));
     const duties = (empJD && empJD.duties && empJD.duties.length) ? empJD.duties : [];
-    return duties.map((name, i) => ({ id: "a" + i, name, weight: Math.round(100 / (duties.length || 1)), score: 3, note: "" }));
+    return duties.map((name, i) => ({ id: "a" + i, name, weight: Math.round(100 / (duties.length || 1)), grp: "a1", target: null, score: 3, note: "" }));
   };
   const buildB = () => {
     if (empJD && empJD.eval_b && empJD.eval_b.length) return empJD.eval_b.map((it, i) => ({ id: "b" + i, name: it.name, weight: Number(it.weight) || 0, grp: it.grp || "specific", score: 3, note: "" }));
@@ -252,21 +252,32 @@ function Evaluation({ ctx }) {
               <span style={{ fontSize: 13.5, color: "var(--accent-700)" }}>ส่วน A · ผลงานตามเป้าหมาย/KPI (หน้าที่หลักจาก JD) · น้ำหนักส่วน 70% · {empJD ? <b>{empJD.id} · {empJD.title}</b> : "ใช้รายการจากตำแหน่ง"}</span>
             </div>
             {secA.length === 0 && <div className="placeholder-img" style={{ height: 72 }}>ยังไม่มีหัวข้อผลงาน — ผูก JD ให้พนักงานก่อน</div>}
-            {secA.map((k, i) => (
-              <div key={k.id} style={{ border: "1px solid var(--border)", borderRadius: 12, padding: 14 }}>
-                <div className="between wrap" style={{ gap: 12 }}>
-                  <div className="row" style={{ gap: 10, flex: 1, minWidth: 220 }}>
-                    <span style={{ width: 24, height: 24, borderRadius: 7, background: "var(--surface-3)", display: "grid", placeItems: "center", fontSize: 11.5, fontWeight: 700, color: "var(--text-2)", flex: "0 0 24px" }}>{i + 1}</span>
-                    <div><span style={{ fontWeight: 600, fontSize: 13.5, lineHeight: 1.4 }}>{k.name}</span><div className="muted" style={{ fontSize: 11.5, marginTop: 2 }}>น้ำหนัก {k.weight}%</div></div>
-                  </div>
-                  <div className="row" style={{ gap: 12 }}>
-                    <Stars value={k.score} onChange={(v) => { const a = [...secA]; a[i] = { ...a[i], score: v }; setSecA(a); }} />
-                    <span className="num" style={{ fontWeight: 700, color: window.bandOf(k.score * 20).color, minWidth: 34 }}>{k.score * 20}</span>
+            {["a1", "a2"].map((grp) => {
+              const rows = secA.map((k, i) => ({ ...k, _i: i })).filter((k) => (k.grp || "a1") === grp);
+              if (!rows.length) return null;
+              return (
+                <div key={grp}>
+                  <div className="muted" style={{ fontSize: 12.5, fontWeight: 700, margin: "4px 0 8px" }}>{grp === "a1" ? "A1 · KPI รายบุคคล (จากหน้าที่ใน JD — ให้คะแนนตามผลงานแต่ละคน)" : "A2 · KPI ร่วมของหน่วยงาน (จาก KPI ฝ่าย — ทั้งทีมใช้ผลร่วมกัน)"}</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                    {rows.map((k) => (
+                      <div key={k.id} style={{ border: "1px solid var(--border)", borderRadius: 12, padding: 14 }}>
+                        <div className="between wrap" style={{ gap: 12 }}>
+                          <div className="row" style={{ gap: 10, flex: 1, minWidth: 220 }}>
+                            <span style={{ width: 24, height: 24, borderRadius: 7, background: grp === "a2" ? "#e2f4f2" : "var(--surface-3)", display: "grid", placeItems: "center", fontSize: 11.5, fontWeight: 700, color: grp === "a2" ? "#0d9488" : "var(--text-2)", flex: "0 0 24px" }}>{k._i + 1}</span>
+                            <div><span style={{ fontWeight: 600, fontSize: 13.5, lineHeight: 1.4 }}>{k.name}</span><div className="muted" style={{ fontSize: 11.5, marginTop: 2 }}>น้ำหนัก {k.weight}%{k.target ? " · เป้า " + k.target : ""}</div></div>
+                          </div>
+                          <div className="row" style={{ gap: 12 }}>
+                            <Stars value={k.score} onChange={(v) => { const a = [...secA]; a[k._i] = { ...a[k._i], score: v }; setSecA(a); }} />
+                            <span className="num" style={{ fontWeight: 700, color: window.bandOf(k.score * 20).color, minWidth: 34 }}>{k.score * 20}</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
-              </div>
-            ))}
-            <div className="between" style={{ background: "var(--surface-2)", borderRadius: 10, padding: "12px 16px" }}><b style={{ fontSize: 14 }}>คะแนนส่วน A (ถ่วงน้ำหนัก · เต็ม 100)</b><span className="num" style={{ fontWeight: 700, fontSize: 16, color: "#2563eb" }}>{aTotal}</span></div>
+              );
+            })}
+            <div className="between" style={{ background: "var(--surface-2)", borderRadius: 10, padding: "12px 16px" }}><b style={{ fontSize: 14 }}>คะแนนส่วน A (รายบุคคล + ร่วมทีม · ถ่วงน้ำหนัก เต็ม 100)</b><span className="num" style={{ fontWeight: 700, fontSize: 16, color: "#2563eb" }}>{aTotal}</span></div>
           </div>
         )}
 

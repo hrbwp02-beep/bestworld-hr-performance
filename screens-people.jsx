@@ -477,8 +477,6 @@ function EmployeeList({ ctx }) {
 function EmployeeProfile({ ctx, empId }) {
   const e = EMPLOYEES.find((x) => x.id === empId) || EMPLOYEES[0];
   const [editing, setEditing] = useS2(false);
-  const [addKpi, setAddKpi] = useS2(false);
-  const indivKpis = (window.KPI_INDIV || {})[e.id] || [];
   const delEmp = async () => {
     if (!window.confirm("ลบพนักงาน " + e.name + " ออกจากระบบ?")) return;
     const { error } = await window.sb.from("employees").delete().eq("id", e.id);
@@ -649,72 +647,12 @@ function EmployeeProfile({ ctx, empId }) {
               )}
             </Card>
           </div>
-
-          {/* KPI รายบุคคล (Individual KPI) */}
-          <Card>
-            <CardHead title="KPI รายบุคคล (Individual KPI)" sub={indivKpis.length + " ตัวชี้วัด · " + COMPANY.cycle} right={<button className="btn btn-ghost btn-sm" onClick={() => setAddKpi(true)}><Icon name="plus" size={14} />เพิ่ม</button>} />
-            <div className="card-pad">
-              {indivKpis.length === 0 ? <div className="muted" style={{ textAlign: "center", padding: "20px 0" }}>ยังไม่มี KPI รายบุคคล — กดเพิ่มเพื่อกำหนดเป้าเฉพาะบุคคล</div> : (
-                <div className="tbl-wrap"><table className="tbl" style={{ fontSize: 12.5 }}>
-                  <thead><tr><th>ตัวชี้วัด</th><th>น้ำหนัก</th><th>เป้าหมาย</th><th>ผลจริง</th><th>% บรรลุ</th><th></th></tr></thead>
-                  <tbody>{indivKpis.map((k) => {
-                    const ach = (k.actual != null && k.target_y) ? Math.round((k.method === "lower" ? (k.target_y / (k.actual || 1)) : (k.actual / k.target_y)) * 100) : null;
-                    const t = trafficOf(ach);
-                    return (<tr key={k.id}>
-                      <td style={{ fontWeight: 600 }}>{k.name}</td>
-                      <td className="num">{k.weight}%</td>
-                      <td className="num">{(k.method === "lower" ? "≤ " : "≥ ") + k.target_y}{k.unit}</td>
-                      <td className="num">{k.actual == null ? "—" : k.actual + (k.unit || "")}</td>
-                      <td><span className="num" style={{ fontWeight: 700, color: t.c }}>{ach == null ? "—" : ach + "%"}</span></td>
-                      <td><button className="icon-btn" style={{ width: 28, height: 28 }} onClick={async () => { if (window.confirm("ลบ KPI นี้?")) { await window.sb.from("kpi_individual").delete().eq("id", k.id); await ctx.refresh(); } }}><Icon name="x" size={13} /></button></td>
-                    </tr>);
-                  })}</tbody>
-                </table></div>
-              )}
-            </div>
-          </Card>
         </div>
       </div>
-      {addKpi && <IndividualKpiModal emp={e} ctx={ctx} onClose={() => setAddKpi(false)} />}
     </div>
   );
 }
 
-function IndividualKpiModal({ emp, ctx, onClose }) {
-  const [f, setF] = useS2({ name: "", weight: "", target_y: "", unit: "%", method: "higher", actual: "" });
-  const [busy, setBusy] = useS2(false); const [err, setErr] = useS2("");
-  const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
-  const save = async () => {
-    if (!f.name.trim()) { setErr("กรุณากรอกชื่อตัวชี้วัด"); return; }
-    setBusy(true); setErr("");
-    const { error } = await window.sb.from("kpi_individual").insert({
-      employee_id: emp.id, cycle_year: +(window.CYCLE_YEAR || 2569), name: f.name.trim(),
-      weight: Number(f.weight) || 0, target_y: f.target_y === "" ? null : Number(f.target_y),
-      unit: f.unit.trim() || null, method: f.method, actual: f.actual === "" ? null : Number(f.actual),
-      sort: ((window.KPI_INDIV || {})[emp.id] || []).length,
-    });
-    if (error) { setBusy(false); setErr("บันทึกไม่สำเร็จ: " + error.message); return; }
-    await ctx.refresh(); toast("เพิ่ม KPI รายบุคคลแล้ว", "check"); onClose();
-  };
-  return (
-    <Modal title={"เพิ่ม KPI รายบุคคล · " + emp.name} onClose={onClose}
-      footer={<><button className="btn btn-ghost" onClick={onClose} disabled={busy}>ยกเลิก</button><button className="btn btn-pri" onClick={save} disabled={busy}><Icon name="check" size={15} />บันทึก</button></>}>
-      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-        {err && <div style={{ padding: "10px 13px", borderRadius: 10, background: "var(--red-soft)", color: "#be123c", fontSize: 13 }}>{err}</div>}
-        <div className="field"><label>ชื่อตัวชี้วัด *</label><input className="input" value={f.name} onChange={(e) => set("name", e.target.value)} placeholder="เช่น ปิดงานโครงการ X ภายในไตรมาส" /></div>
-        <div className="grid" style={{ gridTemplateColumns: "1fr 1fr 1fr" }}>
-          <div className="field"><label>น้ำหนัก (%)</label><input className="input" type="number" value={f.weight} onChange={(e) => set("weight", e.target.value)} placeholder="20" /></div>
-          <div className="field"><label>เป้าหมาย</label><input className="input" type="number" value={f.target_y} onChange={(e) => set("target_y", e.target.value)} placeholder="100" /></div>
-          <div className="field"><label>ผลจริง</label><input className="input" type="number" value={f.actual} onChange={(e) => set("actual", e.target.value)} placeholder="—" /></div>
-        </div>
-        <div className="grid" style={{ gridTemplateColumns: "1fr 1fr" }}>
-          <div className="field"><label>หน่วย</label><input className="input" value={f.unit} onChange={(e) => set("unit", e.target.value)} placeholder="%, ครั้ง …" /></div>
-          <div className="field"><label>วิธีคิด</label><select className="select" value={f.method} onChange={(e) => set("method", e.target.value)}><option value="higher">ยิ่งสูงยิ่งดี</option><option value="lower">ยิ่งต่ำยิ่งดี</option></select></div>
-        </div>
-      </div>
-    </Modal>
-  );
-}
 
 /* =========================================================
    EVALUATION TRACKING — ติดตามงานที่ต้องประเมิน แยกหน่วยงาน

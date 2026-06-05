@@ -133,13 +133,15 @@ function ExecDashboard({ ctx }) {
                 {teams.map((tm) => {
                   const lead = EMPLOYEES.find((e) => e.id === tm.lead);
                   const tt = trafficOf(tm.ach);
-                  const tmMembers = members.filter((m) => m.dept === dept).slice(0, 4);
+                  const inTeam = (m) => m.dept === dept && (tm.section ? window.sectionOf(m.position) === tm.section : true);
+                  const teamSize = EMPLOYEES.filter(inTeam).length;
+                  const tmMembers = EMPLOYEES.filter(inTeam).slice(0, 4);
                   return (
                     <button key={tm.id} onClick={() => setTeam(tm.id)} className="card" style={{ textAlign: "left", cursor: "pointer", padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
                       <div className="between"><b style={{ fontSize: 14 }}>{tm.name}</b><TrafficDot score={tm.ach} size={11} /></div>
                       <div className="row" style={{ alignItems: "baseline", gap: 5 }}><span className="num" style={{ fontWeight: 700, fontSize: 23, color: tt.c }}>{tm.ach}</span><span className="muted" style={{ fontSize: 12 }}>% achievement</span></div>
                       <div className="between" style={{ borderTop: "1px solid var(--border-2)", paddingTop: 11 }}>
-                        <div className="av-stack">{tmMembers.map((m) => <Avatar key={m.id} name={m.name} initials={m.initials} color={m.color} size={28} fontSize={11} />)}</div>
+                        <div className="row" style={{ gap: 8, alignItems: "center" }}><div className="av-stack">{tmMembers.map((m) => <Avatar key={m.id} name={m.name} initials={m.initials} color={m.color} size={28} fontSize={11} />)}</div><span className="muted" style={{ fontSize: 12 }}>{teamSize} คน</span></div>
                         <span className="muted row" style={{ fontSize: 12, gap: 4 }}>ดูทีม <Icon name="chevRight" size={13} /></span>
                       </div>
                     </button>
@@ -155,7 +157,7 @@ function ExecDashboard({ ctx }) {
       {dept && team && (() => {
         const tm = TEAMS.find((x) => x.id === team);
         const tt = trafficOf(tm.ach);
-        const members = EMPLOYEES.filter((e) => e.dept === dept);
+        const members = EMPLOYEES.filter((e) => e.dept === dept && (tm.section ? window.sectionOf(e.position) === tm.section : true));
         const lead = EMPLOYEES.find((e) => e.id === tm.lead);
         return (
           <div className="grid fade-up">

@@ -579,6 +579,7 @@ function EmployeeProfile({ ctx, empId }) {
                   <div className="between" style={{ fontSize: 13 }}><span className="muted">เกรด</span><span className="badge" style={{ background: outcome.color + "22", color: outcome.color, fontWeight: 700 }}>{outcome.grade} · {outcome.gradeLabel}</span></div>
                   <div className="between" style={{ fontSize: 13 }}><span className="muted">โบนัส</span>{outcome.bonusEligible ? <span style={{ fontWeight: 700, color: "#16a34a" }}>{outcome.bonusMonths} เท่า</span> : <span className="muted" style={{ fontWeight: 600 }}>ไม่ได้รับ</span>}</div>
                   <div className="between" style={{ fontSize: 13 }}><span className="muted">ปรับเงินเดือน</span>{outcome.raiseEligible ? <span style={{ fontWeight: 700, color: "#16a34a" }}>+{outcome.raisePct}%</span> : <span style={{ fontWeight: 700, color: "var(--red)" }}>ไม่ปรับ{outcome.hasWarning ? " (มีใบเตือน)" : ""}</span>}</div>
+                  {ev && (ev.evaluator || ev.evaluator_code) && <div className="between" style={{ fontSize: 13 }}><span className="muted">ผู้ประเมิน</span><span style={{ fontWeight: 600, textAlign: "right" }}>{ev.evaluator || "—"}{ev.evaluator_code ? <span className="muted" style={{ fontWeight: 400 }}> · รหัส {ev.evaluator_code}</span> : ""}</span></div>}
                 </div>
               </>)}
             </div>

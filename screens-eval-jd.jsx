@@ -71,6 +71,9 @@ function Evaluation({ ctx }) {
   const [submitted, setSubmitted] = useS3(false);
   const [comment, setComment] = useS3("");
   const [saving, setSaving] = useS3(false);
+  const evalSup = (EMPLOYEES || []).find((x) => x.id === e.supervisor_id) || null; // ผู้ประเมิน (หัวหน้างาน)
+  const [evalCode, setEvalCode] = useS3(e.supervisor_id || "");
+  const evalCodeName = ((EMPLOYEES || []).find((x) => x.id === evalCode) || {}).name || e.reviewer || "";
   const [pickDept, setPickDept] = useS3(e.dept);
   const [pickSec, setPickSec] = useS3(window.sectionOf(e.position));
   const deptEmps = (EMPLOYEES || []).filter((emp) => emp.dept === pickDept);
@@ -128,7 +131,7 @@ function Evaluation({ ctx }) {
       const { error: evErr } = await window.sb.from("evaluations").insert({
         employee_id: e.id, cycle_year: cy, kpi_score: kScore, comp_score: cScore, jd_score: 0,
         a_score: kScore, b_score: cScore,
-        overall: Math.round(overall), comment: comment.trim() || null, evaluator: who.name, status: finalStatus === "review" ? "review" : "progress",
+        overall: Math.round(overall), comment: comment.trim() || null, evaluator: evalCodeName || who.name, evaluator_code: evalCode || null, status: finalStatus === "review" ? "review" : "progress",
         grade: outcome.grade, bonus_months: outcome.bonusMonths, raise_pct: outcome.raisePct, has_warning: outcome.hasWarning,
         items, stage, approvals,
       });
@@ -225,6 +228,7 @@ function Evaluation({ ctx }) {
             <div>
               <div className="row" style={{ gap: 9 }}><span style={{ fontWeight: 700, fontSize: 17 }}>{e.name}</span><Badge cls="b-blue" dot>กำลังประเมิน</Badge></div>
               <div className="muted" style={{ fontSize: 13.5 }}>{e.position} · {deptName(e.dept)} · {COMPANY.cycle}</div>
+              <div className="muted" style={{ fontSize: 12.5, marginTop: 2 }}>ผู้ประเมิน: {evalCodeName || "—"}{evalCode ? " · รหัส " + evalCode : ""}</div>
             </div>
           </div>
           <div className="row wrap" style={{ gap: 10 }}>
@@ -381,6 +385,13 @@ function Evaluation({ ctx }) {
                       </div>
                     );
                   })}
+                </div>
+                <div className="field" style={{ marginTop: 8 }}><label style={{ fontSize: 12.5 }}>ผู้ประเมิน (หัวหน้างาน) · รหัส</label>
+                  <select className="select" value={evalCode} onChange={(ev) => setEvalCode(ev.target.value)} disabled={isApproved}>
+                    <option value="">— ไม่ระบุ —</option>
+                    {(EMPLOYEES || []).slice().sort((a, b) => (a.dept || "").localeCompare(b.dept || "")).map((x) => <option key={x.id} value={x.id}>{x.id} · {x.name} ({deptShort(x.dept)})</option>)}
+                  </select>
+                  {evalCode && <span className="muted" style={{ fontSize: 11.5 }}>รหัส {evalCode} · {evalCodeName}</span>}
                 </div>
                 <textarea className="input" placeholder={inReview ? "ความคิดเห็นผู้อนุมัติ / เหตุผลตีกลับ…" : "ความคิดเห็นสรุปจากผู้ประเมิน…"} style={{ marginTop: 8 }} value={comment} onChange={(ev) => setComment(ev.target.value)} />
                 <div className="row wrap" style={{ gap: 10, marginTop: 16 }}>

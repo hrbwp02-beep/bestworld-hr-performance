@@ -107,7 +107,15 @@ async function loadHRData() {
     actual: _num(k.actual), type: k.type, status: k.status, owner: k.owner,
     range: (k.range_lo != null && k.range_hi != null) ? [Number(k.range_lo), Number(k.range_hi)] : undefined,
     customScore: _num(k.custom_score), formula: k.formula, trendDown: k.trend_down, section: k.section || null,
+    detail: k.detail || null, target2568: k.target_2568 || null,
   }));
+
+  // monthly KPI results for the current cycle → map { [kpi_id]: { 1..12: value } }
+  const monthlyRes = await sb.from("kpi_monthly").select("*").eq("year", cycleYear);
+  const KPI_MONTHLY = {};
+  if (!monthlyRes.error) (monthlyRes.data || []).forEach((m) => { (KPI_MONTHLY[m.kpi_id] = KPI_MONTHLY[m.kpi_id] || {})[m.month] = _num(m.value); });
+  // actual = average of entered monthly results (so overview/scoring reflect monthly data)
+  KPI_DEFS.forEach((k) => { const mm = KPI_MONTHLY[k.id]; if (mm) { const vs = Object.values(mm).filter((v) => v != null); if (vs.length) k.actual = Math.round(vs.reduce((a, b) => a + b, 0) / vs.length * 100) / 100; } });
 
   // submissions: files/versions/audit already arrive as parsed JSON
   const SUBMISSIONS = subRows.map((s) => ({ ...s }));
@@ -149,7 +157,7 @@ async function loadHRData() {
   Object.assign(window, {
     DEPARTMENTS: departments, COMPETENCIES: competencies, EMPLOYEES,
     JD_LIBRARY: jdLibrary, NOTIFS: notifications, KPI_ITEMS: kpiItems, JD_ITEMS: jdItems,
-    KPI_DEFS, SUBMISSIONS, TEAMS: teams, SUMMARY, STATUS_PIE,
+    KPI_DEFS, KPI_MONTHLY, SUBMISSIONS, TEAMS: teams, SUMMARY, STATUS_PIE,
     APP_USERS: appUsers || [], APP_SETTINGS: appSettings || null, CYCLE_YEAR: cycleYear,
     KPI_DEPTS: departments.filter((d) => KPI_DEFS.some((k) => k.dept === d.id)).map((d) => d.id),
     ...(trCur.length ? { TREND: trCur } : {}),

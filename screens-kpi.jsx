@@ -23,6 +23,7 @@ function KPIModule({ ctx }) {
   const tabs = [
     { id: "overview", label: "ภาพรวม KPI" },
     { id: "define", label: "กำหนด KPI" },
+    { id: "monthly", label: "บันทึกผลรายเดือน" },
     { id: "submit", label: "ส่งรายงาน" },
     { id: "scoring", label: "คำนวณคะแนน" },
   ];
@@ -38,9 +39,88 @@ function KPIModule({ ctx }) {
       <Card><div style={{ padding: "0 8px" }}><Tabs tabs={tabs} active={tab} onChange={setTab} /></div></Card>
       {tab === "overview" && <KPIOverview ctx={ctx} />}
       {tab === "define" && <KPIDefine ctx={ctx} />}
+      {tab === "monthly" && <KPIMonthly ctx={ctx} />}
       {tab === "submit" && <KPISubmissions ctx={ctx} />}
       {tab === "scoring" && <KPIScoring ctx={ctx} />}
     </div>
+  );
+}
+
+/* ---------- Monthly results entry ---------- */
+const KPI_MONTHS = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
+
+function KPIMonthly({ ctx }) {
+  const depts = (window.DEPARTMENTS || []).filter((d) => (window.KPI_DEFS || []).some((k) => k.dept === d.id));
+  const [dept, setDept] = useK((depts[0] || {}).id || "prod");
+  return (
+    <div className="grid fade-up">
+      <Card className="card-pad">
+        <div className="row wrap between" style={{ gap: 12 }}>
+          <div><b style={{ fontSize: 15 }}>บันทึกผลการดำเนินงานรายเดือน · {COMPANY.cycle}</b><div className="muted" style={{ fontSize: 12.5, marginTop: 3 }}>กรอกผลแต่ละเดือนของแต่ละตัวชี้วัด · ระบบคำนวณค่าเฉลี่ย & % บรรลุเป้าให้อัตโนมัติ และอัปเดตหน้าภาพรวม/คะแนน</div></div>
+          <select className="select" style={{ minWidth: 200 }} value={dept} onChange={(e) => setDept(e.target.value)}>
+            {depts.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+          </select>
+        </div>
+      </Card>
+      <KPIMonthlyGrid key={dept} dept={dept} ctx={ctx} />
+    </div>
+  );
+}
+
+function KPIMonthlyGrid({ dept, ctx }) {
+  const kpis = (window.KPI_DEFS || []).filter((k) => k.dept === dept && k.status === "approved");
+  const year = window.CYCLE_YEAR || 2569;
+  const MON = window.KPI_MONTHLY || {};
+  const [vals, setVals] = useK(() => { const o = {}; kpis.forEach((k) => { o[k.id] = {}; for (let m = 1; m <= 12; m++) { const v = (MON[k.id] || {})[m]; o[k.id][m] = v == null ? "" : String(v); } }); return o; });
+  const [saving, setSaving] = useK(false);
+  const setCell = (id, m, v) => setVals((s) => ({ ...s, [id]: { ...s[id], [m]: v } }));
+  const avgOf = (id) => { const xs = []; for (let m = 1; m <= 12; m++) { const r = vals[id][m]; if (r !== "" && !isNaN(Number(r))) xs.push(Number(r)); } return xs.length ? Math.round(xs.reduce((a, b) => a + b, 0) / xs.length * 100) / 100 : null; };
+  const save = async () => {
+    setSaving(true);
+    const ups = [], dels = [];
+    Object.keys(vals).forEach((id) => { for (let m = 1; m <= 12; m++) { const r = vals[id][m]; if (r !== "" && !isNaN(Number(r))) ups.push({ kpi_id: id, year, month: m, value: Number(r) }); else dels.push({ id, m }); } });
+    let err = null;
+    if (ups.length) { const r = await window.sb.from("kpi_monthly").upsert(ups, { onConflict: "kpi_id,year,month" }); if (r.error) err = r.error.message; }
+    for (const d of dels) { await window.sb.from("kpi_monthly").delete().eq("kpi_id", d.id).eq("year", year).eq("month", d.m); }
+    setSaving(false);
+    if (err) { toast("บันทึกไม่สำเร็จ: " + err, "x"); return; }
+    await ctx.refresh();
+    toast("บันทึกผลรายเดือนแล้ว", "checkCircle");
+  };
+  if (!kpis.length) return <Card className="card-pad"><div className="muted">หน่วยงานนี้ยังไม่มี KPI</div></Card>;
+  return (
+    <Card>
+      <CardHead title={`ผลรายเดือน · ${deptName(dept)}`} sub={`${kpis.length} ตัวชี้วัด · ปี ${year}`} right={<button className="btn btn-pri btn-sm" onClick={save} disabled={saving}><Icon name="check" size={14} />{saving ? "กำลังบันทึก…" : "บันทึกผลรายเดือน"}</button>} />
+      <div className="tbl-wrap">
+        <table className="tbl" style={{ fontSize: 12.5 }}>
+          <thead><tr>
+            <th style={{ minWidth: 190, position: "sticky", left: 0, background: "var(--surface)", zIndex: 1 }}>ตัวชี้วัด</th>
+            <th style={{ whiteSpace: "nowrap" }}>เป้าหมาย 2569</th>
+            {KPI_MONTHS.map((m) => <th key={m} style={{ textAlign: "center" }}>{m}</th>)}
+            <th>เฉลี่ย</th><th>% บรรลุ</th>
+          </tr></thead>
+          <tbody>
+            {kpis.map((k) => {
+              const a = avgOf(k.id);
+              const tgt = k.target && k.target.y;
+              const ach = (a != null && tgt) ? Math.round((k.method === "lower" ? (tgt / (a || 1)) : (a / tgt)) * 100) : null;
+              const t = trafficOf(ach);
+              return (
+                <tr key={k.id}>
+                  <td style={{ position: "sticky", left: 0, background: "var(--surface)", zIndex: 1, maxWidth: 220 }} title={(k.en ? k.en + " — " : "") + k.name}><div style={{ fontWeight: 600, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{k.en || k.name}</div>{k.section && <span className="badge b-blue" style={{ fontSize: 10 }}>{k.section}</span>}</td>
+                  <td className="num" style={{ whiteSpace: "nowrap", color: "#0d9488", fontWeight: 700 }}>{k.formula || ((tgt != null ? tgt : "") + (k.unit || ""))}</td>
+                  {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                    <td key={m} style={{ padding: 3 }}><input className="input" style={{ width: 52, padding: "5px 5px", textAlign: "center", fontSize: 12 }} value={vals[k.id][m]} onChange={(e) => setCell(k.id, m, e.target.value)} placeholder="–" /></td>
+                  ))}
+                  <td className="num" style={{ fontWeight: 700 }}>{a == null ? "–" : a}{a != null && k.unit ? <span className="muted" style={{ fontSize: 10 }}> {k.unit}</span> : ""}</td>
+                  <td><span className="num" style={{ fontWeight: 700, color: t.c }}>{ach == null ? "–" : ach + "%"}</span></td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </Card>
   );
 }
 

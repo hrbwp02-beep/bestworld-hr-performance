@@ -566,11 +566,11 @@ function EmployeeProfile({ ctx, empId }) {
               ) : (<>
                 <Ring value={e.overall} size={150} label={e.band.label} />
                 <div className="row" style={{ gap: 0, width: "100%", textAlign: "center" }}>
-                  <div style={{ flex: 1 }}><div className="num" style={{ fontWeight: 700, fontSize: 19, color: "#2563eb" }}>{ev ? ev.kpi_score : e.kpi}</div><div className="muted" style={{ fontSize: 11.5 }}>KPI ({wK}%)</div></div>
+                  <div style={{ flex: 1 }}><div className="num" style={{ fontWeight: 700, fontSize: 19, color: "#2563eb" }}>{ev ? (ev.a_score != null ? ev.a_score : ev.kpi_score) : e.kpi}</div><div className="muted" style={{ fontSize: 11.5 }}>ผลงาน/KPI ({wK}%)</div></div>
                   <div style={{ width: 1, background: "var(--border)" }} />
-                  <div style={{ flex: 1 }}><div className="num" style={{ fontWeight: 700, fontSize: 19, color: "#7c3aed" }}>{ev ? ev.comp_score : e.comp}</div><div className="muted" style={{ fontSize: 11.5 }}>Competency ({wC}%)</div></div>
-                  <div style={{ width: 1, background: "var(--border)" }} />
-                  <div style={{ flex: 1 }}><div className="num" style={{ fontWeight: 700, fontSize: 19, color: "#0d9488" }}>{ev && ev.jd_score != null ? ev.jd_score : "—"}</div><div className="muted" style={{ fontSize: 11.5 }}>ตาม JD ({wJ}%)</div></div>
+                  <div style={{ flex: 1 }}><div className="num" style={{ fontWeight: 700, fontSize: 19, color: "#7c3aed" }}>{ev ? (ev.b_score != null ? ev.b_score : ev.comp_score) : e.comp}</div><div className="muted" style={{ fontSize: 11.5 }}>สมรรถนะ ({wC}%)</div></div>
+                  {wJ > 0 && (<><div style={{ width: 1, background: "var(--border)" }} />
+                  <div style={{ flex: 1 }}><div className="num" style={{ fontWeight: 700, fontSize: 19, color: "#0d9488" }}>{ev && ev.jd_score != null ? ev.jd_score : "—"}</div><div className="muted" style={{ fontSize: 11.5 }}>ตาม JD ({wJ}%)</div></div></>)}
                 </div>
                 <div style={{ width: "100%", borderTop: "1px solid var(--border-2)", paddingTop: 12, display: "flex", flexDirection: "column", gap: 8 }}>
                   <div className="between" style={{ fontSize: 13 }}><span className="muted">เกรด</span><span className="badge" style={{ background: outcome.color + "22", color: outcome.color, fontWeight: 700 }}>{outcome.grade} · {outcome.gradeLabel}</span></div>
@@ -634,7 +634,7 @@ function EmployeeProfile({ ctx, empId }) {
 
           {/* ส่วน C · หน้าที่ตาม JD */}
           <Card>
-            <CardHead title="ส่วน C · หน้าที่ความรับผิดชอบ (ตาม JD)" sub={(empJd ? empJd.id + " · " : "") + jdDuties.length + " ข้อ · น้ำหนัก " + wJ + "%" + (ev && ev.jd_score != null ? " · คะแนน " + ev.jd_score : "")} />
+            <CardHead title="หน้าที่ความรับผิดชอบ (อ้างอิง JD)" sub={(empJd ? empJd.id + " · " : "") + jdDuties.length + " ข้อ · รวมอยู่ในส่วน A (ผลงาน/KPI)"} />
             <div className="card-pad">
               {jdRows.length === 0 ? <div className="muted" style={{ textAlign: "center", padding: "22px 0" }}>ยังไม่ผูกหน้าที่จาก JD</div> : (
                 <div style={{ display: "flex", flexDirection: "column", gap: 11 }}>

@@ -161,12 +161,12 @@ function Reports({ ctx }) {
               ))}
             </div>
             <div className="tbl-wrap"><table className="tbl" style={{ fontSize: 12.5 }}>
-              <thead><tr><th>#</th><th>พนักงาน</th><th>KPI</th><th>Comp</th><th>JD</th><th>คะแนนรวม</th><th>เกรด</th><th>โบนัส</th><th>ปรับเงิน</th><th style={{ minWidth: 150 }}>คำแนะนำ (Year-End)</th></tr></thead>
+              <thead><tr><th>#</th><th>พนักงาน</th><th>ผลงาน/KPI (70%)</th><th>สมรรถนะ (30%)</th><th>คะแนนรวม</th><th>เกรด</th><th>โบนัส</th><th>ปรับเงิน</th><th style={{ minWidth: 150 }}>คำแนะนำ (Year-End)</th></tr></thead>
               <tbody>{ranked.map((e, i) => { const o = window.evalOutcome(e.overall, e.warnings); const pr = promoteRec(e); return (
                 <tr key={e.id} style={{ cursor: "pointer" }} onClick={() => ctx.openEmp(e.id)}>
                   <td className="num muted">{i + 1}</td>
                   <td><div className="row" style={{ gap: 9 }}><Avatar name={e.name} initials={e.initials} color={e.color} size={30} /><div><div style={{ fontWeight: 600 }}>{e.name}</div><div className="muted" style={{ fontSize: 11 }}>{deptShort(e.dept)} · {e.position}</div></div></div></td>
-                  <td className="num">{e.kpi}</td><td className="num">{e.comp}</td><td className="num">{(e.eval && e.eval.jd_score) || "—"}</td>
+                  <td className="num">{(e.eval && e.eval.a_score != null) ? e.eval.a_score : e.kpi}</td><td className="num">{(e.eval && e.eval.b_score != null) ? e.eval.b_score : e.comp}</td>
                   <td><span className="num" style={{ fontWeight: 700, color: e.band.color }}>{e.overall}</span></td>
                   <td><span className="badge" style={{ background: e.band.color + "22", color: e.band.color, fontWeight: 700 }}>{e.band.key}</span></td>
                   <td className="num">{o.bonusEligible ? o.bonusMonths + " เท่า" : "—"}</td>

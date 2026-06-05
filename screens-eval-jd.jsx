@@ -41,10 +41,20 @@ function Evaluation({ ctx }) {
   const wK = W.w_kpi != null ? W.w_kpi : 50, wC = W.w_comp != null ? W.w_comp : 25, wJ = W.w_jd != null ? W.w_jd : 25;
   const wSum = (wK + wC + wJ) || 100;
 
-  const [tab, setTab] = useS3("kpi");
-  const [kpi, setKpi] = useS3(() => deptKpis.map((k) => ({ id: k.id, name: k.name, obj: k.en || "", target: k.formula || ((k.method === "lower" ? "≤ " : k.method === "higher" ? "≥ " : "") + (k.target && k.target.y != null ? k.target.y : "") + (k.unit ? " " + k.unit : "")), weight: k.weight || Math.round(100 / (deptKpis.length || 1)), score: 3 })));
-  const [comp, setComp] = useS3(() => ((empJD && empJD.competencies && empJD.competencies.length) ? empJD.competencies : (COMPETENCIES || []).map((c) => c.name)).map((name, i) => ({ id: "c" + i, name, score: 3, note: "" })));
-  const [jd, setJd] = useS3(() => ((empJD && empJD.duties && empJD.duties.length) ? empJD.duties : (window.JD_ITEMS || []).map((j) => j.name)).map((name, i) => ({ id: "j" + i, name, score: 3, note: "" })));
+  // ===== แบบประเมิน 2 ส่วนตามไฟล์ : A ผลงาน/KPI (70%) + B สมรรถนะ (30%) =====
+  const buildA = () => {
+    if (empJD && empJD.eval_a && empJD.eval_a.length) return empJD.eval_a.map((it, i) => ({ id: "a" + i, name: it.name, weight: Number(it.weight) || 0, score: 3, note: "" }));
+    const duties = (empJD && empJD.duties && empJD.duties.length) ? empJD.duties : [];
+    return duties.map((name, i) => ({ id: "a" + i, name, weight: Math.round(100 / (duties.length || 1)), score: 3, note: "" }));
+  };
+  const buildB = () => {
+    if (empJD && empJD.eval_b && empJD.eval_b.length) return empJD.eval_b.map((it, i) => ({ id: "b" + i, name: it.name, weight: Number(it.weight) || 0, grp: it.grp || "specific", score: 3, note: "" }));
+    const comps = (empJD && empJD.competencies && empJD.competencies.length) ? empJD.competencies : (COMPETENCIES || []).map((c) => c.name);
+    return comps.map((name, i) => ({ id: "b" + i, name, weight: Math.round(100 / (comps.length || 1)), grp: i < 3 ? "core" : "specific", score: 3, note: "" }));
+  };
+  const [tab, setTab] = useS3("a");
+  const [secA, setSecA] = useS3(buildA);
+  const [secB, setSecB] = useS3(buildB);
   const [submitted, setSubmitted] = useS3(false);
   const [comment, setComment] = useS3("");
   const [saving, setSaving] = useS3(false);
@@ -55,10 +65,11 @@ function Evaluation({ ctx }) {
   const effSec = secList.includes(pickSec) ? pickSec : secList[0];
   const pickEmps = secList.length > 1 ? deptEmps.filter((emp) => window.sectionOf(emp.position) === effSec) : deptEmps;
 
-  const kpiTotal = useM3(() => { if (!kpi.length) return 0; const w = kpi.reduce((a, k) => a + (k.weight || 0), 0) || 1; return Math.round(kpi.reduce((a, k) => a + k.score * 20 * (k.weight || 0), 0) / w * 10) / 10; }, [kpi]);
-  const compTotal = useM3(() => comp.length ? Math.round(comp.reduce((a, c) => a + c.score * 20, 0) / comp.length * 10) / 10 : 0, [comp]);
-  const jdTotal = useM3(() => jd.length ? Math.round(jd.reduce((a, j) => a + j.score * 20, 0) / jd.length * 10) / 10 : 0, [jd]);
-  const overall = Math.round((kpiTotal * wK + compTotal * wC + jdTotal * wJ) / wSum * 10) / 10;
+  const wsum = (arr) => arr.reduce((s, x) => s + (x.weight || 0), 0);
+  const aTotal = useM3(() => { if (!secA.length) return 0; const w = wsum(secA) || secA.length; return Math.round(secA.reduce((s, x) => s + x.score * 20 * (x.weight || 1), 0) / w * 10) / 10; }, [secA]);
+  const bTotal = useM3(() => { if (!secB.length) return 0; const w = wsum(secB) || secB.length; return Math.round(secB.reduce((s, x) => s + x.score * 20 * (x.weight || 1), 0) / w * 10) / 10; }, [secB]);
+  const kpiTotal = aTotal, compTotal = bTotal, jdTotal = 0;
+  const overall = Math.round((aTotal * wK + bTotal * wC) / ((wK + wC) || 100) * 10) / 10;
   const band = window.bandOf(overall);
   const outcome = window.evalOutcome(overall, e.warnings);
   // approval workflow state (Phase 7)
@@ -92,16 +103,18 @@ function Evaluation({ ctx }) {
       const { error: delErr } = await window.sb.from("evaluations").delete().eq("employee_id", e.id).eq("cycle_year", cy);
       if (delErr) { toast("บันทึกไม่สำเร็จ (ลบรอบเดิม): " + delErr.message, "x"); return; }
       const items = {
-        kpi: kpi.map((k) => ({ name: k.name, score: k.score * 20 })),
-        comp: comp.map((c) => ({ name: c.name, score: c.score * 20 })),
-        jd: jd.map((j) => ({ name: j.name, score: j.score * 20 })),
+        a: secA.map((x) => ({ name: x.name, weight: x.weight, score: x.score * 20 })),
+        b: secB.map((x) => ({ name: x.name, weight: x.weight, grp: x.grp, score: x.score * 20 })),
+        kpi: secA.map((x) => ({ name: x.name, score: x.score * 20 })),
+        comp: secB.map((x) => ({ name: x.name, score: x.score * 20 })),
       };
       const who = await currentApprover();
       const isSubmit = finalStatus === "review";
       const stage = isSubmit ? APPROVAL_STAGES[0].key : "draft";
       const approvals = isSubmit ? [{ stage: "submit", act: "ส่งเข้าสายอนุมัติ", by: who.name, at: new Date().toISOString() }] : [];
       const { error: evErr } = await window.sb.from("evaluations").insert({
-        employee_id: e.id, cycle_year: cy, kpi_score: kScore, comp_score: cScore, jd_score: jScore,
+        employee_id: e.id, cycle_year: cy, kpi_score: kScore, comp_score: cScore, jd_score: 0,
+        a_score: kScore, b_score: cScore,
         overall: Math.round(overall), comment: comment.trim() || null, evaluator: who.name, status: finalStatus === "review" ? "review" : "progress",
         grade: outcome.grade, bonus_months: outcome.bonusMonths, raise_pct: outcome.raisePct, has_warning: outcome.hasWarning,
         items, stage, approvals,
@@ -161,22 +174,21 @@ function Evaluation({ ctx }) {
   };
 
   const tabs = [
-    { id: "kpi", label: "A · KPI", count: kpiTotal },
-    { id: "comp", label: "B · Competency", count: compTotal },
-    { id: "jd", label: "C · ตาม JD", count: jdTotal },
+    { id: "a", label: "A · ผลงาน/KPI (70%)", count: aTotal },
+    { id: "b", label: "B · สมรรถนะ (30%)", count: bTotal },
     { id: "approve", label: "สรุป & อนุมัติ" },
   ];
 
   const Stepper = () => (
     <div className="row wrap" style={{ gap: 0 }}>
-      {[["KPI", "น้ำหนัก " + wK + "%", kpiTotal, "#2563eb"], ["Competency", "น้ำหนัก " + wC + "%", compTotal, "#7c3aed"], ["JD-Based", "น้ำหนัก " + wJ + "%", jdTotal, "#0d9488"]].map(([n, w, v, c], i) => (
+      {[["A · ผลงาน/KPI", "น้ำหนัก " + wK + "%", aTotal, "#2563eb"], ["B · สมรรถนะ", "น้ำหนัก " + wC + "%", bTotal, "#7c3aed"]].map(([n, w, v, c], i) => (
         <React.Fragment key={n}>
           <div style={{ textAlign: "center", flex: 1 }}>
             <div className="num" style={{ fontWeight: 700, fontSize: 24, color: c }}>{v}</div>
             <div style={{ fontSize: 13, fontWeight: 600 }}>{n}</div>
             <div className="muted" style={{ fontSize: 11.5 }}>{w}</div>
           </div>
-          {i < 2 && <div style={{ fontSize: 20, color: "var(--text-3)", padding: "0 4px", alignSelf: "flex-start", marginTop: 6 }}>+</div>}
+          {i < 1 && <div style={{ fontSize: 20, color: "var(--text-3)", padding: "0 4px", alignSelf: "flex-start", marginTop: 6 }}>+</div>}
         </React.Fragment>
       ))}
       <div style={{ fontSize: 20, color: "var(--text-3)", padding: "0 8px", alignSelf: "flex-start", marginTop: 6 }}>=</div>
@@ -232,75 +244,64 @@ function Evaluation({ ctx }) {
       <Card>
         <div style={{ padding: "0 8px" }}><Tabs tabs={tabs} active={tab} onChange={setTab} /></div>
 
-        {/* A. KPI — ของแผนกจริง */}
-        {tab === "kpi" && (
-          <div className="card-pad fade-up" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            <p className="muted" style={{ marginTop: 0, fontSize: 13.5 }}>ให้คะแนนผลงานตาม KPI ของ <b>{deptName(kpiDept)}</b> (อ้างอิงตาม JD) (1–5 ดาว) · ถ่วงน้ำหนักตามที่กำหนด</p>
-            {kpi.length === 0 && <div className="placeholder-img" style={{ height: 72 }}>ยังไม่มี KPI ของหน่วยงานนี้ — ตั้งค่าได้ที่ KPI หน่วยงาน → กำหนด KPI</div>}
-            {kpi.map((k, i) => (
-              <div key={k.id} style={{ border: "1px solid var(--border)", borderRadius: 12, padding: 16 }}>
+        {/* ส่วน A — ผลงานตามเป้าหมาย / KPI (หน้าที่หลักจาก JD) · น้ำหนัก 70% */}
+        {tab === "a" && (
+          <div className="card-pad fade-up" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div className="row" style={{ gap: 10, background: "var(--accent-soft)", border: "1px solid var(--accent-soft-2)", borderRadius: 12, padding: "12px 16px" }}>
+              <Icon name="jd" size={18} color="#2563eb" />
+              <span style={{ fontSize: 13.5, color: "var(--accent-700)" }}>ส่วน A · ผลงานตามเป้าหมาย/KPI (หน้าที่หลักจาก JD) · น้ำหนักส่วน 70% · {empJD ? <b>{empJD.id} · {empJD.title}</b> : "ใช้รายการจากตำแหน่ง"}</span>
+            </div>
+            {secA.length === 0 && <div className="placeholder-img" style={{ height: 72 }}>ยังไม่มีหัวข้อผลงาน — ผูก JD ให้พนักงานก่อน</div>}
+            {secA.map((k, i) => (
+              <div key={k.id} style={{ border: "1px solid var(--border)", borderRadius: 12, padding: 14 }}>
                 <div className="between wrap" style={{ gap: 12 }}>
-                  <div style={{ flex: 1, minWidth: 220 }}>
-                    {k.obj && <div className="muted" style={{ fontSize: 12, fontWeight: 600, marginBottom: 2 }}>{k.obj}</div>}
-                    <div className="row" style={{ gap: 9 }}><Icon name="target" size={15} color="#2563eb" /><span style={{ fontWeight: 600, fontSize: 14 }}>{k.name}</span></div>
-                    <div className="muted" style={{ fontSize: 12.5, marginTop: 4 }}>เป้าหมายปี 2569: <b style={{ color: "#0d9488" }}>{k.target || "—"}</b> · น้ำหนัก {k.weight}%</div>
+                  <div className="row" style={{ gap: 10, flex: 1, minWidth: 220 }}>
+                    <span style={{ width: 24, height: 24, borderRadius: 7, background: "var(--surface-3)", display: "grid", placeItems: "center", fontSize: 11.5, fontWeight: 700, color: "var(--text-2)", flex: "0 0 24px" }}>{i + 1}</span>
+                    <div><span style={{ fontWeight: 600, fontSize: 13.5, lineHeight: 1.4 }}>{k.name}</span><div className="muted" style={{ fontSize: 11.5, marginTop: 2 }}>น้ำหนัก {k.weight}%</div></div>
                   </div>
                   <div className="row" style={{ gap: 12 }}>
-                    <Stars value={k.score} onChange={(v) => { const a = [...kpi]; a[i] = { ...a[i], score: v }; setKpi(a); }} />
+                    <Stars value={k.score} onChange={(v) => { const a = [...secA]; a[i] = { ...a[i], score: v }; setSecA(a); }} />
                     <span className="num" style={{ fontWeight: 700, color: window.bandOf(k.score * 20).color, minWidth: 34 }}>{k.score * 20}</span>
                   </div>
                 </div>
               </div>
             ))}
-            <div className="between" style={{ background: "var(--surface-2)", borderRadius: 10, padding: "12px 16px" }}><b style={{ fontSize: 14 }}>คะแนน KPI รวม (ถ่วงน้ำหนัก)</b><span className="num" style={{ fontWeight: 700, fontSize: 16, color: "#2563eb" }}>{kpiTotal}</span></div>
+            <div className="between" style={{ background: "var(--surface-2)", borderRadius: 10, padding: "12px 16px" }}><b style={{ fontSize: 14 }}>คะแนนส่วน A (ถ่วงน้ำหนัก · เต็ม 100)</b><span className="num" style={{ fontWeight: 700, fontSize: 16, color: "#2563eb" }}>{aTotal}</span></div>
           </div>
         )}
 
-        {/* B. Competency */}
-        {tab === "comp" && (
-          <div className="card-pad fade-up" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            <p className="muted" style={{ marginTop: 0, fontSize: 13.5 }}>ให้คะแนนสมรรถนะตามตำแหน่ง ({comp.length} ด้าน · จาก JD) (1–5 ดาว) พร้อมความคิดเห็นประกอบ</p>
-            {comp.map((c, i) => (
-              <div key={c.id} style={{ border: "1px solid var(--border)", borderRadius: 12, padding: 16 }}>
-                <div className="between wrap" style={{ gap: 12 }}>
-                  <div style={{ flex: 1, minWidth: 200 }}><div style={{ fontWeight: 600, fontSize: 14 }}>{c.name}</div></div>
-                  <div className="row" style={{ gap: 12 }}>
-                    <Stars value={c.score} onChange={(v) => { const a = [...comp]; a[i] = { ...a[i], score: v }; setComp(a); }} />
-                    <span className="num" style={{ fontWeight: 700, color: window.bandOf(c.score*20).color, minWidth: 34 }}>{c.score * 20}</span>
+        {/* ส่วน B — สมรรถนะ (Core 40% + เฉพาะตำแหน่ง 60%) · น้ำหนัก 30% */}
+        {tab === "b" && (
+          <div className="card-pad fade-up" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div className="row" style={{ gap: 10, background: "#f3ecfd", border: "1px solid #e4d6fb", borderRadius: 12, padding: "12px 16px" }}>
+              <Icon name="award" size={18} color="#7c3aed" />
+              <span style={{ fontSize: 13.5, color: "#6d28d9" }}>ส่วน B · สมรรถนะ/พฤติกรรม · น้ำหนักส่วน 30% (สมรรถนะหลัก Core + เฉพาะตำแหน่ง)</span>
+            </div>
+            {["core", "specific"].map((grp) => {
+              const rows = secB.map((c, i) => ({ ...c, _i: i })).filter((c) => (c.grp || "specific") === grp);
+              if (!rows.length) return null;
+              return (
+                <div key={grp}>
+                  <div className="muted" style={{ fontSize: 12.5, fontWeight: 700, margin: "4px 0 8px" }}>{grp === "core" ? "B1 · สมรรถนะหลัก (Core — เหมือนกันทั้งบริษัท)" : "B2 · สมรรถนะเฉพาะตำแหน่ง (จาก JD)"}</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                    {rows.map((c) => (
+                      <div key={c.id} style={{ border: "1px solid var(--border)", borderRadius: 12, padding: 14 }}>
+                        <div className="between wrap" style={{ gap: 12 }}>
+                          <div style={{ flex: 1, minWidth: 200 }}><div style={{ fontWeight: 600, fontSize: 13.5 }}>{c.name}</div><div className="muted" style={{ fontSize: 11.5, marginTop: 2 }}>น้ำหนัก {c.weight}%</div></div>
+                          <div className="row" style={{ gap: 12 }}>
+                            <Stars value={c.score} onChange={(v) => { const a = [...secB]; a[c._i] = { ...a[c._i], score: v }; setSecB(a); }} />
+                            <span className="num" style={{ fontWeight: 700, color: window.bandOf(c.score * 20).color, minWidth: 34 }}>{c.score * 20}</span>
+                          </div>
+                        </div>
+                        <input className="input" placeholder="ความคิดเห็น / ตัวอย่างพฤติกรรม…" style={{ marginTop: 10, fontSize: 13.5 }}
+                          value={c.note} onChange={(ev) => { const a = [...secB]; a[c._i] = { ...a[c._i], note: ev.target.value }; setSecB(a); }} />
+                      </div>
+                    ))}
                   </div>
                 </div>
-                <input className="input" placeholder="ความคิดเห็น / ตัวอย่างพฤติกรรม…" style={{ marginTop: 12, fontSize: 13.5 }}
-                  value={c.note} onChange={(ev) => { const a = [...comp]; a[i] = { ...a[i], note: ev.target.value }; setComp(a); }} />
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* C. JD */}
-        {tab === "jd" && (
-          <div className="card-pad fade-up">
-            <div className="row" style={{ gap: 10, background: "var(--accent-soft)", border: "1px solid var(--accent-soft-2)", borderRadius: 12, padding: "12px 16px", marginBottom: 16 }}>
-              <Icon name="jd" size={18} color="#2563eb" />
-              <span style={{ fontSize: 13.5, color: "var(--accent-700)" }}>{empJD ? <>หัวข้อหน้าที่ดึงจาก JD: <b>{empJD.id} · {empJD.title}</b></> : <>ไม่พบ JD ตรงตำแหน่ง “{e.position}” — ใช้รายการมาตรฐาน</>}</span>
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-              {jd.map((j, i) => (
-                <div key={j.id} style={{ border: "1px solid var(--border)", borderRadius: 12, padding: 16 }}>
-                  <div className="between wrap" style={{ gap: 12 }}>
-                    <div className="row" style={{ gap: 10, flex: 1, minWidth: 200 }}>
-                      <span style={{ width: 26, height: 26, borderRadius: 8, background: "var(--surface-3)", display: "grid", placeItems: "center", fontSize: 12, fontWeight: 700, color: "var(--text-2)", flex: "0 0 26px" }}>{i + 1}</span>
-                      <span style={{ fontWeight: 600, fontSize: 14 }}>{j.name}</span>
-                    </div>
-                    <Stars value={j.score} onChange={(v) => { const a = [...jd]; a[i] = { ...a[i], score: v }; setJd(a); }} />
-                  </div>
-                  <div className="row wrap" style={{ gap: 10, marginTop: 12 }}>
-                    <input className="input" placeholder="ความคิดเห็น…" style={{ flex: 1, minWidth: 200, fontSize: 13.5 }}
-                      value={j.note} onChange={(ev) => { const a = [...jd]; a[i] = { ...a[i], note: ev.target.value }; setJd(a); }} />
-                    <button className="btn btn-ghost btn-sm" onClick={() => toast("แนบไฟล์หลักฐานแล้ว", "paperclip")}><Icon name="paperclip" size={15} />แนบหลักฐาน</button>
-                  </div>
-                </div>
-              ))}
-            </div>
+              );
+            })}
+            <div className="between" style={{ background: "var(--surface-2)", borderRadius: 10, padding: "12px 16px" }}><b style={{ fontSize: 14 }}>คะแนนส่วน B (ถ่วงน้ำหนัก · เต็ม 100)</b><span className="num" style={{ fontWeight: 700, fontSize: 16, color: "#7c3aed" }}>{bTotal}</span></div>
           </div>
         )}
 
@@ -311,7 +312,7 @@ function Evaluation({ ctx }) {
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16, padding: "10px 0" }}>
                 <Ring value={dOverall} size={170} label={dBand.label} />
                 <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 10 }}>
-                  {[["KPI (" + wK + "%)", dKpi, "#2563eb"], ["Competency (" + wC + "%)", dComp, "#7c3aed"], ["JD-Based (" + wJ + "%)", dJd, "#0d9488"]].map(([l, v, c]) => (
+                  {[["A · ผลงาน/KPI (" + wK + "%)", dKpi, "#2563eb"], ["B · สมรรถนะ (" + wC + "%)", dComp, "#7c3aed"]].map(([l, v, c]) => (
                     <div key={l} className="between" style={{ fontSize: 13.5 }}><span className="muted">{l}</span><span className="num" style={{ fontWeight: 700, color: c }}>{v}</span></div>
                   ))}
                 </div>

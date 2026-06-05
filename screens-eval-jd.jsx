@@ -50,25 +50,35 @@ function Evaluation({ ctx }) {
   const saveEval = async (finalStatus) => {
     if (saving) return;
     setSaving(true);
-    const kScore = Math.round(kpiTotal), cScore = Math.round(compTotal), jScore = Math.round(jdTotal);
-    const cy = +(window.CYCLE_YEAR || 2569);
-    const histVal = Math.round(kScore * 0.6 + cScore * 0.4);
-    // keep exactly one evaluation record per (employee, cycle_year): clear prior then insert
-    await window.sb.from("evaluations").delete().eq("employee_id", e.id).eq("cycle_year", cy);
-    const { error: evErr } = await window.sb.from("evaluations").insert({
-      employee_id: e.id, cycle_year: cy, kpi_score: kScore, comp_score: cScore, jd_score: jScore,
-      overall: Math.round(overall), comment: comment.trim() || null, evaluator: "คุณสุดารัตน์ (HR)", status: finalStatus,
-      grade: outcome.grade, bonus_months: outcome.bonusMonths, raise_pct: outcome.raisePct, has_warning: outcome.hasWarning,
-    });
-    const newHist = finalStatus === "done" ? [...(e.history || []), histVal] : (e.history || []);
-    const { error: upErr } = await window.sb.from("employees").update({
-      kpi: kScore, comp: cScore, status: finalStatus, history: newHist,
-    }).eq("id", e.id);
-    setSaving(false);
-    if (evErr || upErr) { toast("บันทึกไม่สำเร็จ: " + ((evErr || upErr).message), "x"); return; }
-    await ctx.refresh();
-    if (finalStatus === "done") { setSubmitted(true); toast("อนุมัติและบันทึกผลการประเมินแล้ว", "checkCircle"); }
-    else toast("บันทึกฉบับร่างแล้ว", "check");
+    try {
+      // ตรวจสอบ session ก่อน — ถ้าหลุด login จะบันทึกไม่ได้
+      const sess = (await window.sb.auth.getSession()).data.session;
+      if (!sess) { toast("เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่", "x"); return; }
+      const kScore = Math.round(kpiTotal), cScore = Math.round(compTotal), jScore = Math.round(jdTotal);
+      const cy = +(window.CYCLE_YEAR || 2569);
+      const histVal = Math.round(kScore * 0.6 + cScore * 0.4);
+      // keep exactly one evaluation record per (employee, cycle_year): clear prior then insert
+      const { error: delErr } = await window.sb.from("evaluations").delete().eq("employee_id", e.id).eq("cycle_year", cy);
+      if (delErr) { toast("บันทึกไม่สำเร็จ (ลบรอบเดิม): " + delErr.message, "x"); return; }
+      const { error: evErr } = await window.sb.from("evaluations").insert({
+        employee_id: e.id, cycle_year: cy, kpi_score: kScore, comp_score: cScore, jd_score: jScore,
+        overall: Math.round(overall), comment: comment.trim() || null, evaluator: "คุณสุดารัตน์ (HR)", status: finalStatus,
+        grade: outcome.grade, bonus_months: outcome.bonusMonths, raise_pct: outcome.raisePct, has_warning: outcome.hasWarning,
+      });
+      if (evErr) { toast("บันทึกไม่สำเร็จ: " + evErr.message, "x"); return; }
+      const newHist = finalStatus === "done" ? [...(e.history || []), histVal] : (e.history || []);
+      const { error: upErr } = await window.sb.from("employees").update({
+        kpi: kScore, comp: cScore, status: finalStatus, history: newHist,
+      }).eq("id", e.id);
+      if (upErr) { toast("บันทึกคะแนนพนักงานไม่สำเร็จ: " + upErr.message, "x"); return; }
+      await ctx.refresh();
+      if (finalStatus === "done") { setSubmitted(true); toast("อนุมัติและบันทึกผลการประเมินแล้ว", "checkCircle"); }
+      else toast("บันทึกฉบับร่างแล้ว", "check");
+    } catch (err) {
+      toast("บันทึกไม่สำเร็จ: " + (err && err.message ? err.message : String(err)), "x");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const tabs = [

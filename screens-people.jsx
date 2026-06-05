@@ -12,7 +12,7 @@ function EmployeeModal({ emp, ctx, onClose }) {
     hire_date: (emp && emp.hire_date) || "", email: (emp && emp.email) || "", phone: (emp && emp.phone) || "",
     status: (emp && emp.status) || "pending", kpi: emp ? emp.kpi : "", comp: emp ? emp.comp : "",
     potential: emp ? emp.potential : 2, perf: emp ? emp.perf : 2, reviewer: (emp && emp.reviewer) || "",
-    female: emp ? !!emp.female : false, photo_url: (emp && emp.photo_url) || "", jd_id: (emp && emp.jd_id) || "", warnings: emp ? (emp.warnings || 0) : 0,
+    photo_url: (emp && emp.photo_url) || "", jd_id: (emp && emp.jd_id) || "", warnings: emp ? (emp.warnings || 0) : 0,
     supervisor_id: (emp && emp.supervisor_id) || "",
   }));
   const [busy, setBusy] = useS2(false);
@@ -41,7 +41,7 @@ function EmployeeModal({ emp, ctx, onClose }) {
     if (!f.position.trim()) { setErr("กรุณากรอกตำแหน่ง"); return; }
     setErr(""); setBusy(true);
     const row = {
-      name: f.name.trim(), female: !!f.female, dept: f.dept, position: f.position.trim(),
+      name: f.name.trim(), dept: f.dept, position: f.position.trim(),
       level: f.level, hire_date: f.hire_date || null, tenure: f.hire_date ? tenureFrom(f.hire_date) : null,
       email: f.email.trim() || null, phone: f.phone.trim() || null,
       status: f.status, kpi: Number(f.kpi) || 0, comp: Number(f.comp) || 0,
@@ -100,18 +100,18 @@ function EmployeeModal({ emp, ctx, onClose }) {
           <div className="field"><label>วันเข้างาน</label><input className="input" type="date" value={f.hire_date || ""} onChange={(e) => set("hire_date", e.target.value)} /><span className="muted" style={{ fontSize: 12 }}>อายุงาน: {f.hire_date ? tenureFrom(f.hire_date) : "—"}</span></div>
           <div className="field"><label>สถานะการประเมิน</label><select className="select" value={f.status} onChange={(e) => set("status", e.target.value)}>{[["pending", "รอประเมิน"], ["progress", "กำลังประเมิน"], ["review", "รออนุมัติ"], ["done", "ประเมินแล้ว"]].map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></div>
         </div>
-        <div className="grid" style={{ gridTemplateColumns: "1fr 1fr 1fr 1fr" }}>
-          <div className="field"><label>คะแนน KPI</label><input className="input" type="number" value={f.kpi} onChange={(e) => set("kpi", e.target.value)} placeholder="0-100" /></div>
-          <div className="field"><label>Competency</label><input className="input" type="number" value={f.comp} onChange={(e) => set("comp", e.target.value)} placeholder="0-100" /></div>
-          <div className="field"><label>ศักยภาพ</label><select className="select" value={f.potential} onChange={(e) => set("potential", +e.target.value)}>{[1, 2, 3].map((n) => <option key={n} value={n}>{n}</option>)}</select></div>
-          <div className="field"><label>ผลงาน</label><select className="select" value={f.perf} onChange={(e) => set("perf", +e.target.value)}>{[1, 2, 3].map((n) => <option key={n} value={n}>{n}</option>)}</select></div>
+        {isEdit && <div className="muted" style={{ fontSize: 12.5, background: "var(--surface-2)", borderRadius: 9, padding: "10px 13px", lineHeight: 1.7 }}>
+          <Icon name="alert" size={13} /> คะแนน KPI/สมรรถนะ มาจาก<b>ฟอร์มประเมิน</b> (ปัจจุบัน KPI {f.kpi || 0} · สมรรถนะ {f.comp || 0}) — แก้ไขที่ฟอร์มประเมิน ไม่ใช่ที่นี่
+        </div>}
+        <div className="grid" style={{ gridTemplateColumns: "1fr 1fr" }}>
+          <div className="field"><label>ศักยภาพ (Potential) · ใช้ใน 9-Box</label><select className="select" value={f.potential} onChange={(e) => set("potential", +e.target.value)}>{[1, 2, 3].map((n) => <option key={n} value={n}>{n}</option>)}</select></div>
+          <div className="field"><label>ผลงาน (Performance) · ใช้ใน 9-Box</label><select className="select" value={f.perf} onChange={(e) => set("perf", +e.target.value)}>{[1, 2, 3].map((n) => <option key={n} value={n}>{n}</option>)}</select></div>
         </div>
         <div className="grid" style={{ gridTemplateColumns: "2fr 1fr" }}>
           <div className="field"><label>ผู้ประเมิน (หัวหน้า)</label><input className="input" value={f.reviewer} onChange={(e) => set("reviewer", e.target.value)} placeholder="ชื่อผู้บังคับบัญชา" /></div>
           <div className="field"><label>ผู้บังคับบัญชา (สายอนุมัติ)</label><select className="select" value={f.supervisor_id} onChange={(e) => set("supervisor_id", e.target.value)}><option value="">— ไม่ระบุ —</option>{(window.EMPLOYEES || []).filter((x) => !emp || x.id !== emp.id).slice().sort((a, b) => (a.dept || "").localeCompare(b.dept || "")).map((x) => <option key={x.id} value={x.id}>{x.name} · {deptShort(x.dept)} ({x.position})</option>)}</select></div>
           <div className="field"><label>ใบเตือน (ใบ)</label><input className="input" type="number" min="0" value={f.warnings} onChange={(e) => set("warnings", e.target.value)} /><span className="muted" style={{ fontSize: 12 }}>มีใบเตือน = ไม่ปรับเงิน</span></div>
         </div>
-        <label className="row" style={{ gap: 8, fontSize: 13.5, cursor: "pointer" }}><input type="checkbox" checked={f.female} onChange={(e) => set("female", e.target.checked)} style={{ width: 16, height: 16, accentColor: "var(--accent)" }} /> เพศหญิง</label>
       </div>
     </Modal>
   );

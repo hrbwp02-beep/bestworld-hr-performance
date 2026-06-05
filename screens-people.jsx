@@ -303,10 +303,10 @@ function DepartmentModal({ dep, ctx, onClose }) {
     let id = isEdit ? dep.id : (f.id.trim() || "dept_" + Date.now().toString(36));
     if (!isEdit && (window.DEPARTMENTS || []).some((d) => d.id === id)) { setErr("รหัสหน่วยงานนี้มีอยู่แล้ว"); return; }
     setErr(""); setBusy(true);
-    const row = { name: f.name.trim(), short: f.short.trim() || f.name.trim(), color: f.color, head: Number(f.head) || 0, done: Number(f.done) || 0, score: Number(f.score) || 0, trend: Number(f.trend) || 0 };
+    const row = { name: f.name.trim(), short: f.short.trim() || f.name.trim(), color: f.color };
     let error;
     if (isEdit) { ({ error } = await window.sb.from("departments").update(row).eq("id", dep.id)); }
-    else { row.id = id; row.sort = (window.DEPARTMENTS || []).length; ({ error } = await window.sb.from("departments").insert(row)); }
+    else { row.id = id; row.head = 0; row.done = 0; row.score = 0; row.trend = 0; row.sort = (window.DEPARTMENTS || []).length; ({ error } = await window.sb.from("departments").insert(row)); }
     if (error) { setBusy(false); setErr("บันทึกไม่สำเร็จ: " + error.message); return; }
     await ctx.refresh();
     toast(isEdit ? "บันทึกหน่วยงานแล้ว" : "เพิ่มหน่วยงาน “" + f.name.trim() + "” แล้ว", "check");
@@ -331,12 +331,9 @@ function DepartmentModal({ dep, ctx, onClose }) {
             {palette.map((c) => <button key={c} onClick={() => set("color", c)} style={{ width: 28, height: 28, borderRadius: 8, background: c, border: f.color === c ? "3px solid var(--text)" : "2px solid #fff", boxShadow: "0 0 0 1px var(--border)", cursor: "pointer" }} />)}
           </div>
         </div>
-        <div className="grid" style={{ gridTemplateColumns: "1fr 1fr 1fr 1fr" }}>
-          <div className="field"><label>จำนวนพนักงาน</label><input className="input" type="number" value={f.head} onChange={(e) => set("head", e.target.value)} /></div>
-          <div className="field"><label>ประเมินแล้ว</label><input className="input" type="number" value={f.done} onChange={(e) => set("done", e.target.value)} /></div>
-          <div className="field"><label>คะแนนเฉลี่ย</label><input className="input" type="number" value={f.score} onChange={(e) => set("score", e.target.value)} /></div>
-          <div className="field"><label>แนวโน้ม</label><input className="input" type="number" value={f.trend} onChange={(e) => set("trend", e.target.value)} /></div>
-        </div>
+        {isEdit && <div className="muted" style={{ fontSize: 12.5, background: "var(--surface-2)", borderRadius: 9, padding: "10px 13px", lineHeight: 1.7 }}>
+          <Icon name="alert" size={13} /> จำนวนพนักงาน <b>{dep.head} คน</b> · ประเมินแล้ว <b>{dep.done} คน</b> · คะแนนเฉลี่ย <b>{dep.score}</b> — ค่าเหล่านี้<b>คำนวณอัตโนมัติ</b>จากข้อมูลพนักงานจริง ไม่ต้องกรอกเอง
+        </div>}
       </div>
     </Modal>
   );

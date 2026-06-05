@@ -486,19 +486,19 @@ function Settings({ ctx }) {
         </Card>
 
         <Card>
-          <CardHead title="น้ำหนักคะแนนรวม" sub="ผลรวมต้องเท่ากับ 100%" right={<Badge cls={total === 100 ? "b-green" : "b-red"} dot>{total}%</Badge>} />
+          <CardHead title="น้ำหนักคะแนนรวม" sub="ส่วน A + ส่วน B = 100% (ตามแบบประเมิน)" right={<Badge cls={(w.kpi + w.comp) === 100 ? "b-green" : "b-red"} dot>{w.kpi + w.comp}%</Badge>} />
           <div className="card-pad" style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-            {[["kpi", "KPI", "#2563eb"], ["comp", "Competency", "#7c3aed"], ["jd", "JD-Based", "#0d9488"]].map(([k, l, c]) => (
+            {[["kpi", "ส่วน A · ผลงาน/KPI (จากหน้าที่ JD + KPI หน่วยงาน)", "#2563eb"], ["comp", "ส่วน B · สมรรถนะ (Core + เฉพาะตำแหน่ง)", "#7c3aed"]].map(([k, l, c]) => (
               <div key={k}>
-                <div className="between" style={{ marginBottom: 7 }}><span style={{ fontSize: 13.5, fontWeight: 500 }}>{l}</span><span className="mono" style={{ fontWeight: 700, color: c }}>{w[k]}%</span></div>
-                <input type="range" min="0" max="100" step="5" value={w[k]} onChange={(e) => setW({ ...w, [k]: +e.target.value })} style={{ width: "100%", accentColor: c }} />
+                <div className="between" style={{ marginBottom: 7 }}><span style={{ fontSize: 13, fontWeight: 500 }}>{l}</span><span className="mono" style={{ fontWeight: 700, color: c }}>{w[k]}%</span></div>
+                <input type="range" min="0" max="100" step="5" value={w[k]} onChange={(e) => setW({ ...w, [k]: +e.target.value, jd: 0 })} style={{ width: "100%", accentColor: c }} />
               </div>
             ))}
           </div>
         </Card>
 
         <Card>
-          <CardHead title="สมรรถนะหลัก (Competency)" sub="หัวข้อที่ใช้ประเมินทั้งองค์กร" right={<button className="btn btn-soft btn-sm" onClick={() => setCompModal({})}><Icon name="plus" size={14} />เพิ่ม</button>} />
+          <CardHead title="สมรรถนะหลัก (Core Competency · B1)" sub="ใช้ประเมินเหมือนกันทั้งองค์กร · สมรรถนะเฉพาะตำแหน่ง (B2) กำหนดราย JD" right={<button className="btn btn-soft btn-sm" onClick={() => setCompModal({})}><Icon name="plus" size={14} />เพิ่ม</button>} />
           <div style={{ padding: "8px 12px" }}>
             {COMPETENCIES.map((c) => (
               <div key={c.id} className="between" style={{ padding: "11px 10px", borderBottom: "1px solid var(--border-2)" }}>

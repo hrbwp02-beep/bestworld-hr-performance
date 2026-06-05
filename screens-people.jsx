@@ -104,8 +104,8 @@ function EmployeeModal({ emp, ctx, onClose }) {
           <Icon name="alert" size={13} /> คะแนน KPI/สมรรถนะ มาจาก<b>ฟอร์มประเมิน</b> (ปัจจุบัน KPI {f.kpi || 0} · สมรรถนะ {f.comp || 0}) — แก้ไขที่ฟอร์มประเมิน ไม่ใช่ที่นี่
         </div>}
         <div className="grid" style={{ gridTemplateColumns: "1fr 1fr" }}>
-          <div className="field"><label>ศักยภาพ (Potential) · ใช้ใน 9-Box</label><select className="select" value={f.potential} onChange={(e) => set("potential", +e.target.value)}>{[1, 2, 3].map((n) => <option key={n} value={n}>{n}</option>)}</select></div>
-          <div className="field"><label>ผลงาน (Performance) · ใช้ใน 9-Box</label><select className="select" value={f.perf} onChange={(e) => set("perf", +e.target.value)}>{[1, 2, 3].map((n) => <option key={n} value={n}>{n}</option>)}</select></div>
+          <div className="field"><label>ศักยภาพ (Potential) · แกนตั้ง 9-Box</label><select className="select" value={f.potential} onChange={(e) => set("potential", +e.target.value)}>{[[1, "1 · ต่ำ"], [2, "2 · ปานกลาง"], [3, "3 · สูง"]].map(([n, l]) => <option key={n} value={n}>{l}</option>)}</select></div>
+          <div className="field"><label>ผลงาน (Performance) · แกนนอน 9-Box</label><select className="select" value={f.perf} onChange={(e) => set("perf", +e.target.value)}>{[[1, "1 · ต่ำ"], [2, "2 · ปานกลาง"], [3, "3 · สูง"]].map(([n, l]) => <option key={n} value={n}>{l}</option>)}</select></div>
         </div>
         <div className="grid" style={{ gridTemplateColumns: "2fr 1fr" }}>
           <div className="field"><label>ผู้ประเมิน (หัวหน้า)</label><input className="input" value={f.reviewer} onChange={(e) => set("reviewer", e.target.value)} placeholder="ชื่อผู้บังคับบัญชา" /></div>

@@ -290,7 +290,7 @@ function KPIDefine({ ctx }) {
                 const tgtText = k.formula || ((k.method === "lower" ? "≤ " : k.method === "higher" ? "≥ " : "") + (k.target[cycle] != null ? k.target[cycle] : (k.target.y != null ? k.target.y : "")) + (k.unit ? " " + k.unit : ""));
                 return (
                   <tr key={k.id}>
-                    <td><div style={{ fontWeight: 600, fontSize: 13.5 }}>{k.en || "—"}</div></td>
+                    <td><div style={{ fontWeight: 600, fontSize: 13.5 }}>{k.en || "—"}</div>{k.section && <span className="badge b-blue" style={{ fontSize: 10.5, marginTop: 3 }}>เฉพาะส่วนงาน: {k.section}</span>}</td>
                     <td><div style={{ fontSize: 13 }}>{k.name}</div><div className="muted" style={{ fontSize: 11.5 }}>{METHOD_LABEL[k.method]}</div></td>
                     <td><Badge cls={k.type === "quality" ? "b-blue" : "b-gray"}>{k.type === "quality" ? "เชิงคุณภาพ" : "ตัวเลข"}</Badge></td>
                     <td className="num" style={{ fontWeight: 600 }}>{k.weight}%</td>

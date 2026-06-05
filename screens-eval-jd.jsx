@@ -14,7 +14,13 @@ function Evaluation({ ctx }) {
     || _jdlib.find((j) => norm(j.title) && (norm(j.title).includes(norm(e.position)) || norm(e.position).includes(norm(j.title))))
     || _jdlib.find((j) => j.dept === e.dept) || null;
   const kpiDept = (empJD && (empJD.kpi_dept || empJD.dept)) || e.dept; // KPI อ้างอิงตาม JD
-  const deptKpis = (window.KPI_DEFS || []).filter((k) => k.dept === kpiDept && k.status === "approved");
+  const empSection = window.sectionOf(e.position);
+  let deptKpis = (window.KPI_DEFS || []).filter((k) => k.dept === kpiDept && k.status === "approved");
+  // หน่วยงานที่มี KPI แยกตามส่วนงาน (เช่น ผลิต: พิมพ์&สลิท vs ภาพรวม) → กรองตามส่วนงานของพนักงาน
+  if (deptKpis.some((k) => k.section)) {
+    const isPrint = /พิมพ์|สลิท/.test(empSection);
+    deptKpis = deptKpis.filter((k) => !k.section || (isPrint ? k.section === "พิมพ์&สลิท" : k.section === "ภาพรวม"));
+  }
   const W = window.APP_SETTINGS || {};
   const wK = W.w_kpi != null ? W.w_kpi : 50, wC = W.w_comp != null ? W.w_comp : 25, wJ = W.w_jd != null ? W.w_jd : 25;
   const wSum = (wK + wC + wJ) || 100;

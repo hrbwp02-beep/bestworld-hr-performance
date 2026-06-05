@@ -106,7 +106,7 @@ async function loadHRData() {
     target: { m: _num(k.target_m), q: _num(k.target_q), y: _num(k.target_y) },
     actual: _num(k.actual), type: k.type, status: k.status, owner: k.owner,
     range: (k.range_lo != null && k.range_hi != null) ? [Number(k.range_lo), Number(k.range_hi)] : undefined,
-    customScore: _num(k.custom_score), formula: k.formula, trendDown: k.trend_down,
+    customScore: _num(k.custom_score), formula: k.formula, trendDown: k.trend_down, section: k.section || null,
   }));
 
   // submissions: files/versions/audit already arrive as parsed JSON

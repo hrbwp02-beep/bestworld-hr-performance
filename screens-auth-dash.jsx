@@ -122,23 +122,34 @@ function Dashboard({ ctx }) {
   const StatRow = ({ compact }) => (
     <div className="grid" style={{ gridTemplateColumns: `repeat(auto-fit, minmax(${compact ? 175 : 210}px, 1fr))` }}>
       <Stat icon="users" label="พนักงานทั้งหมด" value={SUMMARY.total} unit="คน" tone="#2563eb" soft="#e8effb" sub={`${DEPARTMENTS.length} หน่วยงาน`} />
-      <Stat icon="checkCircle" label="ประเมินแล้ว" value={SUMMARY.done} unit="คน" tone="#16a34a" soft="#e7f6ec" delta={12} sub={`${Math.round(SUMMARY.done / SUMMARY.total * 100)}% ของทั้งหมด`} />
+      <Stat icon="checkCircle" label="ประเมินแล้ว" value={SUMMARY.done} unit="คน" tone="#16a34a" soft="#e7f6ec" sub={`${Math.round(SUMMARY.done / SUMMARY.total * 100)}% ของทั้งหมด`} />
       <Stat icon="clock" label="รอดำเนินการ" value={SUMMARY.pending} unit="คน" tone="#e08a00" soft="#fdf1dc" sub="ครบกำหนด 15 มิ.ย." />
       <Stat icon="target" label="คะแนนเฉลี่ยองค์กร" value={SUMMARY.avgScore} tone="#7c3aed" soft="#f1ebfd" delta={SUMMARY.avgTrend} sub="เทียบปีก่อน" />
       {!compact && <Stat icon="trophy" label="หน่วยงานอันดับ 1" value={SUMMARY.topDeptScore} tone="#0d9488" soft="#e2f4f2" sub={SUMMARY.topDept} />}
     </div>
   );
 
-  const TrendCard = ({ tall }) => (
-    <Card>
-      <CardHead title="แนวโน้มคะแนนเฉลี่ย (Performance Trend)" sub="ค่าเฉลี่ยทั้งองค์กรรายเดือน"
-        right={<div className="row hide-xs" style={{ gap: 14, fontSize: 12.5 }}>
-          <span className="row" style={{ gap: 6 }}><span style={{ width: 16, height: 3, background: "#2563eb", borderRadius: 2 }} />ปี {cy}</span>
-          <span className="row" style={{ gap: 6 }}><span style={{ width: 16, height: 0, borderTop: "2px dashed #cbd5e1" }} />ปี {cy - 1}</span>
-        </div>} />
-      <div className="card-pad"><LineChart data={TREND} prev={TREND_PREV} height={tall ? 300 : 250} /></div>
-    </Card>
-  );
+  const TrendCard = ({ tall }) => {
+    const dist = window.GRADE_DIST || [];
+    const maxN = Math.max(1, ...dist.map((d) => d.n));
+    const totalDone = dist.reduce((s, d) => s + d.n, 0) || 1;
+    return (
+      <Card>
+        <CardHead title="การกระจายเกรดผลการประเมิน" sub={`พนักงานประเมินแล้ว ${SUMMARY.done} คน · ${COMPANY.cycle}`} />
+        <div className="card-pad" style={{ display: "flex", flexDirection: "column", gap: 14, minHeight: tall ? 280 : 230, justifyContent: "center" }}>
+          {dist.map((d) => (
+            <div key={d.g} className="row" style={{ gap: 12, alignItems: "center" }}>
+              <span className="badge" style={{ background: d.color + "22", color: d.color, fontWeight: 700, minWidth: 34, textAlign: "center" }}>{d.g}</span>
+              <div style={{ flex: 1, background: "var(--surface-3)", borderRadius: 8, height: 22, overflow: "hidden" }}>
+                <div style={{ width: (d.n / maxN * 100) + "%", height: "100%", background: d.color, borderRadius: 8, transition: "width .4s" }} />
+              </div>
+              <span className="num" style={{ fontWeight: 700, minWidth: 64, textAlign: "right", fontSize: 13 }}>{d.n} คน · {Math.round(d.n / totalDone * 100)}%</span>
+            </div>
+          ))}
+        </div>
+      </Card>
+    );
+  };
 
   const DeptBarCard = () => (
     <Card>
@@ -157,7 +168,7 @@ function Dashboard({ ctx }) {
 
   const RadarCard = () => (
     <Card>
-      <CardHead title="การกระจาย Competency" sub="คะแนนเฉลี่ย 5 สมรรถนะหลัก" />
+      <CardHead title="การกระจาย Competency" sub="คะแนนเฉลี่ยสมรรถนะหลัก (Core/B1)" />
       <div className="card-pad"><Radar data={COMP_RADAR} /></div>
     </Card>
   );
@@ -248,7 +259,7 @@ function Dashboard({ ctx }) {
           </Card>
           <div className="grid" style={{ gridTemplateColumns: "1fr 1fr" }}>
             <Stat icon="users" label="พนักงานทั้งหมด" value={SUMMARY.total} unit="คน" tone="#2563eb" soft="#e8effb" />
-            <Stat icon="checkCircle" label="ประเมินแล้ว" value={SUMMARY.done} unit="คน" tone="#16a34a" soft="#e7f6ec" delta={12} />
+            <Stat icon="checkCircle" label="ประเมินแล้ว" value={SUMMARY.done} unit="คน" tone="#16a34a" soft="#e7f6ec" />
             <Stat icon="clock" label="รอดำเนินการ" value={SUMMARY.pending} unit="คน" tone="#e08a00" soft="#fdf1dc" />
             <Stat icon="trophy" label="อันดับ 1" value={SUMMARY.topDeptScore} tone="#0d9488" soft="#e2f4f2" sub={SUMMARY.topDept} />
           </div>

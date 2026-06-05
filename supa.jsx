@@ -141,7 +141,7 @@ async function loadHRData() {
     avgScore, avgTrend,
     topDept: top.name, topDeptScore: Number(top.score),
     highPotential: EMPLOYEES.filter((e) => e.potential >= 3 && e.perf >= 3).length,
-    atRisk: scored.filter((e) => e.overall < 60).length,
+    atRisk: scored.filter((e) => e.overall < 70).length, // เกรด D (ต้องพัฒนา)
   };
 
   // status pie — real counts straight from the employee records (sums to total)
@@ -154,20 +154,31 @@ async function loadHRData() {
 
   if (window.COMPANY) window.COMPANY.cycle = "รอบประเมินปี " + cycleYear;
 
-  // monthly trend + competency radar from DB (fall back to static defaults if empty)
+  // monthly trend (historical, from DB if available)
   const trCur = (trendRows || []).filter((t) => t.kind === "cur").map((t) => ({ m: t.label, v: Number(t.value) }));
   const trPrev = (trendRows || []).filter((t) => t.kind === "prev").map((t) => ({ m: t.label, v: Number(t.value) }));
-  const compRadar = (competencies || []).filter((c) => c.avg_score != null).map((c) => ({ id: c.id, name: c.name, v: Number(c.avg_score) }));
+
+  // competency radar — คำนวณจากคะแนนสมรรถนะหลัก (Core/B1) ในใบประเมินจริง
+  const coreAgg = {};
+  (evalRes.data || []).forEach((r) => { const it = r.items; if (it && Array.isArray(it.b)) it.b.forEach((x) => { if ((x.grp || "") === "core") { const a = coreAgg[x.name] = coreAgg[x.name] || { s: 0, n: 0 }; a.s += Number(x.score) || 0; a.n++; } }); });
+  const doneEmps2 = EMPLOYEES.filter((e) => e.status === "done");
+  const avgCompScore = doneEmps2.length ? Math.round(doneEmps2.reduce((s, e) => s + (e.comp || 0), 0) / doneEmps2.length) : 0;
+  const coreMinN = Math.max(3, Math.floor(doneEmps2.length * 0.5)); // ใช้คะแนนรายสมรรถนะเมื่อมีข้อมูลมากพอ ไม่งั้นใช้ค่าเฉลี่ยรวม
+  let COMP_RADAR = (competencies || []).map((c) => { const a = coreAgg[c.name]; return { id: c.id, name: c.name, v: (a && a.n >= coreMinN) ? Math.round(a.s / a.n) : avgCompScore }; });
+  if (!COMP_RADAR.length) COMP_RADAR = [{ id: "x", name: "สมรรถนะ", v: avgCompScore }];
+
+  // grade distribution (real) for dashboard
+  const GRADE_KEYS = [["A+", "#15803d"], ["A", "#16a34a"], ["B+", "#0d9488"], ["B", "#0891b2"], ["C", "#2563eb"], ["D", "#e11d48"]];
+  const GRADE_DIST = GRADE_KEYS.map(([g, color]) => ({ g, color, n: EMPLOYEES.filter((e) => e.status === "done" && e.band.key === g).length }));
 
   Object.assign(window, {
     DEPARTMENTS: departments, COMPETENCIES: competencies, EMPLOYEES,
     JD_LIBRARY: jdLibrary, NOTIFS: notifications, KPI_ITEMS: kpiItems, JD_ITEMS: jdItems,
-    KPI_DEFS, KPI_MONTHLY, KPI_INDIV, SUBMISSIONS, TEAMS: teams, SUMMARY, STATUS_PIE,
+    KPI_DEFS, KPI_MONTHLY, KPI_INDIV, SUBMISSIONS, TEAMS: teams, SUMMARY, STATUS_PIE, COMP_RADAR, GRADE_DIST,
     APP_USERS: appUsers || [], APP_SETTINGS: appSettings || null, CYCLE_YEAR: cycleYear,
     KPI_DEPTS: departments.filter((d) => KPI_DEFS.some((k) => k.dept === d.id)).map((d) => d.id),
     ...(trCur.length ? { TREND: trCur } : {}),
     ...(trPrev.length ? { TREND_PREV: trPrev } : {}),
-    ...(compRadar.length ? { COMP_RADAR: compRadar } : {}),
   });
 }
 

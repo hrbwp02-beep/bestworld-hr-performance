@@ -464,6 +464,16 @@ function Settings({ ctx }) {
     if (error) { toast("ลบไม่สำเร็จ: " + error.message, "x"); return; }
     await ctx.refresh(); toast("ลบสมรรถนะแล้ว", "check");
   };
+  const delDept = async (d) => {
+    const nEmp = (window.EMPLOYEES || []).filter((e) => e.dept === d.id).length;
+    const nKpi = (window.KPI_DEFS || []).filter((k) => k.dept === d.id).length;
+    const nJd = (window.JD_LIBRARY || []).filter((j) => j.dept === d.id || j.kpi_dept === d.id).length;
+    if (nEmp || nKpi || nJd) { toast(`ลบไม่ได้: หน่วยงานนี้มีพนักงาน ${nEmp} คน · KPI ${nKpi} · JD ${nJd} — ย้าย/ลบข้อมูลที่เกี่ยวข้องก่อน`, "x"); return; }
+    if (!window.confirm("ลบหน่วยงาน “" + d.name + "” ออกจากระบบ?")) return;
+    const { error } = await window.sb.from("departments").delete().eq("id", d.id);
+    if (error) { toast("ลบไม่สำเร็จ: " + error.message, "x"); return; }
+    await ctx.refresh(); toast("ลบหน่วยงานแล้ว", "check");
+  };
 
   return (
     <div className="grid">
@@ -554,7 +564,10 @@ function Settings({ ctx }) {
                     <div className="muted" style={{ fontSize: 12 }}>{dp.short} · {dp.head} คน · เฉลี่ย {dp.score}</div>
                   </div>
                 </div>
-                <button className="icon-btn" style={{ width: 32, height: 32 }} onClick={() => setDeptModal(dp)}><Icon name="edit" size={14} /></button>
+                <div className="row" style={{ gap: 4 }}>
+                  <button className="icon-btn" style={{ width: 32, height: 32 }} title="แก้ไข" onClick={() => setDeptModal(dp)}><Icon name="edit" size={14} /></button>
+                  <button className="icon-btn" style={{ width: 32, height: 32 }} title="ลบหน่วยงาน" onClick={() => delDept(dp)}><Icon name="x" size={15} color="var(--red)" /></button>
+                </div>
               </div>
             ))}
           </div>

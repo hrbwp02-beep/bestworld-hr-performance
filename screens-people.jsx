@@ -497,8 +497,15 @@ function EmployeeProfile({ ctx, empId }) {
   const empSection = window.sectionOf(e.position);
   // align competency + KPI + JD sections with the employee's JD / department (เหมือนฟอร์มประเมิน)
   const jdComps = (empJd && empJd.competencies && empJd.competencies.length) ? empJd.competencies : (COMPETENCIES || []).map((c) => c.name);
-  const compRows = jdComps.map((name, i) => ({ id: i, name, v: Math.max(55, Math.min(98, (e.comp || 70) + [4, -3, 2, -5, 6, 1, -2, 3, -4][i % 9])) }));
+  const evItems = ev && ev.items ? ev.items : null;
+  // ใช้คะแนนรายข้อจริงจากใบประเมิน ถ้ามี — ไม่งั้นใช้ค่าประมาณจากคะแนนรวม
+  const compRows = (evItems && evItems.comp && evItems.comp.length)
+    ? evItems.comp.map((c, i) => ({ id: i, name: c.name, v: c.score }))
+    : jdComps.map((name, i) => ({ id: i, name, v: Math.max(55, Math.min(98, (e.comp || 70) + [4, -3, 2, -5, 6, 1, -2, 3, -4][i % 9])) }));
   const jdDuties = (empJd && empJd.duties && empJd.duties.length) ? empJd.duties : [];
+  const jdRows = (evItems && evItems.jd && evItems.jd.length) ? evItems.jd : jdDuties.map((name) => ({ name, score: null }));
+  const kpiItemScore = {};
+  if (evItems && evItems.kpi) evItems.kpi.forEach((k) => { kpiItemScore[k.name] = k.score; });
   const kpiDept = (empJd && (empJd.kpi_dept || empJd.dept)) || e.dept; // KPI อ้างอิงตาม JD
   let deptKpis = (window.KPI_DEFS || []).filter((k) => k.dept === kpiDept && k.status === "approved");
   if (deptKpis.some((k) => k.section)) { const isPrint = /พิมพ์|สลิท/.test(empSection); deptKpis = deptKpis.filter((k) => !k.section || (isPrint ? k.section === "พิมพ์" : k.section === "เป่า")); }
@@ -603,12 +610,18 @@ function EmployeeProfile({ ctx, empId }) {
             <Card>
               <CardHead title="ส่วน A · KPI" sub={deptName(kpiDept) + (deptKpis[0] && deptKpis[0].section ? " · ชุด" + deptKpis[0].section : "") + " · น้ำหนัก " + wK + "%" + (ev ? " · คะแนน " + ev.kpi_score : "")} />
               <div className="card-pad" style={{ display: "flex", flexDirection: "column", gap: 11 }}>
-                {deptKpis.length === 0 ? <div className="muted" style={{ textAlign: "center", padding: "22px 0" }}>ยังไม่มี KPI ของหน่วยงานนี้</div> : deptKpis.map((k) => (
-                  <div key={k.id} className="between" style={{ gap: 10 }}>
-                    <span className="row" style={{ gap: 8, fontSize: 12.5, minWidth: 0 }}><span style={{ color: "#2563eb", flex: "0 0 auto" }}><Icon name="target" size={14} /></span><span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{k.en || k.name}</span></span>
-                    <span className="mono muted" style={{ fontSize: 12, flex: "0 0 auto" }}>{k.formula || ("เป้า " + k.target.y + (k.unit || ""))}</span>
+                {deptKpis.length === 0 ? <div className="muted" style={{ textAlign: "center", padding: "22px 0" }}>ยังไม่มี KPI ของหน่วยงานนี้</div> : deptKpis.map((k) => {
+                  const sc = kpiItemScore[k.name];
+                  return (
+                  <div key={k.id}>
+                    <div className="between" style={{ gap: 10, marginBottom: sc != null ? 4 : 0 }}>
+                      <span className="row" style={{ gap: 8, fontSize: 12.5, minWidth: 0 }}><span style={{ color: "#2563eb", flex: "0 0 auto" }}><Icon name="target" size={14} /></span><span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{k.en || k.name}</span></span>
+                      <span className="mono muted" style={{ fontSize: 12, flex: "0 0 auto" }}>{sc != null ? sc : (k.formula || ("เป้า " + k.target.y + (k.unit || "")))}</span>
+                    </div>
+                    {sc != null && <ScoreBar value={sc} color="#2563eb" />}
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </Card>
           </div>
@@ -617,10 +630,18 @@ function EmployeeProfile({ ctx, empId }) {
           <Card>
             <CardHead title="ส่วน C · หน้าที่ความรับผิดชอบ (ตาม JD)" sub={(empJd ? empJd.id + " · " : "") + jdDuties.length + " ข้อ · น้ำหนัก " + wJ + "%" + (ev && ev.jd_score != null ? " · คะแนน " + ev.jd_score : "")} />
             <div className="card-pad">
-              {jdDuties.length === 0 ? <div className="muted" style={{ textAlign: "center", padding: "22px 0" }}>ยังไม่ผูกหน้าที่จาก JD</div> : (
-                <ol style={{ margin: 0, paddingLeft: 20, display: "flex", flexDirection: "column", gap: 8 }}>
-                  {jdDuties.map((d, i) => <li key={i} style={{ fontSize: 13, lineHeight: 1.55 }}>{d}</li>)}
-                </ol>
+              {jdRows.length === 0 ? <div className="muted" style={{ textAlign: "center", padding: "22px 0" }}>ยังไม่ผูกหน้าที่จาก JD</div> : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 11 }}>
+                  {jdRows.map((d, i) => (
+                    <div key={i}>
+                      <div className="between" style={{ marginBottom: 4, gap: 10 }}>
+                        <span className="row" style={{ gap: 8, fontSize: 13, minWidth: 0 }}><span style={{ color: "#0d9488", flex: "0 0 auto", fontWeight: 700 }}>{i + 1}.</span><span style={{ lineHeight: 1.4 }}>{d.name}</span></span>
+                        {d.score != null && <span className="mono" style={{ fontWeight: 600, fontSize: 13, flex: "0 0 auto" }}>{d.score}</span>}
+                      </div>
+                      {d.score != null && <ScoreBar value={d.score} color="#0d9488" />}
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
           </Card>

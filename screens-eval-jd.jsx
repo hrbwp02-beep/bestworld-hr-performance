@@ -60,10 +60,16 @@ function Evaluation({ ctx }) {
       // keep exactly one evaluation record per (employee, cycle_year): clear prior then insert
       const { error: delErr } = await window.sb.from("evaluations").delete().eq("employee_id", e.id).eq("cycle_year", cy);
       if (delErr) { toast("บันทึกไม่สำเร็จ (ลบรอบเดิม): " + delErr.message, "x"); return; }
+      const items = {
+        kpi: kpi.map((k) => ({ name: k.name, score: k.score * 20 })),
+        comp: comp.map((c) => ({ name: c.name, score: c.score * 20 })),
+        jd: jd.map((j) => ({ name: j.name, score: j.score * 20 })),
+      };
       const { error: evErr } = await window.sb.from("evaluations").insert({
         employee_id: e.id, cycle_year: cy, kpi_score: kScore, comp_score: cScore, jd_score: jScore,
         overall: Math.round(overall), comment: comment.trim() || null, evaluator: "คุณสุดารัตน์ (HR)", status: finalStatus,
         grade: outcome.grade, bonus_months: outcome.bonusMonths, raise_pct: outcome.raisePct, has_warning: outcome.hasWarning,
+        items,
       });
       if (evErr) { toast("บันทึกไม่สำเร็จ: " + evErr.message, "x"); return; }
       const newHist = finalStatus === "done" ? [...(e.history || []), histVal] : (e.history || []);

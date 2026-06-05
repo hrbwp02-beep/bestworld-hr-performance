@@ -267,6 +267,7 @@ function AddKPIModal({ dept, kpi, ctx, onClose }) {
   const [weight, setWeight] = useK(kpi ? String(kpi.weight) : "");
   const [target, setTarget] = useK(kpi && kpi.target ? String(kpi.target.y) : "");
   const [tgtText, setTgtText] = useK((kpi && kpi.formula) || "");
+  const [freq, setFreq] = useK((kpi && kpi.frequency) || "monthly");
   const [actual, setActual] = useK(kpi ? String(kpi.actual) : "");
   const [type, setType] = useK((kpi && kpi.type) || "number");
   const [busy, setBusy] = useK(false);
@@ -284,7 +285,7 @@ function AddKPIModal({ dept, kpi, ctx, onClose }) {
       dept, name: name.trim(), en: en.trim() || null, unit: unit.trim() || null,
       method, weight: Number(weight) || 0,
       target_m: Number(target) || 0, target_q: Number(target) || 0, target_y: Number(target) || 0,
-      formula: tgtText.trim() || null,
+      formula: tgtText.trim() || null, frequency: freq,
       actual: Number(actual) || 0, type,
     };
     let error;
@@ -310,6 +311,7 @@ function AddKPIModal({ dept, kpi, ctx, onClose }) {
           <div className="field"><label>วิธีคิดคะแนน</label><select className="select" value={method} onChange={(e) => setMethod(e.target.value)}><option value="higher">ยิ่งสูงยิ่งดี</option><option value="lower">ยิ่งต่ำยิ่งดี</option></select></div>
           <div className="field"><label>ประเภท</label><select className="select" value={type} onChange={(e) => setType(e.target.value)}><option value="number">ตัวเลข</option><option value="quality">เชิงคุณภาพ</option></select></div>
         </div>
+        <div className="field"><label>ความถี่การรายงาน (Reporting Frequency)</label><select className="select" value={freq} onChange={(e) => setFreq(e.target.value)}><option value="monthly">รายเดือน (Monthly)</option><option value="quarterly">รายไตรมาส (Quarterly)</option><option value="yearly">รายปี (Yearly)</option></select></div>
         <div className="grid" style={{ gridTemplateColumns: "1fr 1fr 1fr" }}>
           <div className="field"><label>น้ำหนัก (%)</label><input className="input" type="number" value={weight} onChange={(e) => setWeight(e.target.value)} placeholder="20" /></div>
           <div className="field"><label>เป้าหมาย</label><input className="input" type="number" value={target} onChange={(e) => setTarget(e.target.value)} placeholder="95" /></div>
@@ -371,7 +373,7 @@ function KPIDefine({ ctx }) {
                 return (
                   <tr key={k.id}>
                     <td><div style={{ fontWeight: 600, fontSize: 13.5 }}>{k.en || "—"}</div>{k.section && <span className="badge b-blue" style={{ fontSize: 10.5, marginTop: 3 }}>เฉพาะส่วนงาน: {k.section}</span>}</td>
-                    <td><div style={{ fontSize: 13 }}>{k.name}</div><div className="muted" style={{ fontSize: 11.5 }}>{METHOD_LABEL[k.method]}</div></td>
+                    <td><div style={{ fontSize: 13 }}>{k.name}</div><div className="muted" style={{ fontSize: 11.5 }}>{METHOD_LABEL[k.method]} · {({ monthly: "รายเดือน", quarterly: "รายไตรมาส", yearly: "รายปี" })[k.frequency] || "รายเดือน"}</div></td>
                     <td><Badge cls={k.type === "quality" ? "b-blue" : "b-gray"}>{k.type === "quality" ? "เชิงคุณภาพ" : "ตัวเลข"}</Badge></td>
                     <td className="num" style={{ fontWeight: 600 }}>{k.weight}%</td>
                     <td><span className="num" style={{ fontWeight: 700, color: "#0d9488", fontSize: 13.5 }}>{tgtText}</span></td>

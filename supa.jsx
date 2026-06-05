@@ -107,7 +107,7 @@ async function loadHRData() {
     actual: _num(k.actual), type: k.type, status: k.status, owner: k.owner,
     range: (k.range_lo != null && k.range_hi != null) ? [Number(k.range_lo), Number(k.range_hi)] : undefined,
     customScore: _num(k.custom_score), formula: k.formula, trendDown: k.trend_down, section: k.section || null,
-    detail: k.detail || null, target2568: k.target_2568 || null,
+    detail: k.detail || null, target2568: k.target_2568 || null, frequency: k.frequency || "monthly",
   }));
 
   // monthly KPI results for the current cycle → map { [kpi_id]: { 1..12: value } }

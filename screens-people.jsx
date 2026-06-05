@@ -13,6 +13,7 @@ function EmployeeModal({ emp, ctx, onClose }) {
     status: (emp && emp.status) || "pending", kpi: emp ? emp.kpi : "", comp: emp ? emp.comp : "",
     potential: emp ? emp.potential : 2, perf: emp ? emp.perf : 2, reviewer: (emp && emp.reviewer) || "",
     female: emp ? !!emp.female : false, photo_url: (emp && emp.photo_url) || "", jd_id: (emp && emp.jd_id) || "", warnings: emp ? (emp.warnings || 0) : 0,
+    supervisor_id: (emp && emp.supervisor_id) || "",
   }));
   const [busy, setBusy] = useS2(false);
   const [err, setErr] = useS2("");
@@ -46,6 +47,7 @@ function EmployeeModal({ emp, ctx, onClose }) {
       status: f.status, kpi: Number(f.kpi) || 0, comp: Number(f.comp) || 0,
       potential: Number(f.potential) || 1, perf: Number(f.perf) || 1, reviewer: f.reviewer || null,
       photo_url: f.photo_url || null, jd_id: f.jd_id || null, warnings: Number(f.warnings) || 0,
+      supervisor_id: f.supervisor_id || null,
     };
     let error;
     if (isEdit) {
@@ -106,6 +108,7 @@ function EmployeeModal({ emp, ctx, onClose }) {
         </div>
         <div className="grid" style={{ gridTemplateColumns: "2fr 1fr" }}>
           <div className="field"><label>ผู้ประเมิน (หัวหน้า)</label><input className="input" value={f.reviewer} onChange={(e) => set("reviewer", e.target.value)} placeholder="ชื่อผู้บังคับบัญชา" /></div>
+          <div className="field"><label>ผู้บังคับบัญชา (สายอนุมัติ)</label><select className="select" value={f.supervisor_id} onChange={(e) => set("supervisor_id", e.target.value)}><option value="">— ไม่ระบุ —</option>{(window.EMPLOYEES || []).filter((x) => !emp || x.id !== emp.id).slice().sort((a, b) => (a.dept || "").localeCompare(b.dept || "")).map((x) => <option key={x.id} value={x.id}>{x.name} · {deptShort(x.dept)} ({x.position})</option>)}</select></div>
           <div className="field"><label>ใบเตือน (ใบ)</label><input className="input" type="number" min="0" value={f.warnings} onChange={(e) => set("warnings", e.target.value)} /><span className="muted" style={{ fontSize: 12 }}>มีใบเตือน = ไม่ปรับเงิน</span></div>
         </div>
         <label className="row" style={{ gap: 8, fontSize: 13.5, cursor: "pointer" }}><input type="checkbox" checked={f.female} onChange={(e) => set("female", e.target.checked)} style={{ width: 16, height: 16, accentColor: "var(--accent)" }} /> เพศหญิง</label>
@@ -490,6 +493,7 @@ function EmployeeProfile({ ctx, empId }) {
   const notRated = (e.kpi === 0 && e.comp === 0); // imported but not evaluated yet
   const dash = (v) => (v == null || v === "" ? "—" : v);
   const empJd = (window.JD_LIBRARY || []).find((j) => j.id === e.jd_id);
+  const supervisor = (window.EMPLOYEES || []).find((x) => x.id === e.supervisor_id);
   const outcome = window.evalOutcome(e.overall, e.warnings);
   const ev = e.eval || null; // ใบประเมินจริงของรอบนี้ (ถ้ามี)
   const W = window.APP_SETTINGS || {};
@@ -530,7 +534,7 @@ function EmployeeProfile({ ctx, empId }) {
             </div>
             <div className="muted" style={{ fontSize: 15 }}>{e.position} · {deptName(e.dept)}</div>
             <div className="row wrap" style={{ gap: 18, marginTop: 14 }}>
-              {[["รหัสพนักงาน", e.id], ["ระดับ", dash(e.level)], ["วันเข้างาน", dash(e.hire_date)], ["อายุงาน", dash(e.tenure)], ["ผู้ประเมิน", dash(e.reviewer)]].map(([k, v]) => (
+              {[["รหัสพนักงาน", e.id], ["ระดับ", dash(e.level)], ["วันเข้างาน", dash(e.hire_date)], ["อายุงาน", dash(e.tenure)], ["ผู้บังคับบัญชา", supervisor ? supervisor.name : dash(e.reviewer)]].map(([k, v]) => (
                 <div key={k}><div className="muted" style={{ fontSize: 11.5 }}>{k}</div><div style={{ fontSize: 13.5, fontWeight: 600 }}>{v}</div></div>
               ))}
             </div>

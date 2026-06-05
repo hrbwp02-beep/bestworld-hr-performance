@@ -10,6 +10,22 @@ function LoginScreen({ onLogin, logo }) {
   const [show, setShow] = useS1(false);
   const [busy, setBusy] = useS1(false);
   const [err, setErr] = useS1("");
+  // self-service: พนักงานดูผลของตัวเองด้วยรหัสพนักงาน
+  const [selfMode, setSelfMode] = useS1(false);
+  const [code, setCode] = useS1("");
+  const [look, setLook] = useS1(false);
+  const [res, setRes] = useS1(null);
+  const [selfErr, setSelfErr] = useS1("");
+  const lookup = async (e) => {
+    if (e) e.preventDefault();
+    if (!code.trim()) { setSelfErr("กรุณากรอกรหัสพนักงาน"); return; }
+    setSelfErr(""); setRes(null); setLook(true);
+    const { data, error } = await window.sb.functions.invoke("employee-result", { body: { code: code.trim() } });
+    setLook(false);
+    if (error) { setSelfErr("เกิดข้อผิดพลาด ลองใหม่อีกครั้ง"); return; }
+    if (!data || !data.found) { setSelfErr("ไม่พบรหัสพนักงานนี้ในระบบ"); return; }
+    setRes(data);
+  };
   const submit = async (e) => {
     e.preventDefault();
     setErr(""); setBusy(true);
@@ -65,7 +81,7 @@ function LoginScreen({ onLogin, logo }) {
 
       {/* glass login card */}
       <div style={{ position: "relative", zIndex: 1, flex: "0 0 auto", width: "min(480px, 100%)", display: "grid", placeItems: "center", padding: 24 }}>
-        <form onSubmit={submit} style={{ width: "min(400px, 100%)", background: "rgba(255,255,255,.09)", backdropFilter: "blur(22px)",
+        {!selfMode && <form onSubmit={submit} style={{ width: "min(400px, 100%)", background: "rgba(255,255,255,.09)", backdropFilter: "blur(22px)",
           border: "1px solid rgba(255,255,255,.18)", borderRadius: 22, padding: "38px 34px", boxShadow: "0 28px 70px rgba(0,0,0,.4)" }}>
           <div className="side-logo mobile-only" style={{ width: 48, height: 48, marginBottom: 18 }}>{logo ? <img src={logo} alt="" /> : <Icon name="layers" size={24} />}</div>
           <h2 style={{ margin: 0, color: "#fff", fontSize: 23, fontWeight: 700 }}>เข้าสู่ระบบ</h2>
@@ -100,10 +116,59 @@ function LoginScreen({ onLogin, logo }) {
           <button type="submit" className="btn btn-pri" disabled={busy} style={{ width: "100%", padding: "13px", fontSize: 15, opacity: busy ? .8 : 1 }}>
             {busy ? "กำลังเข้าสู่ระบบ…" : <>เข้าสู่ระบบ <Icon name="chevRight" size={18} /></>}
           </button>
-          <p style={{ textAlign: "center", color: "rgba(255,255,255,.5)", fontSize: 12.5, marginTop: 20, marginBottom: 0 }}>
-            ใช้ Single Sign-On ขององค์กร? <a href="#" onClick={(e) => e.preventDefault()} style={{ color: "#9dc0ff", textDecoration: "none", fontWeight: 600 }}>เข้าผ่าน SSO</a>
-          </p>
-        </form>
+          <div style={{ borderTop: "1px solid rgba(255,255,255,.14)", margin: "20px 0 0", paddingTop: 16, textAlign: "center" }}>
+            <button type="button" onClick={() => { setSelfMode(true); setErr(""); }} className="btn btn-ghost" style={{ width: "100%", color: "#fff", background: "rgba(255,255,255,.08)", border: "1px solid rgba(255,255,255,.2)" }}>
+              <Icon name="user" size={16} />พนักงานดูผลประเมินของตัวเอง
+            </button>
+          </div>
+        </form>}
+
+        {selfMode && (() => {
+          const r = res; const ev = r && r.result; const b = ev ? window.bandOf(ev.overall) : null;
+          const o = ev ? window.evalOutcome(ev.overall, ev.has_warning ? 1 : 0) : null;
+          return (
+          <div style={{ width: "min(440px, 100%)", background: "rgba(255,255,255,.09)", backdropFilter: "blur(22px)", border: "1px solid rgba(255,255,255,.18)", borderRadius: 22, padding: "30px 28px", boxShadow: "0 28px 70px rgba(0,0,0,.4)", color: "#fff", maxHeight: "88vh", overflowY: "auto" }}>
+            <div className="row" style={{ gap: 8, marginBottom: 6 }}>
+              <button onClick={() => { setSelfMode(false); setRes(null); setCode(""); setSelfErr(""); }} style={{ background: "none", border: "none", color: "#9dc0ff", cursor: "pointer", fontSize: 13, padding: 0 }}><Icon name="chevLeft" size={15} />กลับเข้าสู่ระบบ</button>
+            </div>
+            <h2 style={{ margin: "0 0 4px", fontSize: 21, fontWeight: 700 }}>ดูผลประเมินของฉัน</h2>
+            <p style={{ margin: "0 0 18px", color: "rgba(255,255,255,.62)", fontSize: 13.5 }}>กรอกรหัสพนักงานเพื่อดูผลการประเมินของตัวเอง</p>
+            <form onSubmit={lookup} className="row" style={{ gap: 8, marginBottom: 14 }}>
+              <input className="input" value={code} onChange={(e) => setCode(e.target.value)} placeholder="รหัสพนักงาน เช่น 180032" style={{ ...glassInput, flex: 1 }} />
+              <button type="submit" className="btn btn-pri" disabled={look} style={{ padding: "0 18px" }}>{look ? "…" : "ดูผล"}</button>
+            </form>
+            {selfErr && <div style={{ marginBottom: 12, padding: "10px 13px", borderRadius: 10, background: "rgba(225,29,72,.18)", border: "1px solid rgba(255,140,160,.4)", color: "#ffd5dd", fontSize: 13 }}>{selfErr}</div>}
+            {r && r.found && (
+              <div style={{ background: "rgba(255,255,255,.07)", borderRadius: 14, padding: 16 }}>
+                <div style={{ fontWeight: 700, fontSize: 16 }}>{r.employee.name}</div>
+                <div style={{ color: "rgba(255,255,255,.7)", fontSize: 13, marginBottom: 12 }}>{r.employee.position} · {r.employee.dept} · รหัส {r.employee.id}</div>
+                {!ev ? <div style={{ color: "rgba(255,255,255,.7)", fontSize: 13.5, padding: "14px 0", textAlign: "center" }}>ยังไม่มีผลการประเมินรอบ {r.cycleYear}</div> : (<>
+                  <div className="row" style={{ gap: 14, alignItems: "center", marginBottom: 12 }}>
+                    <div style={{ width: 76, height: 76, borderRadius: "50%", display: "grid", placeItems: "center", background: b.color + "33", border: "3px solid " + b.color }}>
+                      <div style={{ textAlign: "center" }}><div style={{ fontSize: 22, fontWeight: 800 }}>{ev.overall}</div></div>
+                    </div>
+                    <div>
+                      <span className="badge" style={{ background: b.color, color: "#fff", fontWeight: 700, fontSize: 14 }}>เกรด {ev.grade} · {b.label}</span>
+                      <div style={{ fontSize: 12.5, color: "rgba(255,255,255,.7)", marginTop: 6 }}>รอบประเมินปี {r.cycleYear} · สถานะ {ev.status === "done" ? "อนุมัติแล้ว" : ev.status === "review" ? "อยู่ระหว่างอนุมัติ" : "ฉบับร่าง"}</div>
+                    </div>
+                  </div>
+                  <div className="row" style={{ gap: 0, textAlign: "center", borderTop: "1px solid rgba(255,255,255,.14)", paddingTop: 12 }}>
+                    <div style={{ flex: 1 }}><div style={{ fontSize: 18, fontWeight: 700, color: "#9dc0ff" }}>{ev.a_score != null ? ev.a_score : ev.kpi_score}</div><div style={{ fontSize: 11.5, color: "rgba(255,255,255,.6)" }}>ผลงาน/KPI (70%)</div></div>
+                    <div style={{ width: 1, background: "rgba(255,255,255,.14)" }} />
+                    <div style={{ flex: 1 }}><div style={{ fontSize: 18, fontWeight: 700, color: "#c4b5fd" }}>{ev.b_score != null ? ev.b_score : ev.comp_score}</div><div style={{ fontSize: 11.5, color: "rgba(255,255,255,.6)" }}>สมรรถนะ (30%)</div></div>
+                  </div>
+                  <div style={{ borderTop: "1px solid rgba(255,255,255,.14)", marginTop: 12, paddingTop: 12, display: "flex", flexDirection: "column", gap: 7, fontSize: 13 }}>
+                    <div className="between"><span style={{ color: "rgba(255,255,255,.65)" }}>โบนัส</span><span style={{ fontWeight: 700 }}>{o.bonusEligible ? o.bonusMonths + " เท่าของเงินเดือน" : "ไม่ได้รับ"}</span></div>
+                    <div className="between"><span style={{ color: "rgba(255,255,255,.65)" }}>ปรับเงินเดือน</span><span style={{ fontWeight: 700, color: o.raiseEligible ? "#86efac" : "#ffd5dd" }}>{o.raiseEligible ? "+" + o.raisePct + "%" : "ไม่ปรับ" + (o.hasWarning ? " (มีใบเตือน)" : "")}</span></div>
+                    {ev.evaluator && <div className="between"><span style={{ color: "rgba(255,255,255,.65)" }}>ผู้ประเมิน</span><span>{ev.evaluator}{ev.evaluator_code ? " · " + ev.evaluator_code : ""}</span></div>}
+                    {ev.comment && <div style={{ color: "rgba(255,255,255,.75)", fontSize: 12.5, marginTop: 2 }}>หมายเหตุ: {ev.comment}</div>}
+                  </div>
+                </>)}
+              </div>
+            )}
+          </div>
+          );
+        })()}
       </div>
     </div>
   );

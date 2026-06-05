@@ -20,7 +20,7 @@ function Evaluation({ ctx }) {
   const wSum = (wK + wC + wJ) || 100;
 
   const [tab, setTab] = useS3("kpi");
-  const [kpi, setKpi] = useS3(() => deptKpis.map((k) => ({ id: k.id, name: k.name, target: (k.target && k.target.y != null ? k.target.y : "") + (k.unit || ""), weight: k.weight || Math.round(100 / (deptKpis.length || 1)), score: 3 })));
+  const [kpi, setKpi] = useS3(() => deptKpis.map((k) => ({ id: k.id, name: k.name, obj: k.en || "", target: k.formula || ((k.method === "lower" ? "≤ " : k.method === "higher" ? "≥ " : "") + (k.target && k.target.y != null ? k.target.y : "") + (k.unit ? " " + k.unit : "")), weight: k.weight || Math.round(100 / (deptKpis.length || 1)), score: 3 })));
   const [comp, setComp] = useS3(() => ((empJD && empJD.competencies && empJD.competencies.length) ? empJD.competencies : (COMPETENCIES || []).map((c) => c.name)).map((name, i) => ({ id: "c" + i, name, score: 3, note: "" })));
   const [jd, setJd] = useS3(() => ((empJD && empJD.duties && empJD.duties.length) ? empJD.duties : (window.JD_ITEMS || []).map((j) => j.name)).map((name, i) => ({ id: "j" + i, name, score: 3, note: "" })));
   const [submitted, setSubmitted] = useS3(false);
@@ -146,8 +146,9 @@ function Evaluation({ ctx }) {
               <div key={k.id} style={{ border: "1px solid var(--border)", borderRadius: 12, padding: 16 }}>
                 <div className="between wrap" style={{ gap: 12 }}>
                   <div style={{ flex: 1, minWidth: 220 }}>
+                    {k.obj && <div className="muted" style={{ fontSize: 12, fontWeight: 600, marginBottom: 2 }}>{k.obj}</div>}
                     <div className="row" style={{ gap: 9 }}><Icon name="target" size={15} color="#2563eb" /><span style={{ fontWeight: 600, fontSize: 14 }}>{k.name}</span></div>
-                    <div className="muted" style={{ fontSize: 12.5, marginTop: 4 }}>เป้าหมาย {k.target || "—"} · น้ำหนัก {k.weight}%</div>
+                    <div className="muted" style={{ fontSize: 12.5, marginTop: 4 }}>เป้าหมายปี 2569: <b style={{ color: "#0d9488" }}>{k.target || "—"}</b> · น้ำหนัก {k.weight}%</div>
                   </div>
                   <div className="row" style={{ gap: 12 }}>
                     <Stars value={k.score} onChange={(v) => { const a = [...kpi]; a[i] = { ...a[i], score: v }; setKpi(a); }} />

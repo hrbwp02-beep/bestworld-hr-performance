@@ -186,6 +186,7 @@ function AddKPIModal({ dept, kpi, ctx, onClose }) {
   const [method, setMethod] = useK((kpi && kpi.method) || "higher");
   const [weight, setWeight] = useK(kpi ? String(kpi.weight) : "");
   const [target, setTarget] = useK(kpi && kpi.target ? String(kpi.target.y) : "");
+  const [tgtText, setTgtText] = useK((kpi && kpi.formula) || "");
   const [actual, setActual] = useK(kpi ? String(kpi.actual) : "");
   const [type, setType] = useK((kpi && kpi.type) || "number");
   const [busy, setBusy] = useK(false);
@@ -203,6 +204,7 @@ function AddKPIModal({ dept, kpi, ctx, onClose }) {
       dept, name: name.trim(), en: en.trim() || null, unit: unit.trim() || null,
       method, weight: Number(weight) || 0,
       target_m: Number(target) || 0, target_q: Number(target) || 0, target_y: Number(target) || 0,
+      formula: tgtText.trim() || null,
       actual: Number(actual) || 0, type,
     };
     let error;
@@ -222,8 +224,8 @@ function AddKPIModal({ dept, kpi, ctx, onClose }) {
       </>}>
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         {err && <div style={{ padding: "10px 13px", borderRadius: 10, background: "var(--red-soft)", color: "#be123c", fontSize: 13 }}>{err}</div>}
-        <div className="field"><label>ชื่อตัวชี้วัด (ไทย) *</label><input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="เช่น อัตราของเสีย" /></div>
-        <div className="field"><label>ชื่อภาษาอังกฤษ</label><input className="input" value={en} onChange={(e) => setEn(e.target.value)} placeholder="เช่น Scrap Rate" /></div>
+        <div className="field"><label>วัตถุประสงค์ / เป้าหมาย</label><input className="input" value={en} onChange={(e) => setEn(e.target.value)} placeholder="เช่น การต่อรองราคาและประหยัดต้นทุน" /></div>
+        <div className="field"><label>ตัวชี้วัด (วิธีคิด) *</label><input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="เช่น มูลค่าที่ประหยัดได้ ÷ มูลค่าสั่งซื้อรวม" /></div>
         <div className="grid" style={{ gridTemplateColumns: "1fr 1fr" }}>
           <div className="field"><label>วิธีคิดคะแนน</label><select className="select" value={method} onChange={(e) => setMethod(e.target.value)}><option value="higher">ยิ่งสูงยิ่งดี</option><option value="lower">ยิ่งต่ำยิ่งดี</option></select></div>
           <div className="field"><label>ประเภท</label><select className="select" value={type} onChange={(e) => setType(e.target.value)}><option value="number">ตัวเลข</option><option value="quality">เชิงคุณภาพ</option></select></div>
@@ -234,6 +236,7 @@ function AddKPIModal({ dept, kpi, ctx, onClose }) {
           <div className="field"><label>ผลจริง</label><input className="input" type="number" value={actual} onChange={(e) => setActual(e.target.value)} placeholder="97" /></div>
         </div>
         <div className="field"><label>หน่วย</label><input className="input" value={unit} onChange={(e) => setUnit(e.target.value)} placeholder="%, ครั้ง, ชม. …" /></div>
+        <div className="field"><label>เป้าหมายปี 2569 (ข้อความเต็ม)</label><input className="input" value={tgtText} onChange={(e) => setTgtText(e.target.value)} placeholder="เช่น ≥ 97%, ≥ 2 โครงการ/ปี, 0 ครั้ง" /><div className="muted" style={{ fontSize: 11.5, marginTop: 4 }}>ข้อความนี้จะแสดงเป็น “เป้าหมายปี 2569” (เว้นว่างได้ ระบบจะสร้างจากตัวเลข+หน่วยให้อัตโนมัติ)</div></div>
       </div>
     </Modal>
   );
@@ -278,19 +281,20 @@ function KPIDefine({ ctx }) {
         <div className="tbl-wrap">
           <table className="tbl">
             <thead><tr>
-              <th style={{ minWidth: 230 }}>ตัวชี้วัด (KPI)</th><th>ประเภท</th><th>วิธีคิด</th>
-              <th>น้ำหนัก</th><th>เป้าหมาย</th><th>ผลจริง</th><th style={{ minWidth: 130 }}>คะแนน</th><th></th>
+              <th style={{ minWidth: 170 }}>วัตถุประสงค์ / เป้าหมาย</th><th style={{ minWidth: 220 }}>ตัวชี้วัด (วิธีคิด)</th><th>ประเภท</th>
+              <th>น้ำหนัก</th><th style={{ minWidth: 120 }}>เป้าหมายปี 2569</th><th>ผลจริง</th><th style={{ minWidth: 130 }}>คะแนน</th><th></th>
             </tr></thead>
             <tbody>
               {approved.map((k) => {
                 const sc = kpiScore(k); const t = trafficOf(sc);
+                const tgtText = k.formula || ((k.method === "lower" ? "≤ " : k.method === "higher" ? "≥ " : "") + (k.target[cycle] != null ? k.target[cycle] : (k.target.y != null ? k.target.y : "")) + (k.unit ? " " + k.unit : ""));
                 return (
                   <tr key={k.id}>
-                    <td><div style={{ fontWeight: 600, fontSize: 13.5 }}>{k.name}</div><div className="muted" style={{ fontSize: 12 }}>{k.en}</div></td>
+                    <td><div style={{ fontWeight: 600, fontSize: 13.5 }}>{k.en || "—"}</div></td>
+                    <td><div style={{ fontSize: 13 }}>{k.name}</div><div className="muted" style={{ fontSize: 11.5 }}>{METHOD_LABEL[k.method]}</div></td>
                     <td><Badge cls={k.type === "quality" ? "b-blue" : "b-gray"}>{k.type === "quality" ? "เชิงคุณภาพ" : "ตัวเลข"}</Badge></td>
-                    <td><span className="muted" style={{ fontSize: 12.5 }}>{METHOD_LABEL[k.method]}</span></td>
                     <td className="num" style={{ fontWeight: 600 }}>{k.weight}%</td>
-                    <td className="num">{k.target[cycle]}<span className="muted" style={{ fontSize: 11 }}> {k.unit}</span></td>
+                    <td><span className="num" style={{ fontWeight: 700, color: "#0d9488", fontSize: 13.5 }}>{tgtText}</span></td>
                     <td className="num" style={{ fontWeight: 600 }}>{k.actual == null ? <span className="muted-3">—</span> : <>{k.actual}<span className="muted" style={{ fontSize: 11 }}> {k.unit}</span></>}</td>
                     <td>
                       <div className="row" style={{ gap: 8 }}>

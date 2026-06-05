@@ -332,6 +332,7 @@ function KPIDefine({ ctx }) {
   const [editKpi, setEditKpi] = useK(null);
   const approveKpi = async (k) => { const { error } = await window.sb.from("kpi_defs").update({ status: "approved" }).eq("id", k.id); if (error) { toast("อนุมัติไม่สำเร็จ", "x"); return; } await ctx.refresh(); toast("อนุมัติ KPI เข้าระบบแล้ว", "check"); };
   const rejectKpi = async (k) => { const { error } = await window.sb.from("kpi_defs").delete().eq("id", k.id); if (error) { toast("ปฏิเสธไม่สำเร็จ", "x"); return; } await ctx.refresh(); toast("ปฏิเสธ KPI แล้ว", "x"); };
+  const delKpi = async (k) => { if (!window.confirm("ลบ KPI “" + k.name + "” ออกจากระบบ? (ผลรายเดือนของ KPI นี้จะถูกลบด้วย)")) return; const { error } = await window.sb.from("kpi_defs").delete().eq("id", k.id); if (error) { toast("ลบไม่สำเร็จ: " + error.message, "x"); return; } await ctx.refresh(); toast("ลบ KPI แล้ว", "check"); };
   const kpis = KPI_DEFS.filter((k) => k.dept === dept);
   const approved = kpis.filter((k) => k.status === "approved");
   const proposed = kpis.filter((k) => k.status === "proposed");
@@ -384,7 +385,7 @@ function KPIDefine({ ctx }) {
                         <span className="num" style={{ fontWeight: 700, color: t.c }}>{sc == null ? "รอผล" : sc + "%"}</span>
                       </div>
                     </td>
-                    <td><button className="icon-btn" style={{ width: 32, height: 32 }} onClick={() => setEditKpi(k)}><Icon name="edit" size={14} /></button></td>
+                    <td><div className="row" style={{ gap: 4 }}><button className="icon-btn" style={{ width: 32, height: 32 }} title="แก้ไข" onClick={() => setEditKpi(k)}><Icon name="edit" size={14} /></button><button className="icon-btn" style={{ width: 32, height: 32 }} title="ลบ KPI" onClick={() => delKpi(k)}><Icon name="x" size={15} color="var(--red)" /></button></div></td>
                   </tr>
                 );
               })}

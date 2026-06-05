@@ -1,6 +1,22 @@
 // screens-eval-jd.jsx — Evaluation form + JD Management
 const { useState: useS3, useMemo: useM3 } = React;
 
+// ---- Multi-level approval workflow (Phase 7) ----
+const APPROVAL_STAGES = [
+  { key: "supervisor", label: "หัวหน้างาน / ผู้ประเมิน" },
+  { key: "manager", label: "ผู้จัดการฝ่าย" },
+  { key: "hr", label: "ฝ่ายทรัพยากรบุคคล" },
+];
+async function currentApprover() {
+  try {
+    const u = (await window.sb.auth.getUser()).data.user;
+    const email = u && u.email;
+    const au = (window.APP_USERS || []).find((a) => a.email === email);
+    return { email, name: (au && (au.name || au.full_name)) || email || "ผู้ใช้งาน", role: (au && au.role) || "user" };
+  } catch (e) { return { email: null, name: "ผู้ใช้งาน", role: "user" }; }
+}
+const fmtApprovalTime = (iso) => { try { const d = new Date(iso); const m = ["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."]; return d.getDate() + " " + m[d.getMonth()] + " " + (d.getFullYear() + 543) + " " + String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0"); } catch (e) { return ""; } }
+
 /* =========================================================
    EVALUATION
    ========================================================= */
@@ -45,6 +61,21 @@ function Evaluation({ ctx }) {
   const overall = Math.round((kpiTotal * wK + compTotal * wC + jdTotal * wJ) / wSum * 10) / 10;
   const band = window.bandOf(overall);
   const outcome = window.evalOutcome(overall, e.warnings);
+  // approval workflow state (Phase 7)
+  const evRec = e.eval || null;
+  const curStage = evRec ? (evRec.stage || "draft") : "draft";
+  const isApproved = !!(evRec && (evRec.status === "done" || curStage === "approved"));
+  const inReview = !!(evRec && evRec.status === "review" && !isApproved);
+  const curIdx = APPROVAL_STAGES.findIndex((s) => s.key === curStage);
+  const approvalsLog = (evRec && evRec.approvals) || [];
+  // แสดงคะแนนที่บันทึกไว้แล้วเมื่ออยู่ระหว่าง/ผ่านการอนุมัติ มิฉะนั้นใช้คะแนนสดจากฟอร์ม
+  const showSaved = inReview || isApproved;
+  const dOverall = showSaved ? evRec.overall : overall;
+  const dKpi = showSaved ? evRec.kpi_score : kpiTotal;
+  const dComp = showSaved ? evRec.comp_score : compTotal;
+  const dJd = showSaved ? evRec.jd_score : jdTotal;
+  const dBand = window.bandOf(dOverall);
+  const dOutcome = showSaved ? window.evalOutcome(dOverall, e.warnings) : outcome;
 
   // save the evaluation to Supabase: record it + write scores back to the employee
   const saveEval = async (finalStatus) => {
@@ -65,26 +96,68 @@ function Evaluation({ ctx }) {
         comp: comp.map((c) => ({ name: c.name, score: c.score * 20 })),
         jd: jd.map((j) => ({ name: j.name, score: j.score * 20 })),
       };
+      const who = await currentApprover();
+      const isSubmit = finalStatus === "review";
+      const stage = isSubmit ? APPROVAL_STAGES[0].key : "draft";
+      const approvals = isSubmit ? [{ stage: "submit", act: "ส่งเข้าสายอนุมัติ", by: who.name, at: new Date().toISOString() }] : [];
       const { error: evErr } = await window.sb.from("evaluations").insert({
         employee_id: e.id, cycle_year: cy, kpi_score: kScore, comp_score: cScore, jd_score: jScore,
-        overall: Math.round(overall), comment: comment.trim() || null, evaluator: "คุณสุดารัตน์ (HR)", status: finalStatus,
+        overall: Math.round(overall), comment: comment.trim() || null, evaluator: who.name, status: finalStatus === "review" ? "review" : "progress",
         grade: outcome.grade, bonus_months: outcome.bonusMonths, raise_pct: outcome.raisePct, has_warning: outcome.hasWarning,
-        items,
+        items, stage, approvals,
       });
       if (evErr) { toast("บันทึกไม่สำเร็จ: " + evErr.message, "x"); return; }
-      const newHist = finalStatus === "done" ? [...(e.history || []), histVal] : (e.history || []);
       const { error: upErr } = await window.sb.from("employees").update({
-        kpi: kScore, comp: cScore, status: finalStatus, history: newHist,
+        kpi: kScore, comp: cScore, status: finalStatus === "review" ? "review" : "progress", history: e.history || [],
       }).eq("id", e.id);
       if (upErr) { toast("บันทึกคะแนนพนักงานไม่สำเร็จ: " + upErr.message, "x"); return; }
       await ctx.refresh();
-      if (finalStatus === "done") { setSubmitted(true); toast("อนุมัติและบันทึกผลการประเมินแล้ว", "checkCircle"); }
+      if (finalStatus === "review") { setSubmitted(true); toast("ส่งเข้าสายอนุมัติแล้ว → " + APPROVAL_STAGES[0].label, "checkCircle"); }
       else toast("บันทึกฉบับร่างแล้ว", "check");
     } catch (err) {
       toast("บันทึกไม่สำเร็จ: " + (err && err.message ? err.message : String(err)), "x");
     } finally {
       setSaving(false);
     }
+  };
+
+  // เดินสายอนุมัติไปขั้นถัดไป (หรือจบ → done) / ตีกลับให้แก้ไข
+  const advanceApproval = async () => {
+    if (saving) return; setSaving(true);
+    try {
+      const cy = +(window.CYCLE_YEAR || 2569);
+      const rec = e.eval; if (!rec) { toast("ยังไม่มีใบประเมินให้อนุมัติ", "x"); return; }
+      const who = await currentApprover();
+      const cur = rec.stage || APPROVAL_STAGES[0].key;
+      const idx = APPROVAL_STAGES.findIndex((s) => s.key === cur);
+      const curLabel = (APPROVAL_STAGES[idx] || {}).label || cur;
+      const log = [...(rec.approvals || []), { stage: cur, act: "อนุมัติ", by: who.name, at: new Date().toISOString(), note: comment.trim() || null }];
+      const next = APPROVAL_STAGES[idx + 1];
+      const patch = next ? { stage: next.key, approvals: log } : { stage: "approved", status: "done", approvals: log };
+      const { error } = await window.sb.from("evaluations").update(patch).eq("employee_id", e.id).eq("cycle_year", cy);
+      if (error) { toast("อนุมัติไม่สำเร็จ: " + error.message, "x"); return; }
+      if (!next) {
+        const histVal = Math.round((rec.kpi_score || 0) * 0.6 + (rec.comp_score || 0) * 0.4);
+        await window.sb.from("employees").update({ status: "done", history: [...(e.history || []), histVal] }).eq("id", e.id);
+      }
+      await ctx.refresh();
+      toast(next ? ("อนุมัติขั้น " + curLabel + " แล้ว → " + next.label) : "อนุมัติครบทุกขั้น เสร็จสมบูรณ์", "checkCircle");
+    } catch (err) { toast("อนุมัติไม่สำเร็จ: " + (err && err.message ? err.message : String(err)), "x"); }
+    finally { setSaving(false); }
+  };
+  const rejectApproval = async () => {
+    if (saving) return; setSaving(true);
+    try {
+      const cy = +(window.CYCLE_YEAR || 2569);
+      const rec = e.eval; if (!rec) return;
+      const who = await currentApprover();
+      const log = [...(rec.approvals || []), { stage: rec.stage || "", act: "ตีกลับให้แก้ไข", by: who.name, at: new Date().toISOString(), note: comment.trim() || null }];
+      await window.sb.from("evaluations").update({ stage: "draft", status: "progress", approvals: log }).eq("employee_id", e.id).eq("cycle_year", cy);
+      await window.sb.from("employees").update({ status: "progress" }).eq("id", e.id);
+      await ctx.refresh();
+      toast("ตีกลับให้แก้ไขแล้ว", "check");
+    } catch (err) { toast("ไม่สำเร็จ: " + (err && err.message ? err.message : String(err)), "x"); }
+    finally { setSaving(false); }
   };
 
   const tabs = [
@@ -236,55 +309,69 @@ function Evaluation({ ctx }) {
           <div className="card-pad fade-up">
             <div className="grid" style={{ gridTemplateColumns: "1fr 1.3fr", gap: 24 }}>
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16, padding: "10px 0" }}>
-                <Ring value={overall} size={170} label={band.label} />
+                <Ring value={dOverall} size={170} label={dBand.label} />
                 <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 10 }}>
-                  {[["KPI (" + wK + "%)", kpiTotal, "#2563eb"], ["Competency (" + wC + "%)", compTotal, "#7c3aed"], ["JD-Based (" + wJ + "%)", jdTotal, "#0d9488"]].map(([l, v, c]) => (
+                  {[["KPI (" + wK + "%)", dKpi, "#2563eb"], ["Competency (" + wC + "%)", dComp, "#7c3aed"], ["JD-Based (" + wJ + "%)", dJd, "#0d9488"]].map(([l, v, c]) => (
                     <div key={l} className="between" style={{ fontSize: 13.5 }}><span className="muted">{l}</span><span className="num" style={{ fontWeight: 700, color: c }}>{v}</span></div>
                   ))}
                 </div>
                 {/* outcome: grade + bonus + raise */}
                 <div style={{ width: "100%", border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden" }}>
-                  <div className="between" style={{ background: outcome.color + "14", padding: "12px 14px" }}>
+                  <div className="between" style={{ background: dOutcome.color + "14", padding: "12px 14px" }}>
                     <span style={{ fontWeight: 600, fontSize: 13.5 }}>ผลสรุป</span>
-                    <span className="badge" style={{ background: outcome.color + "22", color: outcome.color, fontWeight: 700 }}>เกรด {outcome.grade} · {outcome.gradeLabel}</span>
+                    <span className="badge" style={{ background: dOutcome.color + "22", color: dOutcome.color, fontWeight: 700 }}>เกรด {dOutcome.grade} · {dOutcome.gradeLabel}</span>
                   </div>
                   <div style={{ padding: "10px 14px", display: "flex", flexDirection: "column", gap: 9 }}>
-                    <div className="between" style={{ fontSize: 13 }}><span className="row" style={{ gap: 7 }}><Icon name="trophy" size={15} color="#e08a00" />โบนัส</span>{outcome.bonusEligible ? <span style={{ fontWeight: 700, color: "#16a34a" }}>ได้รับ · {outcome.bonusMonths} เท่าของเงินเดือน</span> : <span className="muted" style={{ fontWeight: 600 }}>ไม่ได้รับ</span>}</div>
-                    <div className="between" style={{ fontSize: 13 }}><span className="row" style={{ gap: 7 }}><Icon name="trend" size={15} color="#2563eb" />ปรับเงินเดือน</span>{outcome.raiseEligible ? <span style={{ fontWeight: 700, color: "#16a34a" }}>+{outcome.raisePct}%</span> : <span style={{ fontWeight: 600, color: "var(--red)" }}>ไม่ปรับเงิน</span>}</div>
-                    {outcome.hasWarning && <div style={{ background: "var(--red-soft)", color: "#be123c", borderRadius: 8, padding: "8px 11px", fontSize: 12.5 }}><Icon name="alert" size={14} /> มีใบเตือน {outcome.warnings} ใบ — ระงับการปรับเงินเดือนรอบนี้</div>}
+                    <div className="between" style={{ fontSize: 13 }}><span className="row" style={{ gap: 7 }}><Icon name="trophy" size={15} color="#e08a00" />โบนัส</span>{dOutcome.bonusEligible ? <span style={{ fontWeight: 700, color: "#16a34a" }}>ได้รับ · {dOutcome.bonusMonths} เท่าของเงินเดือน</span> : <span className="muted" style={{ fontWeight: 600 }}>ไม่ได้รับ</span>}</div>
+                    <div className="between" style={{ fontSize: 13 }}><span className="row" style={{ gap: 7 }}><Icon name="trend" size={15} color="#2563eb" />ปรับเงินเดือน</span>{dOutcome.raiseEligible ? <span style={{ fontWeight: 700, color: "#16a34a" }}>+{dOutcome.raisePct}%</span> : <span style={{ fontWeight: 600, color: "var(--red)" }}>ไม่ปรับเงิน</span>}</div>
+                    {dOutcome.hasWarning && <div style={{ background: "var(--red-soft)", color: "#be123c", borderRadius: 8, padding: "8px 11px", fontSize: 12.5 }}><Icon name="alert" size={14} /> มีใบเตือน {dOutcome.warnings} ใบ — ระงับการปรับเงินเดือนรอบนี้</div>}
                   </div>
                 </div>
               </div>
               <div>
-                <div style={{ fontWeight: 600, fontSize: 14.5, marginBottom: 14 }}>สายการอนุมัติ (Approval Workflow)</div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
-                  {[
-                    { who: "ผู้ประเมิน (หัวหน้างาน)", role: e.reviewer, state: "done", date: "29 พ.ค. 2568" },
-                    { who: "ผู้จัดการฝ่าย", role: "อนุมัติระดับฝ่าย", state: submitted ? "done" : "current", date: submitted ? "29 พ.ค. 2568" : "รอดำเนินการ" },
-                    { who: "ฝ่ายทรัพยากรบุคคล", role: "ตรวจสอบและบันทึก", state: submitted ? "current" : "wait", date: "—" },
-                  ].map((s, i, arr) => (
-                    <div key={i} className="row" style={{ gap: 14, alignItems: "flex-start" }}>
-                      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", alignSelf: "stretch" }}>
-                        <span style={{ width: 30, height: 30, borderRadius: 999, display: "grid", placeItems: "center", flex: "0 0 30px",
-                          background: s.state === "done" ? "#16a34a" : s.state === "current" ? "var(--accent)" : "var(--surface-3)",
-                          color: s.state === "wait" ? "var(--text-3)" : "#fff" }}>
-                          {s.state === "done" ? <Icon name="check" size={16} /> : <span className="mono" style={{ fontSize: 13, fontWeight: 700 }}>{i + 1}</span>}
-                        </span>
-                        {i < arr.length - 1 && <span style={{ width: 2, flex: 1, minHeight: 28, background: "var(--border)" }} />}
-                      </div>
-                      <div style={{ paddingBottom: 18 }}>
-                        <div style={{ fontWeight: 600, fontSize: 13.5 }}>{s.who}</div>
-                        <div className="muted" style={{ fontSize: 12.5 }}>{s.role} · {s.date}</div>
-                      </div>
-                    </div>
-                  ))}
+                <div className="between" style={{ marginBottom: 14 }}>
+                  <span style={{ fontWeight: 600, fontSize: 14.5 }}>สายการอนุมัติ (Approval Workflow)</span>
+                  <Badge cls={isApproved ? "b-green" : inReview ? "b-amber" : "b-gray"} dot>{isApproved ? "อนุมัติครบแล้ว" : inReview ? "อยู่ระหว่างอนุมัติ" : "ยังไม่ส่ง"}</Badge>
                 </div>
-                <textarea className="input" placeholder="ความคิดเห็นสรุปจากผู้ประเมิน…" style={{ marginTop: 8 }} value={comment} onChange={(ev) => setComment(ev.target.value)} />
+                <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+                  {APPROVAL_STAGES.map((s, i, arr) => {
+                    const done = isApproved || (curIdx > -1 && i < curIdx);
+                    const current = inReview && i === curIdx;
+                    const state = done ? "done" : current ? "current" : "wait";
+                    const log = [...approvalsLog].reverse().find((a) => a.stage === s.key && a.act === "อนุมัติ");
+                    return (
+                      <div key={s.key} className="row" style={{ gap: 14, alignItems: "flex-start" }}>
+                        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", alignSelf: "stretch" }}>
+                          <span style={{ width: 30, height: 30, borderRadius: 999, display: "grid", placeItems: "center", flex: "0 0 30px",
+                            background: state === "done" ? "#16a34a" : state === "current" ? "var(--accent)" : "var(--surface-3)",
+                            color: state === "wait" ? "var(--text-3)" : "#fff" }}>
+                            {state === "done" ? <Icon name="check" size={16} /> : <span className="mono" style={{ fontSize: 13, fontWeight: 700 }}>{i + 1}</span>}
+                          </span>
+                          {i < arr.length - 1 && <span style={{ width: 2, flex: 1, minHeight: 28, background: "var(--border)" }} />}
+                        </div>
+                        <div style={{ paddingBottom: 18 }}>
+                          <div style={{ fontWeight: 600, fontSize: 13.5 }}>{s.label}{i === 0 && e.reviewer ? " · " + e.reviewer : ""}</div>
+                          <div className="muted" style={{ fontSize: 12.5 }}>{log ? ("อนุมัติโดย " + log.by + " · " + fmtApprovalTime(log.at)) : current ? "รอดำเนินการขั้นนี้" : done ? "ผ่านแล้ว" : "รอขั้นก่อนหน้า"}</div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <textarea className="input" placeholder={inReview ? "ความคิดเห็นผู้อนุมัติ / เหตุผลตีกลับ…" : "ความคิดเห็นสรุปจากผู้ประเมิน…"} style={{ marginTop: 8 }} value={comment} onChange={(ev) => setComment(ev.target.value)} />
                 <div className="row wrap" style={{ gap: 10, marginTop: 16 }}>
-                  <button className="btn btn-ghost" onClick={() => saveEval("progress")} disabled={saving}><Icon name="refresh" size={15} />บันทึกร่าง</button>
-                  <button className="btn btn-pri" style={{ flex: 1 }} onClick={() => saveEval("done")} disabled={saving || submitted}>
-                    <Icon name="check" size={16} />{submitted ? "อนุมัติแล้ว ✓" : (saving ? "กำลังบันทึก…" : "อนุมัติผลการประเมิน")}
-                  </button>
+                  {isApproved ? (
+                    <button className="btn btn-pri" style={{ flex: 1 }} disabled><Icon name="checkCircle" size={16} />อนุมัติครบทุกขั้นแล้ว ✓</button>
+                  ) : inReview ? (<>
+                    <button className="btn btn-ghost" onClick={rejectApproval} disabled={saving} style={{ color: "var(--red)" }}><Icon name="x" size={15} />ตีกลับแก้ไข</button>
+                    <button className="btn btn-pri" style={{ flex: 1 }} onClick={advanceApproval} disabled={saving}>
+                      <Icon name="check" size={16} />{saving ? "กำลังดำเนินการ…" : ("อนุมัติขั้น: " + ((APPROVAL_STAGES[curIdx] || {}).label || ""))}
+                    </button>
+                  </>) : (<>
+                    <button className="btn btn-ghost" onClick={() => saveEval("progress")} disabled={saving}><Icon name="refresh" size={15} />บันทึกร่าง</button>
+                    <button className="btn btn-pri" style={{ flex: 1 }} onClick={() => saveEval("review")} disabled={saving}>
+                      <Icon name="check" size={16} />{saving ? "กำลังบันทึก…" : "ส่งเข้าสายอนุมัติ"}
+                    </button>
+                  </>)}
                 </div>
               </div>
             </div>

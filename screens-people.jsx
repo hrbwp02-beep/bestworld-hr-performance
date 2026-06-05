@@ -459,7 +459,7 @@ function EmployeeList({ ctx }) {
                   <div className="between"><Badge cls="b-gray">{deptShort(e.dept)}</Badge><Badge cls={sm.cls} dot>{sm.label}</Badge></div>
                   <div className="between" style={{ borderTop: "1px solid var(--border-2)", paddingTop: 12 }}>
                     <div><div className="muted" style={{ fontSize: 11 }}>คะแนนรวม</div><div className="num" style={{ fontWeight: 700, fontSize: 20, color: e.band.color }}>{e.overall}</div></div>
-                    <span className={"badge " + e.band.cls} dot>{e.band.label}</span>
+                    <span className={"badge " + e.band.cls}><span className="bdot" />{e.band.label}</span>
                   </div>
                 </div>
               </Card>

@@ -117,10 +117,6 @@ async function loadHRData() {
   // actual = average of entered monthly results (so overview/scoring reflect monthly data)
   KPI_DEFS.forEach((k) => { const mm = KPI_MONTHLY[k.id]; if (mm) { const vs = Object.values(mm).filter((v) => v != null); if (vs.length) k.actual = Math.round(vs.reduce((a, b) => a + b, 0) / vs.length * 100) / 100; } });
 
-  // Individual KPI (per-employee) for current cycle
-  const indivRes = await sb.from("kpi_individual").select("*").eq("cycle_year", cycleYear).order("sort", { ascending: true });
-  const KPI_INDIV = {};
-  if (!indivRes.error) (indivRes.data || []).forEach((r) => { (KPI_INDIV[r.employee_id] = KPI_INDIV[r.employee_id] || []).push(r); });
 
   // submissions: files/versions/audit already arrive as parsed JSON
   const SUBMISSIONS = subRows.map((s) => ({ ...s }));
@@ -174,7 +170,7 @@ async function loadHRData() {
   Object.assign(window, {
     DEPARTMENTS: departments, COMPETENCIES: competencies, EMPLOYEES,
     JD_LIBRARY: jdLibrary, NOTIFS: notifications, KPI_ITEMS: kpiItems, JD_ITEMS: jdItems,
-    KPI_DEFS, KPI_MONTHLY, KPI_INDIV, SUBMISSIONS, TEAMS: teams, SUMMARY, STATUS_PIE, COMP_RADAR, GRADE_DIST,
+    KPI_DEFS, KPI_MONTHLY, SUBMISSIONS, TEAMS: teams, SUMMARY, STATUS_PIE, COMP_RADAR, GRADE_DIST,
     APP_USERS: appUsers || [], APP_SETTINGS: appSettings || null, CYCLE_YEAR: cycleYear,
     KPI_DEPTS: departments.filter((d) => KPI_DEFS.some((k) => k.dept === d.id)).map((d) => d.id),
     ...(trCur.length ? { TREND: trCur } : {}),

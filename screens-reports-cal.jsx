@@ -156,11 +156,12 @@ function TalentRow({ e, onClick, tone }) {
 
 function ForcedRankBars({ emps }) {
   const bands = [
-    { key: "A", label: "ดีเยี่ยม (90+)", color: "#16a34a", min: 90 },
-    { key: "B", label: "ดีมาก (80-89)", color: "#0d9488", min: 80 },
+    { key: "A+", label: "ดีเยี่ยม (95-100)", color: "#15803d", min: 95 },
+    { key: "A", label: "ดีมาก (90-94)", color: "#16a34a", min: 90 },
+    { key: "B+", label: "ดี (85-89)", color: "#0d9488", min: 85 },
+    { key: "B", label: "ค่อนข้างดี (80-84)", color: "#0891b2", min: 80 },
     { key: "C", label: "ตามเป้า (70-79)", color: "#2563eb", min: 70 },
-    { key: "D", label: "ต้องพัฒนา (60-69)", color: "#e08a00", min: 60 },
-    { key: "E", label: "ต่ำกว่าเกณฑ์ (<60)", color: "#e11d48", min: 0 },
+    { key: "D", label: "ต้องพัฒนา (<70)", color: "#e11d48", min: 0 },
   ];
   const counts = bands.map((b, i) => {
     const max = i === 0 ? 200 : bands[i - 1].min;
@@ -527,7 +528,7 @@ function Settings({ ctx }) {
             <table className="tbl">
               <thead><tr><th>เกรด</th><th>เกณฑ์</th><th style={{ width: 130 }}>โบนัส (เท่า)</th><th style={{ width: 130 }}>ปรับเงิน (%)</th></tr></thead>
               <tbody>
-                {[["A", "ดีเยี่ยม (≥90)", "#16a34a"], ["B", "ดีมาก (≥80)", "#0d9488"], ["C", "ตามเป้า (≥70)", "#2563eb"], ["D", "ต้องพัฒนา (≥60)", "#e08a00"], ["E", "ต่ำกว่าเกณฑ์ (<60)", "#e11d48"]].map(([g, lab, c]) => (
+                {[["A+", "ดีเยี่ยม (95-100)", "#15803d"], ["A", "ดีมาก (90-94)", "#16a34a"], ["B+", "ดี (85-89)", "#0d9488"], ["B", "ค่อนข้างดี (80-84)", "#0891b2"], ["C", "ตามเป้า (70-79)", "#2563eb"], ["D", "ต้องพัฒนา (<70)", "#e11d48"]].map(([g, lab, c]) => (
                   <tr key={g}>
                     <td><span className="badge" style={{ background: c + "22", color: c, fontWeight: 700 }}>{g}</span></td>
                     <td className="muted" style={{ fontSize: 13 }}>{lab}</td>

@@ -12,11 +12,12 @@ const COMPANY = {
 
 // ---------- helpers ----------
 function bandOf(score) {
-  if (score >= 90) return { key: "A", label: "ดีเยี่ยม", cls: "b-green", color: "#16a34a" };
-  if (score >= 80) return { key: "B", label: "ดีมาก", cls: "b-teal", color: "#0d9488" };
+  if (score >= 95) return { key: "A+", label: "ดีเยี่ยม", cls: "b-green", color: "#15803d" };
+  if (score >= 90) return { key: "A", label: "ดีมาก", cls: "b-green", color: "#16a34a" };
+  if (score >= 85) return { key: "B+", label: "ดี", cls: "b-teal", color: "#0d9488" };
+  if (score >= 80) return { key: "B", label: "ค่อนข้างดี", cls: "b-teal", color: "#0891b2" };
   if (score >= 70) return { key: "C", label: "ตามเป้า", cls: "b-blue", color: "#2563eb" };
-  if (score >= 60) return { key: "D", label: "ต้องพัฒนา", cls: "b-amber", color: "#e08a00" };
-  return { key: "E", label: "ต่ำกว่าเกณฑ์", cls: "b-red", color: "#e11d48" };
+  return { key: "D", label: "ต้องพัฒนา", cls: "b-red", color: "#e11d48" };
 }
 function statusMeta(s) {
   return ({
@@ -29,8 +30,8 @@ function statusMeta(s) {
 
 // ผลสรุปการประเมิน → เกรด + โบนัส + การปรับเงินเดือน (มีใบเตือน = ไม่ปรับเงิน)
 const BONUS_TIERS_DEFAULT = {
-  A: { bonus: 2.0, raise: 10 }, B: { bonus: 1.5, raise: 6 }, C: { bonus: 1.0, raise: 3 },
-  D: { bonus: 0.5, raise: 0 }, E: { bonus: 0, raise: 0 },
+  "A+": { bonus: 2.5, raise: 12 }, "A": { bonus: 2.0, raise: 10 }, "B+": { bonus: 1.5, raise: 7 },
+  "B": { bonus: 1.2, raise: 5 }, "C": { bonus: 0.8, raise: 3 }, "D": { bonus: 0, raise: 0 },
 };
 function evalOutcome(overall, warnings) {
   const b = bandOf(overall);

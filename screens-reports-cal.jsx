@@ -62,7 +62,16 @@ function Reports({ ctx }) {
     { id: "talent", label: "Talent Pool" },
     { id: "heatmap", label: "Heatmap" },
     { id: "yoy", label: "เปรียบเทียบรายปี" },
+    { id: "yearend", label: "สรุปสิ้นปี" },
   ];
+  const promoteRec = (e) => {
+    const g = e.band.key;
+    if (e.warnings > 0) return { t: "ระงับ (มีใบเตือน)", c: "#e11d48" };
+    if ((g === "A+" || g === "A") && e.potential >= 3) return { t: "แนะนำเลื่อนตำแหน่ง", c: "#16a34a" };
+    if (g === "A+" || g === "A") return { t: "ดาวเด่น — พิจารณาเลื่อน", c: "#0d9488" };
+    if (g === "D") return { t: "ต้องพัฒนา (PIP)", c: "#e08a00" };
+    return { t: "คงตำแหน่ง", c: "#64748b" };
+  };
 
   return (
     <div className="grid">
@@ -137,6 +146,34 @@ function Reports({ ctx }) {
                 ))}
               </div>
             </div>
+          </div>
+        )}
+
+        {tab === "yearend" && (
+          <div className="card-pad fade-up">
+            <div className="row wrap between" style={{ marginBottom: 14, gap: 10 }}>
+              <div><b style={{ fontSize: 15 }}>สรุปผลการปฏิบัติงานประจำปี (Year-End Review)</b><div className="muted" style={{ fontSize: 12.5 }}>คะแนนรวม + เกรด + โบนัส + ปรับเงินเดือน + คำแนะนำเลื่อนตำแหน่ง · {COMPANY.cycle}</div></div>
+              <button className="btn btn-ghost btn-sm" onClick={() => { downloadCSV("year_end_summary_" + (window.CYCLE_YEAR || 2569) + ".csv", ["รหัส", "ชื่อ", "หน่วยงาน", "ตำแหน่ง", "KPI", "Competency", "JD", "คะแนนรวม", "เกรด", "โบนัส(เท่า)", "ปรับเงิน(%)", "คำแนะนำ"], ranked.map((e) => { const o = window.evalOutcome(e.overall, e.warnings); return [e.id, e.name, deptName(e.dept), e.position, e.kpi, e.comp, (e.eval && e.eval.jd_score) || "-", e.overall, e.band.key, o.bonusMonths, o.raisePct, promoteRec(e).t]; })); toast("ส่งออกสรุปสิ้นปีแล้ว", "fileExcel"); }}><Icon name="download" size={14} />Export</button>
+            </div>
+            <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", marginBottom: 14 }}>
+              {[["แนะนำเลื่อนตำแหน่ง", ranked.filter((e) => promoteRec(e).t === "แนะนำเลื่อนตำแหน่ง").length, "#16a34a"], ["ดาวเด่น", ranked.filter((e) => promoteRec(e).t.startsWith("ดาวเด่น")).length, "#0d9488"], ["ได้โบนัส", ranked.filter((e) => window.evalOutcome(e.overall, e.warnings).bonusEligible).length, "#e08a00"], ["ได้ปรับเงิน", ranked.filter((e) => window.evalOutcome(e.overall, e.warnings).raiseEligible).length, "#2563eb"], ["ต้องพัฒนา (PIP)", ranked.filter((e) => promoteRec(e).t.startsWith("ต้องพัฒนา")).length, "#e11d48"]].map(([l, n, c]) => (
+                <Stat key={l} icon="trophy" label={l} value={n} unit="คน" tone={c} soft={c + "18"} />
+              ))}
+            </div>
+            <div className="tbl-wrap"><table className="tbl" style={{ fontSize: 12.5 }}>
+              <thead><tr><th>#</th><th>พนักงาน</th><th>KPI</th><th>Comp</th><th>JD</th><th>คะแนนรวม</th><th>เกรด</th><th>โบนัส</th><th>ปรับเงิน</th><th style={{ minWidth: 150 }}>คำแนะนำ (Year-End)</th></tr></thead>
+              <tbody>{ranked.map((e, i) => { const o = window.evalOutcome(e.overall, e.warnings); const pr = promoteRec(e); return (
+                <tr key={e.id} style={{ cursor: "pointer" }} onClick={() => ctx.openEmp(e.id)}>
+                  <td className="num muted">{i + 1}</td>
+                  <td><div className="row" style={{ gap: 9 }}><Avatar name={e.name} initials={e.initials} color={e.color} size={30} /><div><div style={{ fontWeight: 600 }}>{e.name}</div><div className="muted" style={{ fontSize: 11 }}>{deptShort(e.dept)} · {e.position}</div></div></div></td>
+                  <td className="num">{e.kpi}</td><td className="num">{e.comp}</td><td className="num">{(e.eval && e.eval.jd_score) || "—"}</td>
+                  <td><span className="num" style={{ fontWeight: 700, color: e.band.color }}>{e.overall}</span></td>
+                  <td><span className="badge" style={{ background: e.band.color + "22", color: e.band.color, fontWeight: 700 }}>{e.band.key}</span></td>
+                  <td className="num">{o.bonusEligible ? o.bonusMonths + " เท่า" : "—"}</td>
+                  <td className="num" style={{ color: o.raiseEligible ? "#16a34a" : "var(--text-3)" }}>{o.raiseEligible ? "+" + o.raisePct + "%" : "—"}</td>
+                  <td><span style={{ fontWeight: 600, color: pr.c, fontSize: 12.5 }}>{pr.t}</span></td>
+                </tr>); })}</tbody>
+            </table></div>
           </div>
         )}
       </Card>

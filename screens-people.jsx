@@ -501,7 +501,17 @@ function EmployeeProfile({ ctx, empId }) {
   // ส่วน A — ใช้คะแนนรายข้อจริง (items.a) ถ้ามี; ไม่งั้นใช้แม่แบบจาก JD (ยังไม่ให้คะแนน)
   const aRows = (evItems && evItems.a && evItems.a.length)
     ? evItems.a.map((x, i) => ({ id: "a" + i, name: x.name, weight: x.weight, grp: x.grp || "a1", score: x.score }))
-    : ((empJd && empJd.eval_a) || []).map((x, i) => ({ id: "a" + i, name: x.name, weight: x.weight, grp: x.grp || "a1", score: null }));
+    : (() => {
+        // ยังไม่ประเมิน → แสดงแม่แบบ A1 (หน้าที่ JD) + A2 (KPI หน่วยงานจริง)
+        const a1 = ((empJd && empJd.eval_a) || []).filter((x) => (x.grp || "a1") === "a1");
+        const a1base = a1.length ? a1 : ((empJd && empJd.duties) || []).map((n) => ({ name: n }));
+        const a1rows = a1base.map((x, i) => ({ id: "a1_" + i, name: x.name, weight: x.weight, grp: "a1", score: null }));
+        const kd = (empJd && (empJd.kpi_dept || empJd.dept)) || e.dept;
+        let dk = (window.KPI_DEFS || []).filter((k) => k.dept === kd && k.status === "approved");
+        if (dk.some((k) => k.section)) { const ip = /พิมพ์|สลิท/.test(empSection); dk = dk.filter((k) => !k.section || (ip ? k.section === "พิมพ์" : k.section === "เป่า")); }
+        const a2rows = dk.map((k, i) => ({ id: "a2_" + i, name: k.en || k.name, weight: null, grp: "a2", score: null }));
+        return [...a1rows, ...a2rows];
+      })();
   // ส่วน B — ใช้คะแนนรายข้อจริง (items.b) ถ้ามี; ไม่งั้นใช้แม่แบบ
   const bRows = (evItems && evItems.b && evItems.b.length)
     ? evItems.b.map((x, i) => ({ id: "b" + i, name: x.name, weight: x.weight, grp: x.grp || "specific", score: x.score }))

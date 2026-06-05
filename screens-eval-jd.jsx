@@ -43,9 +43,22 @@ function Evaluation({ ctx }) {
 
   // ===== แบบประเมิน 2 ส่วนตามไฟล์ : A ผลงาน/KPI (70%) + B สมรรถนะ (30%) =====
   const buildA = () => {
-    if (empJD && empJD.eval_a && empJD.eval_a.length) return empJD.eval_a.map((it, i) => ({ id: "a" + i, name: it.name, weight: Number(it.weight) || 0, grp: it.grp || "a1", target: it.target || null, score: 3, note: "" }));
-    const duties = (empJD && empJD.duties && empJD.duties.length) ? empJD.duties : [];
-    return duties.map((name, i) => ({ id: "a" + i, name, weight: Math.round(100 / (duties.length || 1)), grp: "a1", target: null, score: 3, note: "" }));
+    // A1 · KPI รายบุคคล (จากหน้าที่ JD) — กลุ่ม 70%
+    let a1src = (empJD && empJD.eval_a && empJD.eval_a.length) ? empJD.eval_a.filter((x) => (x.grp || "a1") === "a1") : null;
+    if (!a1src || !a1src.length) {
+      const duties = (empJD && empJD.duties && empJD.duties.length) ? empJD.duties : [];
+      a1src = duties.map((name) => ({ name }));
+    }
+    const a1HasW = a1src.some((x) => x.weight);
+    const a1w = a1src.length ? 70 / a1src.length : 0;
+    const A1 = a1src.map((x, i) => ({ id: "a1_" + i, name: x.name, weight: a1HasW ? (Number(x.weight) || 0) : Math.round(a1w * 10) / 10, grp: "a1", target: x.target || null, score: 3, note: "" }));
+    // A2 · KPI ร่วมของหน่วยงาน — ดึงจาก KPI หน่วยงานจริง (กรองตามส่วนงาน) ทุก JD · กลุ่ม 30%
+    const kd = (empJD && (empJD.kpi_dept || empJD.dept)) || e.dept;
+    let dk = (window.KPI_DEFS || []).filter((k) => k.dept === kd && k.status === "approved");
+    if (dk.some((k) => k.section)) { const isPrint = /พิมพ์|สลิท/.test(empSection); dk = dk.filter((k) => !k.section || (isPrint ? k.section === "พิมพ์" : k.section === "เป่า")); }
+    const a2w = dk.length ? 30 / dk.length : 0;
+    const A2 = dk.map((k, i) => ({ id: "a2_" + i, name: k.en || k.name, weight: Math.round(a2w * 10) / 10, grp: "a2", target: k.formula || ((k.target && k.target.y != null ? k.target.y : "") + (k.unit || "")), score: 3, note: "" }));
+    return [...A1, ...A2];
   };
   const buildB = () => {
     if (empJD && empJD.eval_b && empJD.eval_b.length) return empJD.eval_b.map((it, i) => ({ id: "b" + i, name: it.name, weight: Number(it.weight) || 0, grp: it.grp || "specific", score: 3, note: "" }));

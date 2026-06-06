@@ -863,6 +863,48 @@ function HRBars({ rows, palette }) {
   );
 }
 
+// แท่งแนวตั้ง (histogram) สำหรับช่วงอายุ/อายุงาน
+function HRVBars({ rows, palette }) {
+  const max = Math.max(1, ...rows.map((r) => r.n));
+  const total = rows.reduce((s, r) => s + r.n, 0) || 1;
+  return (
+    <div style={{ display: "flex", alignItems: "flex-end", gap: 12, height: 200, padding: "6px 4px 0" }}>
+      {rows.map((r, i) => {
+        const c = (palette && palette[i % palette.length]) || "#2563eb";
+        const h = Math.max(4, Math.round(r.n / max * 140));
+        return (
+          <div key={r.label} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 5, minWidth: 0 }}>
+            <div className="num" style={{ fontWeight: 700, fontSize: 14, color: c }}>{r.n}</div>
+            <div style={{ width: "62%", maxWidth: 50, height: h, background: "linear-gradient(180deg," + c + "," + c + "cc)", borderRadius: "9px 9px 0 0" }} />
+            <div className="muted" style={{ fontSize: 10.5 }}>{Math.round(r.n / total * 100)}%</div>
+            <div style={{ fontSize: 11, color: "var(--text-2)", textAlign: "center", lineHeight: 1.25, fontWeight: 500 }}>{r.label}</div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// พีระมิดระดับตำแหน่ง (บนแคบ→ล่างกว้าง)
+function HRPyramid({ rows }) {
+  const max = Math.max(1, ...rows.map((r) => r.n));
+  const total = rows.reduce((s, r) => s + r.n, 0) || 1;
+  const colors = ["#15803d", "#0d9488", "#2563eb", "#e08a00", "#64748b", "#9333ea"];
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 7, alignItems: "center", padding: "12px 6px" }}>
+      {rows.map((r, i) => {
+        const w = 34 + (r.n / max) * 66; const c = colors[i % colors.length];
+        return (
+          <div key={r.label} style={{ width: w + "%", minWidth: 150, background: c, color: "#fff", borderRadius: 9, padding: "9px 14px", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12.5, boxShadow: "0 2px 6px " + c + "55" }}>
+            <span style={{ fontWeight: 600 }}>{r.label}</span>
+            <span className="num" style={{ fontWeight: 700 }}>{r.n} · {Math.round(r.n / total * 100)}%</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function HRDataDashboard({ ctx }) {
   const R = window.EMPLOYEES || []; // ใช้ฐานพนักงานรวม (เชื่อมข้อมูลแล้ว)
   const total = R.length;
@@ -930,15 +972,24 @@ function HRDataDashboard({ ctx }) {
         <Stat icon="trophy" label="สัญชาติไทย" value={total ? Math.round(thai / total * 100) : 0} unit="%" tone="#16a34a" soft="#e7f6ec" sub={thai + " คน"} />
       </div>
 
+      {/* แถวโดนัท 3 วง — สัดส่วน */}
+      <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(300px,1fr))" }}>
+        <Card><CardHead title="การกระจายตามเพศ" sub="Gender" /><div className="card-pad" style={{ display: "grid", placeItems: "center" }}><Donut data={genderPie} centerLabel="พนักงาน" centerValue={total} /></div></Card>
+        <Card><CardHead title="ช่วงอายุ (Generation)" sub="Baby Boomer → Gen Z" /><div className="card-pad" style={{ display: "grid", placeItems: "center" }}><Donut data={dist((x) => x.generation, GEN_ORDER).map((r, i) => ({ label: r.label, v: r.n, color: PB[i % PB.length] }))} centerLabel="รุ่น" /></div></Card>
+        <Card><CardHead title="สัญชาติ" sub="Nationality" /><div className="card-pad" style={{ display: "grid", placeItems: "center" }}><Donut data={dist((x) => x.nationality).map((r, i) => ({ label: r.label, v: r.n, color: PB[i % PB.length] }))} centerLabel="สัญชาติ" /></div></Card>
+      </div>
+
+      {/* แถวแท่งแนวตั้ง — การกระจายช่วง */}
+      <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(320px,1fr))" }}>
+        <Card><CardHead title="การกระจายตามช่วงอายุ" sub="Age distribution" /><div className="card-pad"><HRVBars rows={dist((x) => ageRange(x.age), AGE_ORDER)} palette={["#0ea5e9", "#2563eb", "#7c3aed", "#db2777", "#94a3b8"]} /></div></Card>
+        <Card><CardHead title="การกระจายตามช่วงอายุงาน" sub="Tenure distribution" /><div className="card-pad"><HRVBars rows={dist((x) => tenRange(tenYears(x)), TEN_ORDER)} palette={["#16a34a", "#0d9488", "#0891b2", "#e08a00", "#94a3b8"]} /></div></Card>
+      </div>
+
+      {/* แถวแท่งแนวนอน + พีระมิด */}
       <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(330px,1fr))" }}>
-        <Card><CardHead title="การกระจายตามเพศ" sub="ชาย / หญิง" /><div className="card-pad"><Donut data={genderPie} centerLabel="พนักงาน" /></div></Card>
-        <Card><CardHead title="ช่วงอายุ (Generation)" sub="Baby Boomer → Gen Z" /><div className="card-pad"><HRBars rows={dist((x) => x.generation, GEN_ORDER)} palette={PB} /></div></Card>
-        <Card><CardHead title="ระดับการศึกษา" /><div className="card-pad"><HRBars rows={dist((x) => x.education || "(ไม่ระบุ)", EDU_ORDER)} palette={PB} /></div></Card>
-        <Card><CardHead title="สัญชาติ" /><div className="card-pad"><HRBars rows={dist((x) => x.nationality)} palette={PB} /></div></Card>
-        <Card><CardHead title="จำนวนพนักงานตามหน่วยงาน" /><div className="card-pad"><HRBars rows={dist((x) => deptName(x.dept))} palette={PB} /></div></Card>
-        <Card><CardHead title="ช่วงอายุ" /><div className="card-pad"><HRBars rows={dist((x) => ageRange(x.age), AGE_ORDER)} palette={PB} /></div></Card>
-        <Card><CardHead title="ช่วงอายุงาน" /><div className="card-pad"><HRBars rows={dist((x) => tenRange(tenYears(x)), TEN_ORDER)} palette={PB} /></div></Card>
-        <Card><CardHead title="ระดับตำแหน่ง" /><div className="card-pad"><HRBars rows={dist((x) => x.level, LV_ORDER)} palette={PB} /></div></Card>
+        <Card><CardHead title="จำนวนพนักงานตามหน่วยงาน" sub="Headcount by department" /><div className="card-pad"><HRBars rows={dist((x) => deptName(x.dept))} palette={PB} /></div></Card>
+        <Card><CardHead title="ระดับการศึกษา" sub="Education" /><div className="card-pad"><HRBars rows={dist((x) => x.education || "(ไม่ระบุ)", EDU_ORDER)} palette={PB} /></div></Card>
+        <Card><CardHead title="โครงสร้างระดับตำแหน่ง" sub="Organization pyramid" /><div className="card-pad"><HRPyramid rows={dist((x) => x.level, LV_ORDER)} /></div></Card>
       </div>
 
       {/* ตรวจสอบความครบถ้วนของข้อมูล */}

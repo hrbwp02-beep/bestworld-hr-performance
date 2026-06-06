@@ -186,7 +186,9 @@ function Dashboard({ ctx }) {
   const t = ctx.t;
   const layout = t.dashLayout || "airy";
   const cy = +(window.CYCLE_YEAR || 2569);
-  const topDepts = [...DEPARTMENTS].sort((a, b) => b.score - a.score);
+  // เฉพาะหน่วยงานที่มีพนักงานจริง (ตัดระดับองค์กร/หน่วยงานว่างคะแนน 0 ออก)
+  const realDepts = (DEPARTMENTS || []).filter((d) => d.id !== "company" && (d.head || 0) > 0);
+  const topDepts = [...realDepts].sort((a, b) => b.score - a.score);
 
   const StatRow = ({ compact }) => (
     <div className="grid" style={{ gridTemplateColumns: `repeat(auto-fit, minmax(${compact ? 175 : 210}px, 1fr))` }}>
@@ -224,7 +226,7 @@ function Dashboard({ ctx }) {
     <Card>
       <CardHead title="KPI เฉลี่ยตามหน่วยงาน" sub="เส้นประแดง = เป้าหมายองค์กร 85 คะแนน"
         right={<button className="btn btn-ghost btn-sm" onClick={() => ctx.go("deptkpi")}>ดูทั้งหมด <Icon name="chevRight" size={14} /></button>} />
-      <div className="card-pad"><BarChart data={DEPARTMENTS} baseline={85} /></div>
+      <div className="card-pad"><BarChart data={realDepts} baseline={85} /></div>
     </Card>
   );
 
@@ -244,9 +246,9 @@ function Dashboard({ ctx }) {
 
   const RankCard = () => (
     <Card>
-      <CardHead title="อันดับหน่วยงาน" sub="เรียงตามคะแนนเฉลี่ย"
-        right={<Badge cls="b-blue" dot>{DEPARTMENTS.length} ฝ่าย</Badge>} />
-      <div className="card-pad"><HBar data={topDepts.map((d) => ({ name: d.name, score: d.score, color: d.color }))} /></div>
+      <CardHead title="อันดับหน่วยงาน" sub="เรียงตามคะแนนเฉลี่ย (เฉพาะที่มีพนักงาน)"
+        right={<Badge cls="b-blue" dot>{topDepts.length} ฝ่าย</Badge>} />
+      <div className="card-pad"><HBar data={topDepts.map((d) => ({ name: d.name + " (" + d.head + ")", score: d.score, color: d.color }))} /></div>
     </Card>
   );
 

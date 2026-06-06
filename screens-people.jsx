@@ -9,7 +9,7 @@ function EmployeeModal({ emp, ctx, onClose }) {
   const [f, setF] = useS2(() => ({
     name: (emp && emp.name) || "", dept: (emp && emp.dept) || (DEPARTMENTS[0] ? DEPARTMENTS[0].id : "prod"),
     position: (emp && emp.position) || "", level: (emp && emp.level) || "ปฏิบัติการ",
-    hire_date: (emp && emp.hire_date) || "", email: (emp && emp.email) || "", phone: (emp && emp.phone) || "",
+    hire_date: (emp && emp.hire_date) || "", birth_date: (emp && emp.birth_date) || "", email: (emp && emp.email) || "", phone: (emp && emp.phone) || "",
     status: (emp && emp.status) || "pending", kpi: emp ? emp.kpi : "", comp: emp ? emp.comp : "",
     potential: emp ? emp.potential : 2, perf: emp ? emp.perf : 2, reviewer: (emp && emp.reviewer) || "",
     photo_url: (emp && emp.photo_url) || "", jd_id: (emp && emp.jd_id) || "", warnings: emp ? (emp.warnings || 0) : 0,
@@ -42,7 +42,7 @@ function EmployeeModal({ emp, ctx, onClose }) {
     setErr(""); setBusy(true);
     const row = {
       name: f.name.trim(), dept: f.dept, position: f.position.trim(),
-      level: f.level, hire_date: f.hire_date || null, tenure: f.hire_date ? tenureFrom(f.hire_date) : null,
+      level: f.level, hire_date: f.hire_date || null, birth_date: f.birth_date || null, tenure: f.hire_date ? tenureFrom(f.hire_date) : null,
       email: f.email.trim() || null, phone: f.phone.trim() || null,
       status: f.status, kpi: Number(f.kpi) || 0, comp: Number(f.comp) || 0,
       potential: Number(f.potential) || 1, perf: Number(f.perf) || 1, reviewer: f.reviewer || null,
@@ -98,6 +98,7 @@ function EmployeeModal({ emp, ctx, onClose }) {
         </div>
         <div className="grid" style={{ gridTemplateColumns: "1fr 1fr" }}>
           <div className="field"><label>วันเข้างาน</label><input className="input" type="date" value={f.hire_date || ""} onChange={(e) => set("hire_date", e.target.value)} /><span className="muted" style={{ fontSize: 12 }}>อายุงาน: {f.hire_date ? tenureFrom(f.hire_date) : "—"}</span></div>
+          <div className="field"><label>วันเกิด (ใช้ยืนยันตัวตนเมื่อพนักงานดูผลเอง)</label><input className="input" type="date" value={f.birth_date || ""} onChange={(e) => set("birth_date", e.target.value)} /></div>
           <div className="field"><label>สถานะการประเมิน</label><select className="select" value={f.status} onChange={(e) => set("status", e.target.value)}>{[["pending", "รอประเมิน"], ["progress", "กำลังประเมิน"], ["review", "รออนุมัติ"], ["done", "ประเมินแล้ว"]].map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></div>
         </div>
         {isEdit && <div className="muted" style={{ fontSize: 12.5, background: "var(--surface-2)", borderRadius: 9, padding: "10px 13px", lineHeight: 1.7 }}>

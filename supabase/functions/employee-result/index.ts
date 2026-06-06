@@ -26,12 +26,19 @@ Deno.serve(async (req: Request) => {
 
     const body = await req.json().catch(() => ({}));
     const code = String(body?.code ?? "").trim();
+    const birthdate = String(body?.birthdate ?? "").trim();
     if (!code) return reply({ found: false, error: "กรุณากรอกรหัสพนักงาน" });
 
     const { data: emp } = await db.from("employees")
-      .select("id, name, position, dept, level, hire_date, tenure, warnings, jd_id")
+      .select("id, name, position, dept, level, hire_date, tenure, warnings, jd_id, birth_date")
       .eq("id", code).maybeSingle();
     if (!emp) return reply({ found: false });
+
+    // second factor: verify birth date when one is on file
+    if (emp.birth_date) {
+      if (!birthdate) return reply({ found: false, needDob: true });
+      if (String(emp.birth_date) !== birthdate) return reply({ found: false });
+    }
 
     // current cycle from app_settings
     let cycleYear = 2569;

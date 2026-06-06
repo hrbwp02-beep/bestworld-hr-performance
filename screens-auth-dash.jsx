@@ -13,17 +13,20 @@ function LoginScreen({ onLogin, logo }) {
   // self-service: พนักงานดูผลของตัวเองด้วยรหัสพนักงาน
   const [selfMode, setSelfMode] = useS1(false);
   const [code, setCode] = useS1("");
+  const [dob, setDob] = useS1("");
   const [look, setLook] = useS1(false);
   const [res, setRes] = useS1(null);
   const [selfErr, setSelfErr] = useS1("");
   const lookup = async (e) => {
     if (e) e.preventDefault();
     if (!code.trim()) { setSelfErr("กรุณากรอกรหัสพนักงาน"); return; }
+    if (!dob) { setSelfErr("กรุณากรอกวันเกิดเพื่อยืนยันตัวตน"); return; }
     setSelfErr(""); setRes(null); setLook(true);
-    const { data, error } = await window.sb.functions.invoke("employee-result", { body: { code: code.trim() } });
+    const { data, error } = await window.sb.functions.invoke("employee-result", { body: { code: code.trim(), birthdate: dob } });
     setLook(false);
     if (error) { setSelfErr("เกิดข้อผิดพลาด ลองใหม่อีกครั้ง"); return; }
-    if (!data || !data.found) { setSelfErr("ไม่พบรหัสพนักงานนี้ในระบบ"); return; }
+    if (data && data.needDob) { setSelfErr("กรุณากรอกวันเกิด"); return; }
+    if (!data || !data.found) { setSelfErr("รหัสพนักงานหรือวันเกิดไม่ถูกต้อง"); return; }
     setRes(data);
   };
   const submit = async (e) => {
@@ -133,9 +136,10 @@ function LoginScreen({ onLogin, logo }) {
             </div>
             <h2 style={{ margin: "0 0 4px", fontSize: 21, fontWeight: 700 }}>ดูผลประเมินของฉัน</h2>
             <p style={{ margin: "0 0 18px", color: "rgba(255,255,255,.62)", fontSize: 13.5 }}>กรอกรหัสพนักงานเพื่อดูผลการประเมินของตัวเอง</p>
-            <form onSubmit={lookup} className="row" style={{ gap: 8, marginBottom: 14 }}>
-              <input className="input" value={code} onChange={(e) => setCode(e.target.value)} placeholder="รหัสพนักงาน เช่น 180032" style={{ ...glassInput, flex: 1 }} />
-              <button type="submit" className="btn btn-pri" disabled={look} style={{ padding: "0 18px" }}>{look ? "…" : "ดูผล"}</button>
+            <form onSubmit={lookup} style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 14 }}>
+              <div className="field"><label style={{ color: "rgba(255,255,255,.8)", fontSize: 12.5 }}>รหัสพนักงาน</label><input className="input" value={code} onChange={(e) => setCode(e.target.value)} placeholder="เช่น 180032" style={glassInput} /></div>
+              <div className="field"><label style={{ color: "rgba(255,255,255,.8)", fontSize: 12.5 }}>วันเกิด (ยืนยันตัวตน)</label><input className="input" type="date" value={dob} onChange={(e) => setDob(e.target.value)} style={glassInput} /></div>
+              <button type="submit" className="btn btn-pri" disabled={look} style={{ padding: "12px", marginTop: 2 }}>{look ? "กำลังตรวจสอบ…" : <>ดูผลประเมิน <Icon name="chevRight" size={16} /></>}</button>
             </form>
             {selfErr && <div style={{ marginBottom: 12, padding: "10px 13px", borderRadius: 10, background: "rgba(225,29,72,.18)", border: "1px solid rgba(255,140,160,.4)", color: "#ffd5dd", fontSize: 13 }}>{selfErr}</div>}
             {r && r.found && (

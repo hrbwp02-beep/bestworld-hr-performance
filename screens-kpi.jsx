@@ -278,6 +278,13 @@ function AddKPIModal({ dept, kpi, ctx, onClose }) {
     return "KPI-" + String((nums.length ? Math.max(...nums) : 0) + 1).padStart(3, "0");
   };
 
+  const del = async () => {
+    if (!window.confirm("ลบ KPI “" + (kpi.name || "") + "” ออกจากระบบ? (ผลรายเดือนของ KPI นี้จะถูกลบด้วย)")) return;
+    setBusy(true);
+    const { error } = await window.sb.from("kpi_defs").delete().eq("id", kpi.id);
+    if (error) { setBusy(false); setErr("ลบไม่สำเร็จ: " + error.message); return; }
+    await ctx.refresh(); toast("ลบ KPI แล้ว", "check"); onClose();
+  };
   const save = async () => {
     if (!name.trim()) { setErr("กรุณากรอกชื่อตัวชี้วัด"); return; }
     setErr(""); setBusy(true);
@@ -300,6 +307,7 @@ function AddKPIModal({ dept, kpi, ctx, onClose }) {
   return (
     <Modal title={(isEdit ? "แก้ไข KPI · " : "เพิ่ม KPI · ") + deptName(dept)} onClose={onClose}
       footer={<>
+        {isEdit && <button className="btn btn-ghost" onClick={del} disabled={busy} style={{ color: "var(--red)", marginRight: "auto" }}><Icon name="x" size={15} />ลบ KPI</button>}
         <button className="btn btn-ghost" onClick={onClose} disabled={busy}>ยกเลิก</button>
         <button className="btn btn-pri" onClick={save} disabled={busy}><Icon name="check" size={15} />{busy ? "กำลังบันทึก…" : "บันทึก KPI"}</button>
       </>}>
@@ -365,14 +373,14 @@ function KPIDefine({ ctx }) {
           <table className="tbl">
             <thead><tr>
               <th style={{ minWidth: 170 }}>วัตถุประสงค์ / เป้าหมาย</th><th style={{ minWidth: 220 }}>ตัวชี้วัด (วิธีคิด)</th><th>ประเภท</th>
-              <th>น้ำหนัก</th><th style={{ minWidth: 120 }}>เป้าหมายปี 2569</th><th>ผลจริง</th><th style={{ minWidth: 130 }}>คะแนน</th><th></th>
+              <th>น้ำหนัก</th><th style={{ minWidth: 120 }}>เป้าหมายปี 2569</th><th>ผลจริง</th><th style={{ minWidth: 130 }}>คะแนน</th><th style={{ position: "sticky", right: 0, background: "var(--surface-2)" }}>จัดการ</th>
             </tr></thead>
             <tbody>
               {approved.map((k) => {
                 const sc = kpiScore(k); const t = trafficOf(sc);
                 const tgtText = k.formula || ((k.method === "lower" ? "≤ " : k.method === "higher" ? "≥ " : "") + (k.target[cycle] != null ? k.target[cycle] : (k.target.y != null ? k.target.y : "")) + (k.unit ? " " + k.unit : ""));
                 return (
-                  <tr key={k.id}>
+                  <tr key={k.id} style={{ cursor: "pointer" }} title="คลิกเพื่อแก้ไข / ลบ" onClick={() => setEditKpi(k)}>
                     <td><div style={{ fontWeight: 600, fontSize: 13.5 }}>{k.en || "—"}</div>{k.section && <span className="badge b-blue" style={{ fontSize: 10.5, marginTop: 3 }}>เฉพาะส่วนงาน: {k.section}</span>}</td>
                     <td><div style={{ fontSize: 13 }}>{k.name}</div><div className="muted" style={{ fontSize: 11.5 }}>{METHOD_LABEL[k.method]} · {({ monthly: "รายเดือน", quarterly: "รายไตรมาส", yearly: "รายปี" })[k.frequency] || "รายเดือน"}</div></td>
                     <td><Badge cls={k.type === "quality" ? "b-blue" : "b-gray"}>{k.type === "quality" ? "เชิงคุณภาพ" : "ตัวเลข"}</Badge></td>
@@ -385,7 +393,7 @@ function KPIDefine({ ctx }) {
                         <span className="num" style={{ fontWeight: 700, color: t.c }}>{sc == null ? "รอผล" : sc + "%"}</span>
                       </div>
                     </td>
-                    <td><div className="row" style={{ gap: 4 }}><button className="icon-btn" style={{ width: 32, height: 32 }} title="แก้ไข" onClick={() => setEditKpi(k)}><Icon name="edit" size={14} /></button><button className="icon-btn" style={{ width: 32, height: 32 }} title="ลบ KPI" onClick={() => delKpi(k)}><Icon name="x" size={15} color="var(--red)" /></button></div></td>
+                    <td style={{ position: "sticky", right: 0, background: "var(--surface)", boxShadow: "-6px 0 8px -6px rgba(0,0,0,.12)" }}><div className="row" style={{ gap: 4 }}><button className="icon-btn" style={{ width: 32, height: 32 }} title="แก้ไข" onClick={(e) => { e.stopPropagation(); setEditKpi(k); }}><Icon name="edit" size={14} /></button><button className="icon-btn" style={{ width: 32, height: 32 }} title="ลบ KPI" onClick={(e) => { e.stopPropagation(); delKpi(k); }}><Icon name="x" size={15} color="var(--red)" /></button></div></td>
                   </tr>
                 );
               })}

@@ -121,6 +121,10 @@ async function loadHRData() {
   // submissions: files/versions/audit already arrive as parsed JSON
   const SUBMISSIONS = subRows.map((s) => ({ ...s }));
 
+  // HR roster (demographic dataset for the HR data dashboard) — separate from eval employees
+  const hrRes = await sb.from("hr_roster").select("*").order("sort", { ascending: true });
+  const HR_ROSTER = hrRes.error ? [] : (hrRes.data || []);
+
   // ----- company summary: headcount & status from the REAL employee records -----
   const total = EMPLOYEES.length;
   const cnt = (s) => EMPLOYEES.filter((e) => e.status === s).length;
@@ -170,7 +174,7 @@ async function loadHRData() {
   Object.assign(window, {
     DEPARTMENTS: departments, COMPETENCIES: competencies, EMPLOYEES,
     JD_LIBRARY: jdLibrary, NOTIFS: notifications, KPI_ITEMS: kpiItems, JD_ITEMS: jdItems,
-    KPI_DEFS, KPI_MONTHLY, SUBMISSIONS, TEAMS: teams, SUMMARY, STATUS_PIE, COMP_RADAR, GRADE_DIST,
+    KPI_DEFS, KPI_MONTHLY, SUBMISSIONS, TEAMS: teams, SUMMARY, STATUS_PIE, COMP_RADAR, GRADE_DIST, HR_ROSTER,
     APP_USERS: appUsers || [], APP_SETTINGS: appSettings || null, CYCLE_YEAR: cycleYear,
     KPI_DEPTS: departments.filter((d) => KPI_DEFS.some((k) => k.dept === d.id)).map((d) => d.id),
     ...(trCur.length ? { TREND: trCur } : {}),

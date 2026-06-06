@@ -839,4 +839,88 @@ function DepartmentKPI({ ctx }) {
   );
 }
 
-Object.assign(window, { EmployeeList, EmployeeProfile, DepartmentKPI });
+/* =========================================================
+   HR DATA DASHBOARD — ข้อมูลพนักงานเชิงประชากร (แยกจากระบบประเมิน)
+   ========================================================= */
+function HRBars({ rows, palette }) {
+  const max = Math.max(1, ...rows.map((r) => r.n));
+  const total = rows.reduce((s, r) => s + r.n, 0) || 1;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 11 }}>
+      {rows.map((r, i) => {
+        const c = (palette && palette[i % palette.length]) || "#2563eb";
+        return (
+          <div key={r.label} className="row" style={{ gap: 12, alignItems: "center" }}>
+            <span style={{ fontSize: 12.5, minWidth: 116, textAlign: "right", color: "var(--text-2)" }}>{r.label}</span>
+            <div style={{ flex: 1, background: "var(--surface-3)", borderRadius: 7, height: 20, overflow: "hidden" }}>
+              <div style={{ width: (r.n / max * 100) + "%", height: "100%", background: c, borderRadius: 7 }} />
+            </div>
+            <span className="num" style={{ fontWeight: 700, minWidth: 70, textAlign: "right", fontSize: 12.5 }}>{r.n} · {Math.round(r.n / total * 100)}%</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function HRDataDashboard({ ctx }) {
+  const R = window.HR_ROSTER || [];
+  const total = R.length;
+  const dist = (mapFn, order) => {
+    const o = {}; R.forEach((x) => { const k = mapFn(x) || "(ไม่ระบุ)"; o[k] = (o[k] || 0) + 1; });
+    let arr = Object.entries(o).map(([label, n]) => ({ label, n }));
+    if (order) arr.sort((a, b) => order.indexOf(a.label) - order.indexOf(b.label));
+    else arr.sort((a, b) => b.n - a.n);
+    return arr;
+  };
+  const ageRange = (a) => a == null ? "(ไม่ระบุ)" : a < 30 ? "ต่ำกว่า 30 ปี" : a < 40 ? "30–39 ปี" : a < 50 ? "40–49 ปี" : "50 ปีขึ้นไป";
+  const tenRange = (t) => t == null ? "(ไม่ระบุ)" : t < 2 ? "ต่ำกว่า 2 ปี" : t < 5 ? "2–5 ปี" : t < 10 ? "5–10 ปี" : "10 ปีขึ้นไป";
+  const withAge = R.filter((x) => x.age != null);
+  const avgAge = withAge.length ? Math.round(withAge.reduce((s, x) => s + x.age, 0) / withAge.length * 10) / 10 : 0;
+  const withTen = R.filter((x) => x.tenure_years != null);
+  const avgTen = withTen.length ? Math.round(withTen.reduce((s, x) => s + x.tenure_years, 0) / withTen.length * 10) / 10 : 0;
+  const male = R.filter((x) => x.gender === "ชาย").length, female = R.filter((x) => x.gender === "หญิง").length;
+  const thai = R.filter((x) => x.nationality === "ไทย").length;
+  const genderPie = [{ label: "ชาย", v: male, color: "#2563eb" }, { label: "หญิง", v: female, color: "#db2777" }];
+  const GEN_ORDER = ["Baby Boomer", "Gen X", "Gen Y / Millennials", "Gen Z"];
+  const EDU_ORDER = ["ประถมศึกษา", "มัธยมต้น", "มัธยมปลาย", "ปวช.", "ปวส.", "ปริญญาตรี", "ปริญญาโท", "(ไม่ระบุ)"];
+  const AGE_ORDER = ["ต่ำกว่า 30 ปี", "30–39 ปี", "40–49 ปี", "50 ปีขึ้นไป", "(ไม่ระบุ)"];
+  const TEN_ORDER = ["ต่ำกว่า 2 ปี", "2–5 ปี", "5–10 ปี", "10 ปีขึ้นไป", "(ไม่ระบุ)"];
+  const LV_ORDER = ["ผู้บริหารระดับสูง", "ผู้บริหาร", "หัวหน้างาน", "เจ้าหน้าที่", "พนักงาน"];
+  const PB = ["#2563eb", "#0d9488", "#7c3aed", "#e08a00", "#db2777", "#0891b2", "#16a34a", "#64748b"];
+  const exportCSV = () => {
+    downloadCSV("hr_roster.csv", ["รหัส", "คำนำหน้า", "ชื่อ", "นามสกุล", "ฝ่าย", "ส่วนงาน", "ตำแหน่ง", "วันเกิด", "อายุ", "วันเริ่มงาน", "อายุงาน", "เพศ", "สัญชาติ", "พื้นที่", "วุฒิการศึกษา", "ระดับ", "Generation"],
+      R.map((x) => [x.id, x.prefix, x.first_name, x.last_name, x.dept, x.section || "-", x.position, x.birth_date, x.age, x.start_date, x.tenure_years, x.gender, x.nationality, x.area, x.education || "-", x.level, x.generation]));
+    toast("ส่งออกข้อมูลพนักงานแล้ว", "download");
+  };
+
+  return (
+    <div className="grid">
+      <div className="page-head">
+        <div><h1>แดชบอร์ดข้อมูลพนักงาน</h1><p>ข้อมูลเชิงประชากร · พนักงานทั้งหมด {total} คน</p></div>
+        <button className="btn btn-pri" onClick={exportCSV}><Icon name="download" size={16} />Export Excel</button>
+      </div>
+
+      <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(180px,1fr))" }}>
+        <Stat icon="users" label="พนักงานทั้งหมด" value={total} unit="คน" tone="#2563eb" soft="#e8effb" />
+        <Stat icon="calendar" label="อายุเฉลี่ย" value={avgAge} unit="ปี" tone="#7c3aed" soft="#f1ebfd" />
+        <Stat icon="briefcase" label="อายุงานเฉลี่ย" value={avgTen} unit="ปี" tone="#0d9488" soft="#e2f4f2" />
+        <Stat icon="employee" label="ชาย / หญิง" value={male + " / " + female} tone="#e08a00" soft="#fdf1dc" />
+        <Stat icon="trophy" label="สัญชาติไทย" value={total ? Math.round(thai / total * 100) : 0} unit="%" tone="#16a34a" soft="#e7f6ec" sub={thai + " คน"} />
+      </div>
+
+      <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(330px,1fr))" }}>
+        <Card><CardHead title="การกระจายตามเพศ" sub="ชาย / หญิง" /><div className="card-pad"><Donut data={genderPie} centerLabel="พนักงาน" /></div></Card>
+        <Card><CardHead title="ช่วงอายุ (Generation)" sub="Baby Boomer → Gen Z" /><div className="card-pad"><HRBars rows={dist((x) => x.generation, GEN_ORDER)} palette={PB} /></div></Card>
+        <Card><CardHead title="ระดับการศึกษา" /><div className="card-pad"><HRBars rows={dist((x) => x.education || "(ไม่ระบุ)", EDU_ORDER)} palette={PB} /></div></Card>
+        <Card><CardHead title="สัญชาติ" /><div className="card-pad"><HRBars rows={dist((x) => x.nationality)} palette={PB} /></div></Card>
+        <Card><CardHead title="จำนวนพนักงานตามหน่วยงาน" /><div className="card-pad"><HRBars rows={dist((x) => x.dept)} palette={PB} /></div></Card>
+        <Card><CardHead title="ช่วงอายุ" /><div className="card-pad"><HRBars rows={dist((x) => ageRange(x.age), AGE_ORDER)} palette={PB} /></div></Card>
+        <Card><CardHead title="ช่วงอายุงาน" /><div className="card-pad"><HRBars rows={dist((x) => tenRange(x.tenure_years), TEN_ORDER)} palette={PB} /></div></Card>
+        <Card><CardHead title="ระดับตำแหน่ง" /><div className="card-pad"><HRBars rows={dist((x) => x.level, LV_ORDER)} palette={PB} /></div></Card>
+      </div>
+    </div>
+  );
+}
+
+Object.assign(window, { EmployeeList, EmployeeProfile, DepartmentKPI, HRDataDashboard });

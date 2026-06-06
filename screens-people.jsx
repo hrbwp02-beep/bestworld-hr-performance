@@ -905,34 +905,53 @@ function HRPyramid({ rows }) {
   );
 }
 
-// โครงสร้างองค์กรตามตำแหน่งงาน (จัดกลุ่มตามหน่วยงาน เรียงตามระดับ · ไม่ระบุชื่อ)
+// ผังองค์กรแบบต้นไม้ (ตำแหน่งสูงบนสุด + เส้นเชื่อม · ไม่ระบุชื่อ)
 function HROrgStructure({ employees }) {
   const LRANK = { "ผู้บริหารระดับสูง": 0, "ผู้บริหาร": 1, "ผู้จัดการ": 1, "ผู้ช่วยผู้จัดการ": 2, "หัวหน้างาน": 3, "วิศวกร": 4, "วิชาชีพ": 4, "เจ้าหน้าที่": 5, "ช่างฝีมือ": 6, "พนักงาน": 7, "ปฏิบัติการ": 7 };
-  const rankOf = (lv) => LRANK[lv] != null ? LRANK[lv] : (/ผู้จัดการ|ผจก|กรรมการ/.test(lv || "") ? 1 : /หัวหน้า/.test(lv || "") ? 3 : /เจ้าหน้าที่/.test(lv || "") ? 5 : 8);
-  const col = (r) => r <= 1 ? "#15803d" : r <= 2 ? "#0d9488" : r <= 3 ? "#0891b2" : r <= 5 ? "#2563eb" : "#94a3b8";
-  const byDept = {};
-  employees.forEach((e) => { (byDept[e.dept] = byDept[e.dept] || []).push(e); });
+  const rankOf = (lv) => LRANK[lv] != null ? LRANK[lv] : (/ผู้จัดการ|ผจก|กรรมการ|ประธาน/.test(lv || "") ? 1 : /หัวหน้า/.test(lv || "") ? 3 : /เจ้าหน้าที่/.test(lv || "") ? 5 : 8);
+  const col = (r) => r <= 0 ? "#1e3a8a" : r <= 1 ? "#15803d" : r <= 2 ? "#0d9488" : r <= 3 ? "#0891b2" : r <= 5 ? "#2563eb" : "#64748b";
+  const LINE = "var(--border)";
+  // หาตำแหน่งสูงสุด (root)
+  let rootEmp = null; employees.forEach((e) => { if (!rootEmp || rankOf(e.level) < rankOf(rootEmp.level)) rootEmp = e; });
+  const rootPos = rootEmp ? rootEmp.position : "องค์กร"; const rootDept = rootEmp ? rootEmp.dept : null;
+  const byDept = {}; employees.forEach((e) => { (byDept[e.dept] = byDept[e.dept] || []).push(e); });
   const depts = Object.keys(byDept).map((id) => {
     const list = byDept[id]; const posMap = {};
-    list.forEach((e) => { const p = e.position || "-"; (posMap[p] = posMap[p] || { position: p, level: e.level, n: 0 }).n++; });
+    list.forEach((e) => { if (id === rootDept && e.position === rootPos) return; const p = e.position || "-"; (posMap[p] = posMap[p] || { position: p, level: e.level, n: 0 }).n++; });
     const positions = Object.values(posMap).sort((a, b) => rankOf(a.level) - rankOf(b.level) || b.n - a.n);
-    return { id, name: window.deptName(id), head: list.length, positions };
-  }).sort((a, b) => b.head - a.head);
+    return { id, name: window.deptName(id), head: list.length, positions, minRank: positions.length ? Math.min(...positions.map((p) => rankOf(p.level))) : 9 };
+  }).filter((d) => d.positions.length).sort((a, b) => a.minRank - b.minRank);
+  const Box = ({ label, sub, count, r, w }) => (
+    <div style={{ width: w || 168, border: "1px solid var(--border)", borderRadius: 9, overflow: "hidden", background: "var(--surface)", boxShadow: "var(--shadow-sm)", flex: "0 0 auto" }}>
+      <div style={{ background: col(r), color: "#fff", padding: "7px 10px", fontSize: 12, fontWeight: 700, lineHeight: 1.3, minHeight: 34, display: "flex", alignItems: "center" }}>{label}</div>
+      <div className="between" style={{ padding: "5px 10px", fontSize: 11.5 }}><span className="muted">{sub || "จำนวน"}</span><span className="num" style={{ fontWeight: 700 }}>{count != null ? count : 1}{sub ? "" : " คน"}</span></div>
+    </div>
+  );
+  const vline = (h) => <div style={{ width: 2, height: h, background: LINE, margin: "0 auto" }} />;
   return (
-    <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(258px, 1fr))" }}>
-      {depts.map((d) => (
-        <div key={d.id} style={{ border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden" }}>
-          <div className="between" style={{ background: "var(--surface-2)", padding: "10px 13px" }}><span style={{ fontWeight: 700, fontSize: 13.5 }}>{d.name}</span><span className="muted num" style={{ fontSize: 12 }}>{d.head} คน · {d.positions.length} ตำแหน่ง</span></div>
-          <div style={{ padding: "9px 12px", display: "flex", flexDirection: "column", gap: 8 }}>
-            {d.positions.map((p, i) => { const r = rankOf(p.level); return (
-              <div key={i} className="between" style={{ fontSize: 12.5, gap: 8 }}>
-                <span className="row" style={{ gap: 8, minWidth: 0 }}><span className="tag-dot" style={{ background: col(r), width: 9, height: 9, flex: "0 0 9px" }} /><span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.position}</span></span>
-                <span className="num muted" style={{ flex: "0 0 auto", fontWeight: 600 }}>{p.n}</span>
+    <div style={{ overflowX: "auto", paddingBottom: 10 }}>
+      <div style={{ minWidth: "min-content", display: "flex", flexDirection: "column", alignItems: "center", padding: "4px 10px" }}>
+        <Box label={rootPos} r={0} sub="ระดับสูงสุด" count={1} w={210} />
+        {vline(16)}
+        <div style={{ height: 2, background: LINE, alignSelf: "stretch", margin: "0 90px" }} />
+        <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
+          {depts.map((d) => (
+            <div key={d.id} style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+              {vline(14)}
+              <Box label={d.name} sub="พนักงาน" count={d.head} r={d.minRank} />
+              {vline(10)}
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+                {d.positions.map((p, i) => (
+                  <React.Fragment key={i}>
+                    {i > 0 && vline(8)}
+                    <Box label={p.position} count={p.n} r={rankOf(p.level)} />
+                  </React.Fragment>
+                ))}
               </div>
-            ); })}
-          </div>
+            </div>
+          ))}
         </div>
-      ))}
+      </div>
     </div>
   );
 }
@@ -1026,7 +1045,7 @@ function HRDataDashboard({ ctx }) {
 
       {/* โครงสร้างองค์กรตามตำแหน่งงาน */}
       <Card>
-        <CardHead title="โครงสร้างองค์กร (ตามตำแหน่งงาน)" sub="จัดกลุ่มตามหน่วยงาน · เรียงตามระดับ · ตัวเลข = จำนวนคนต่อตำแหน่ง" />
+        <CardHead title="โครงสร้างองค์กร (ตามตำแหน่งงาน)" sub="ผังต้นไม้ · ตำแหน่งสูงสุดอยู่บนสุด · ตัวเลข = จำนวนคนต่อตำแหน่ง (เลื่อนแนวนอนเพื่อดูทุกหน่วยงาน)" />
         <div className="card-pad"><HROrgStructure employees={R} /></div>
       </Card>
 

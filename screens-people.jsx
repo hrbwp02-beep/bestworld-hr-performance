@@ -915,9 +915,18 @@ function HROrgStructure({ employees }) {
   let rootEmp = null; employees.forEach((e) => { if (!rootEmp || rankOf(e.level) < rankOf(rootEmp.level)) rootEmp = e; });
   const rootPos = rootEmp ? rootEmp.position : "องค์กร"; const rootDept = rootEmp ? rootEmp.dept : null;
   const byDept = {}; employees.forEach((e) => { (byDept[e.dept] = byDept[e.dept] || []).push(e); });
-  const depts = Object.keys(byDept).map((id) => {
+  // ===== ฝ่ายบริหาร (แกนบนสุด) =====
+  const mgmt = byDept["mgmt"] || [];
+  const mPos = (re) => { const e = mgmt.find((x) => re.test(x.position || "")); return e ? e.position : null; };
+  const president = mPos(/ประธาน/) || rootPos || "ประธานกรรมการบริษัท";
+  const mdPos = (mgmt.find((x) => /กรรมการผู้จัดการ/.test(x.position || "") && !/ผู้ช่วย/.test(x.position || "")) || {}).position;
+  const asstMd = mPos(/ผู้ช่วย.*กรรมการ/);
+  const advisor = mPos(/ที่ปรึกษา/);
+  const secretary = mPos(/เลขา/);
+  // ===== หน่วยงานอื่น (ใต้ผู้ช่วยกรรมการ) =====
+  const depts = Object.keys(byDept).filter((id) => id !== "mgmt").map((id) => {
     const list = byDept[id]; const posMap = {};
-    list.forEach((e) => { if (id === rootDept && e.position === rootPos) return; const p = e.position || "-"; (posMap[p] = posMap[p] || { position: p, level: e.level, n: 0 }).n++; });
+    list.forEach((e) => { const p = e.position || "-"; (posMap[p] = posMap[p] || { position: p, level: e.level, n: 0 }).n++; });
     const positions = Object.values(posMap).sort((a, b) => rankOf(a.level) - rankOf(b.level) || b.n - a.n);
     return { id, name: window.deptName(id), head: list.length, positions, minRank: positions.length ? Math.min(...positions.map((p) => rankOf(p.level))) : 9 };
   }).filter((d) => d.positions.length).sort((a, b) => a.minRank - b.minRank);
@@ -928,13 +937,28 @@ function HROrgStructure({ employees }) {
     </div>
   );
   const vline = (h) => <div style={{ width: 2, height: h, background: LINE, margin: "0 auto" }} />;
+  const stub = (h) => <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>{vline(h)}</div>;
   return (
     <div style={{ overflowX: "auto", paddingBottom: 10 }}>
       <div style={{ minWidth: "min-content", display: "flex", flexDirection: "column", alignItems: "center", padding: "4px 10px" }}>
-        <Box label={rootPos} r={0} sub="ระดับสูงสุด" count={1} w={210} />
-        {vline(16)}
+        {/* ประธาน */}
+        <Box label={president} r={0} sub="ประธาน" count={1} w={210} />
+        {vline(14)}
+        {/* ที่ปรึกษา · กรรมการผู้จัดการ · เลขา (ขึ้นกับประธาน) */}
+        <div style={{ display: "inline-flex", flexDirection: "column", alignItems: "stretch" }}>
+          <div style={{ height: 2, background: LINE, margin: "0 84px" }} />
+          <div style={{ display: "flex", gap: 18, justifyContent: "center", alignItems: "flex-start" }}>
+            {advisor && <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>{vline(14)}<Box label={advisor} r={2} sub="ที่ปรึกษา" count={1} /></div>}
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>{vline(14)}{mdPos && <Box label={mdPos} r={1} sub="กรรมการผู้จัดการ" count={1} w={196} />}</div>
+            {secretary && <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>{vline(14)}<Box label={secretary} r={2} sub="เลขานุการ" count={1} /></div>}
+          </div>
+        </div>
+        {/* ผู้ช่วยกรรมการผู้จัดการ (ใต้กรรมการ) */}
+        {asstMd && <>{vline(12)}<Box label={asstMd} r={2} sub="ผู้ช่วยกรรมการ" count={1} w={196} /></>}
+        {vline(12)}
+        {/* แตกเป็นหน่วยงานทั้งหมด */}
         <div style={{ height: 2, background: LINE, alignSelf: "stretch", margin: "0 90px" }} />
-        <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
+        <div style={{ display: "flex", gap: 16, alignItems: "flex-start", justifyContent: "center" }}>
           {depts.map((d) => (
             <div key={d.id} style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
               {vline(14)}

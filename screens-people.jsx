@@ -943,35 +943,52 @@ function HROrgStructure({ employees }) {
       <div style={{ minWidth: "min-content", display: "flex", flexDirection: "column", alignItems: "center", padding: "4px 10px" }}>
         {/* ประธาน */}
         <Box label={president} r={0} sub="ประธาน" count={1} w={210} />
-        {vline(14)}
-        {/* กรรมการผู้จัดการ (สายหลักใต้ประธาน) */}
-        {mdPos && <Box label={mdPos} r={1} sub="กรรมการผู้จัดการ" count={1} w={210} />}
         {vline(12)}
-        {/* แถวเดียวกัน: ที่ปรึกษา — ผู้ช่วยกรรมการผู้จัดการ — เลขานุการ */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
-          {advisor && <><Box label={advisor} r={3} sub="ที่ปรึกษา" count={1} /><div style={{ width: 20, height: 2, background: LINE }} /></>}
-          <Box label={asstMd || mdPos} r={2} sub="ผู้ช่วยกรรมการ" count={1} w={196} />
-          {secretary && <><div style={{ width: 20, height: 2, background: LINE }} /><Box label={secretary} r={3} sub="เลขานุการ" count={1} /></>}
-        </div>
-        {vline(12)}
-        {/* แตกเป็นหน่วยงานทั้งหมด */}
-        <div style={{ height: 2, background: LINE, alignSelf: "stretch", margin: "0 90px" }} />
-        <div style={{ display: "flex", gap: 16, alignItems: "flex-start", justifyContent: "center" }}>
-          {depts.map((d) => (
-            <div key={d.id} style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-              {vline(14)}
-              <Box label={d.name} sub="พนักงาน" count={d.head} r={d.minRank} />
-              {vline(10)}
+        {/* เส้น bus ใต้ประธาน — แตกเป็น ที่ปรึกษา / สายหลัก / เลขานุการ */}
+        <div style={{ display: "inline-flex", flexDirection: "column", alignItems: "stretch" }}>
+          <div style={{ height: 2, background: LINE, margin: "0 80px" }} />
+          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "center", gap: 28 }}>
+            {/* ซ้าย: ที่ปรึกษา — เชื่อมกับประธาน แต่อยู่ต่ำกว่าผู้ช่วยกรรมการ */}
+            {advisor && (
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-                {d.positions.map((p, i) => (
-                  <React.Fragment key={i}>
-                    {i > 0 && vline(8)}
-                    <Box label={p.position} count={p.n} r={rankOf(p.level)} />
-                  </React.Fragment>
+                {vline(140)}
+                <Box label={advisor} r={4} sub="ที่ปรึกษา" count={1} />
+              </div>
+            )}
+            {/* กลาง: สายหลัก ประธาน → กรรมการผู้จัดการ → ผู้ช่วยกรรมการ → หน่วยงาน */}
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+              {vline(14)}
+              {mdPos && <Box label={mdPos} r={1} sub="กรรมการผู้จัดการ" count={1} w={200} />}
+              {vline(12)}
+              <Box label={asstMd || mdPos} r={2} sub="ผู้ช่วยกรรมการ" count={1} w={200} />
+              {vline(12)}
+              <div style={{ height: 2, background: LINE, alignSelf: "stretch", margin: "0 90px" }} />
+              <div style={{ display: "flex", gap: 16, alignItems: "flex-start", justifyContent: "center" }}>
+                {depts.map((d) => (
+                  <div key={d.id} style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+                    {vline(14)}
+                    <Box label={d.name} sub="พนักงาน" count={d.head} r={d.minRank} />
+                    {vline(10)}
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+                      {d.positions.map((p, i) => (
+                        <React.Fragment key={i}>
+                          {i > 0 && vline(8)}
+                          <Box label={p.position} count={p.n} r={rankOf(p.level)} />
+                        </React.Fragment>
+                      ))}
+                    </div>
+                  </div>
                 ))}
               </div>
             </div>
-          ))}
+            {/* ขวา: เลขานุการ — เชื่อมกับประธาน แต่อยู่ต่ำกว่าผู้ช่วยกรรมการ */}
+            {secretary && (
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+                {vline(140)}
+                <Box label={secretary} r={4} sub="เลขานุการ" count={1} />
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

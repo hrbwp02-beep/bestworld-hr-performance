@@ -905,6 +905,38 @@ function HRPyramid({ rows }) {
   );
 }
 
+// โครงสร้างองค์กรตามตำแหน่งงาน (จัดกลุ่มตามหน่วยงาน เรียงตามระดับ · ไม่ระบุชื่อ)
+function HROrgStructure({ employees }) {
+  const LRANK = { "ผู้บริหารระดับสูง": 0, "ผู้บริหาร": 1, "ผู้จัดการ": 1, "ผู้ช่วยผู้จัดการ": 2, "หัวหน้างาน": 3, "วิศวกร": 4, "วิชาชีพ": 4, "เจ้าหน้าที่": 5, "ช่างฝีมือ": 6, "พนักงาน": 7, "ปฏิบัติการ": 7 };
+  const rankOf = (lv) => LRANK[lv] != null ? LRANK[lv] : (/ผู้จัดการ|ผจก|กรรมการ/.test(lv || "") ? 1 : /หัวหน้า/.test(lv || "") ? 3 : /เจ้าหน้าที่/.test(lv || "") ? 5 : 8);
+  const col = (r) => r <= 1 ? "#15803d" : r <= 2 ? "#0d9488" : r <= 3 ? "#0891b2" : r <= 5 ? "#2563eb" : "#94a3b8";
+  const byDept = {};
+  employees.forEach((e) => { (byDept[e.dept] = byDept[e.dept] || []).push(e); });
+  const depts = Object.keys(byDept).map((id) => {
+    const list = byDept[id]; const posMap = {};
+    list.forEach((e) => { const p = e.position || "-"; (posMap[p] = posMap[p] || { position: p, level: e.level, n: 0 }).n++; });
+    const positions = Object.values(posMap).sort((a, b) => rankOf(a.level) - rankOf(b.level) || b.n - a.n);
+    return { id, name: window.deptName(id), head: list.length, positions };
+  }).sort((a, b) => b.head - a.head);
+  return (
+    <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(258px, 1fr))" }}>
+      {depts.map((d) => (
+        <div key={d.id} style={{ border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden" }}>
+          <div className="between" style={{ background: "var(--surface-2)", padding: "10px 13px" }}><span style={{ fontWeight: 700, fontSize: 13.5 }}>{d.name}</span><span className="muted num" style={{ fontSize: 12 }}>{d.head} คน · {d.positions.length} ตำแหน่ง</span></div>
+          <div style={{ padding: "9px 12px", display: "flex", flexDirection: "column", gap: 8 }}>
+            {d.positions.map((p, i) => { const r = rankOf(p.level); return (
+              <div key={i} className="between" style={{ fontSize: 12.5, gap: 8 }}>
+                <span className="row" style={{ gap: 8, minWidth: 0 }}><span className="tag-dot" style={{ background: col(r), width: 9, height: 9, flex: "0 0 9px" }} /><span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.position}</span></span>
+                <span className="num muted" style={{ flex: "0 0 auto", fontWeight: 600 }}>{p.n}</span>
+              </div>
+            ); })}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function HRDataDashboard({ ctx }) {
   const R = window.EMPLOYEES || []; // ใช้ฐานพนักงานรวม (เชื่อมข้อมูลแล้ว)
   const total = R.length;
@@ -991,6 +1023,12 @@ function HRDataDashboard({ ctx }) {
         <Card><CardHead title="ระดับการศึกษา" sub="Education" /><div className="card-pad"><HRBars rows={dist((x) => x.education || "(ไม่ระบุ)", EDU_ORDER)} palette={PB} /></div></Card>
         <Card><CardHead title="โครงสร้างระดับตำแหน่ง" sub="Organization pyramid" /><div className="card-pad"><HRPyramid rows={dist((x) => x.level, LV_ORDER)} /></div></Card>
       </div>
+
+      {/* โครงสร้างองค์กรตามตำแหน่งงาน */}
+      <Card>
+        <CardHead title="โครงสร้างองค์กร (ตามตำแหน่งงาน)" sub="จัดกลุ่มตามหน่วยงาน · เรียงตามระดับ · ตัวเลข = จำนวนคนต่อตำแหน่ง" />
+        <div className="card-pad"><HROrgStructure employees={R} /></div>
+      </Card>
 
       {/* ตรวจสอบความครบถ้วนของข้อมูล */}
       <Card>

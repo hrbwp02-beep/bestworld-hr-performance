@@ -864,8 +864,10 @@ function HRBars({ rows, palette }) {
 }
 
 function HRDataDashboard({ ctx }) {
-  const R = window.HR_ROSTER || [];
+  const R = window.EMPLOYEES || []; // ใช้ฐานพนักงานรวม (เชื่อมข้อมูลแล้ว)
   const total = R.length;
+  const genderOf = (x) => x.gender || (x.female ? "หญิง" : "ชาย");
+  const tenYears = (x) => { if (x.tenure_years != null) return x.tenure_years; if (!x.hire_date) return null; const d = new Date(x.hire_date); if (isNaN(d)) return null; return (Date.now() - d) / (365.25 * 86400 * 1000); };
   const dist = (mapFn, order) => {
     const o = {}; R.forEach((x) => { const k = mapFn(x) || "(ไม่ระบุ)"; o[k] = (o[k] || 0) + 1; });
     let arr = Object.entries(o).map(([label, n]) => ({ label, n }));
@@ -877,9 +879,9 @@ function HRDataDashboard({ ctx }) {
   const tenRange = (t) => t == null ? "(ไม่ระบุ)" : t < 2 ? "ต่ำกว่า 2 ปี" : t < 5 ? "2–5 ปี" : t < 10 ? "5–10 ปี" : "10 ปีขึ้นไป";
   const withAge = R.filter((x) => x.age != null);
   const avgAge = withAge.length ? Math.round(withAge.reduce((s, x) => s + x.age, 0) / withAge.length * 10) / 10 : 0;
-  const withTen = R.filter((x) => x.tenure_years != null);
-  const avgTen = withTen.length ? Math.round(withTen.reduce((s, x) => s + x.tenure_years, 0) / withTen.length * 10) / 10 : 0;
-  const male = R.filter((x) => x.gender === "ชาย").length, female = R.filter((x) => x.gender === "หญิง").length;
+  const tens = R.map(tenYears).filter((t) => t != null);
+  const avgTen = tens.length ? Math.round(tens.reduce((s, t) => s + t, 0) / tens.length * 10) / 10 : 0;
+  const male = R.filter((x) => genderOf(x) === "ชาย").length, female = R.filter((x) => genderOf(x) === "หญิง").length;
   const thai = R.filter((x) => x.nationality === "ไทย").length;
   const genderPie = [{ label: "ชาย", v: male, color: "#2563eb" }, { label: "หญิง", v: female, color: "#db2777" }];
   const GEN_ORDER = ["Baby Boomer", "Gen X", "Gen Y / Millennials", "Gen Z"];
@@ -889,8 +891,8 @@ function HRDataDashboard({ ctx }) {
   const LV_ORDER = ["ผู้บริหารระดับสูง", "ผู้บริหาร", "หัวหน้างาน", "เจ้าหน้าที่", "พนักงาน"];
   const PB = ["#2563eb", "#0d9488", "#7c3aed", "#e08a00", "#db2777", "#0891b2", "#16a34a", "#64748b"];
   const exportCSV = () => {
-    downloadCSV("hr_roster.csv", ["รหัส", "คำนำหน้า", "ชื่อ", "นามสกุล", "ฝ่าย", "ส่วนงาน", "ตำแหน่ง", "วันเกิด", "อายุ", "วันเริ่มงาน", "อายุงาน", "เพศ", "สัญชาติ", "พื้นที่", "วุฒิการศึกษา", "ระดับ", "Generation"],
-      R.map((x) => [x.id, x.prefix, x.first_name, x.last_name, x.dept, x.section || "-", x.position, x.birth_date, x.age, x.start_date, x.tenure_years, x.gender, x.nationality, x.area, x.education || "-", x.level, x.generation]));
+    downloadCSV("hr_employees.csv", ["รหัส", "รหัส HR", "ชื่อ", "หน่วยงาน", "ตำแหน่ง", "วันเกิด", "อายุ", "วันเริ่มงาน", "อายุงาน", "เพศ", "สัญชาติ", "พื้นที่", "วุฒิการศึกษา", "ระดับ", "Generation"],
+      R.map((x) => [x.id, x.hr_code || "-", x.name, deptName(x.dept), x.position, x.birth_date || "-", x.age != null ? x.age : "-", x.hire_date || "-", x.tenure || "-", genderOf(x), x.nationality || "-", x.area || "-", x.education || "-", x.level, x.generation || "-"]));
     toast("ส่งออกข้อมูลพนักงานแล้ว", "download");
   };
 
@@ -914,9 +916,9 @@ function HRDataDashboard({ ctx }) {
         <Card><CardHead title="ช่วงอายุ (Generation)" sub="Baby Boomer → Gen Z" /><div className="card-pad"><HRBars rows={dist((x) => x.generation, GEN_ORDER)} palette={PB} /></div></Card>
         <Card><CardHead title="ระดับการศึกษา" /><div className="card-pad"><HRBars rows={dist((x) => x.education || "(ไม่ระบุ)", EDU_ORDER)} palette={PB} /></div></Card>
         <Card><CardHead title="สัญชาติ" /><div className="card-pad"><HRBars rows={dist((x) => x.nationality)} palette={PB} /></div></Card>
-        <Card><CardHead title="จำนวนพนักงานตามหน่วยงาน" /><div className="card-pad"><HRBars rows={dist((x) => x.dept)} palette={PB} /></div></Card>
+        <Card><CardHead title="จำนวนพนักงานตามหน่วยงาน" /><div className="card-pad"><HRBars rows={dist((x) => deptName(x.dept))} palette={PB} /></div></Card>
         <Card><CardHead title="ช่วงอายุ" /><div className="card-pad"><HRBars rows={dist((x) => ageRange(x.age), AGE_ORDER)} palette={PB} /></div></Card>
-        <Card><CardHead title="ช่วงอายุงาน" /><div className="card-pad"><HRBars rows={dist((x) => tenRange(x.tenure_years), TEN_ORDER)} palette={PB} /></div></Card>
+        <Card><CardHead title="ช่วงอายุงาน" /><div className="card-pad"><HRBars rows={dist((x) => tenRange(tenYears(x)), TEN_ORDER)} palette={PB} /></div></Card>
         <Card><CardHead title="ระดับตำแหน่ง" /><div className="card-pad"><HRBars rows={dist((x) => x.level, LV_ORDER)} palette={PB} /></div></Card>
       </div>
     </div>

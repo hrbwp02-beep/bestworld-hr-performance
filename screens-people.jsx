@@ -944,17 +944,15 @@ function HROrgStructure({ employees }) {
         {/* ประธาน */}
         <Box label={president} r={0} sub="ประธาน" count={1} w={210} />
         {vline(14)}
-        {/* ที่ปรึกษา · กรรมการผู้จัดการ · เลขา (ขึ้นกับประธาน) */}
-        <div style={{ display: "inline-flex", flexDirection: "column", alignItems: "stretch" }}>
-          <div style={{ height: 2, background: LINE, margin: "0 84px" }} />
-          <div style={{ display: "flex", gap: 18, justifyContent: "center", alignItems: "flex-start" }}>
-            {advisor && <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>{vline(14)}<Box label={advisor} r={2} sub="ที่ปรึกษา" count={1} /></div>}
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>{vline(14)}{mdPos && <Box label={mdPos} r={1} sub="กรรมการผู้จัดการ" count={1} w={196} />}</div>
-            {secretary && <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>{vline(14)}<Box label={secretary} r={2} sub="เลขานุการ" count={1} /></div>}
-          </div>
+        {/* กรรมการผู้จัดการ (สายหลักใต้ประธาน) */}
+        {mdPos && <Box label={mdPos} r={1} sub="กรรมการผู้จัดการ" count={1} w={210} />}
+        {vline(12)}
+        {/* แถวเดียวกัน: ที่ปรึกษา — ผู้ช่วยกรรมการผู้จัดการ — เลขานุการ */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+          {advisor && <><Box label={advisor} r={3} sub="ที่ปรึกษา" count={1} /><div style={{ width: 20, height: 2, background: LINE }} /></>}
+          <Box label={asstMd || mdPos} r={2} sub="ผู้ช่วยกรรมการ" count={1} w={196} />
+          {secretary && <><div style={{ width: 20, height: 2, background: LINE }} /><Box label={secretary} r={3} sub="เลขานุการ" count={1} /></>}
         </div>
-        {/* ผู้ช่วยกรรมการผู้จัดการ (ใต้กรรมการ) */}
-        {asstMd && <>{vline(12)}<Box label={asstMd} r={2} sub="ผู้ช่วยกรรมการ" count={1} w={196} /></>}
         {vline(12)}
         {/* แตกเป็นหน่วยงานทั้งหมด */}
         <div style={{ height: 2, background: LINE, alignSelf: "stretch", margin: "0 90px" }} />

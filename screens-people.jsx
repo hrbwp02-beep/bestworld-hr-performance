@@ -895,6 +895,25 @@ function HRDataDashboard({ ctx }) {
       R.map((x) => [x.id, x.hr_code || "-", x.name, deptName(x.dept), x.position, x.birth_date || "-", x.age != null ? x.age : "-", x.hire_date || "-", x.tenure || "-", genderOf(x), x.nationality || "-", x.area || "-", x.education || "-", x.level, x.generation || "-"]));
     toast("ส่งออกข้อมูลพนักงานแล้ว", "download");
   };
+  // ตรวจสอบความครบถ้วนของข้อมูล
+  const CHECKS = [
+    { k: "jd_id", label: "ผูก JD", test: (e) => !!e.jd_id },
+    { k: "supervisor_id", label: "ผู้บังคับบัญชา", test: (e) => !!e.supervisor_id },
+    { k: "email", label: "อีเมล", test: (e) => !!e.email },
+    { k: "phone", label: "เบอร์โทร", test: (e) => !!e.phone },
+    { k: "birth_date", label: "วันเกิด", test: (e) => !!e.birth_date },
+    { k: "hire_date", label: "วันเข้างาน", test: (e) => !!e.hire_date },
+    { k: "education", label: "วุฒิการศึกษา", test: (e) => !!e.education },
+  ];
+  const incomplete = R.map((e) => ({ e, missing: CHECKS.filter((c) => !c.test(e)) })).filter((x) => x.missing.length);
+  const completeCount = total - incomplete.length;
+  const pctComplete = total ? Math.round(completeCount / total * 100) : 0;
+  const fieldMissing = CHECKS.map((c) => ({ label: c.label, n: R.filter((e) => !c.test(e)).length })).filter((x) => x.n > 0).sort((a, b) => b.n - a.n);
+  const exportIncomplete = () => {
+    downloadCSV("employees_incomplete.csv", ["รหัส", "ชื่อ", "หน่วยงาน", "ตำแหน่ง", "ข้อมูลที่ยังขาด"],
+      incomplete.map(({ e, missing }) => [e.id, e.name, deptName(e.dept), e.position, missing.map((m) => m.label).join(", ")]));
+    toast("ส่งออกรายชื่อข้อมูลไม่ครบแล้ว", "download");
+  };
 
   return (
     <div className="grid">
@@ -921,6 +940,36 @@ function HRDataDashboard({ ctx }) {
         <Card><CardHead title="ช่วงอายุงาน" /><div className="card-pad"><HRBars rows={dist((x) => tenRange(tenYears(x)), TEN_ORDER)} palette={PB} /></div></Card>
         <Card><CardHead title="ระดับตำแหน่ง" /><div className="card-pad"><HRBars rows={dist((x) => x.level, LV_ORDER)} palette={PB} /></div></Card>
       </div>
+
+      {/* ตรวจสอบความครบถ้วนของข้อมูล */}
+      <Card>
+        <CardHead title="ตรวจสอบความครบถ้วนของข้อมูลพนักงาน"
+          sub={"ข้อมูลครบ " + completeCount + "/" + total + " คน (" + pctComplete + "%) · ยังไม่ครบ " + incomplete.length + " คน"}
+          right={incomplete.length > 0 ? <button className="btn btn-ghost btn-sm" onClick={exportIncomplete}><Icon name="download" size={14} />ส่งออกที่ไม่ครบ</button> : <Badge cls="b-green" dot>ครบทุกคน</Badge>} />
+        <div className="card-pad">
+          <div style={{ height: 8, borderRadius: 6, background: "var(--surface-3)", overflow: "hidden", marginBottom: 14 }}>
+            <div style={{ width: pctComplete + "%", height: "100%", background: pctComplete >= 90 ? "#16a34a" : pctComplete >= 60 ? "#e08a00" : "#e11d48" }} />
+          </div>
+          <div className="row wrap" style={{ gap: 8, marginBottom: 14 }}>
+            {fieldMissing.length === 0 ? <span className="badge b-green"><span className="bdot" />ข้อมูลครบทุกฟิลด์</span> : fieldMissing.map((f) => <span key={f.label} className="badge b-amber">{f.label}: ขาด {f.n}</span>)}
+          </div>
+          {incomplete.length > 0 && (
+            <div className="tbl-wrap" style={{ maxHeight: 360, overflowY: "auto" }}>
+              <table className="tbl" style={{ fontSize: 12.5 }}>
+                <thead><tr><th>พนักงาน</th><th>หน่วยงาน</th><th>ข้อมูลที่ยังขาด</th><th></th></tr></thead>
+                <tbody>{incomplete.map(({ e, missing }) => (
+                  <tr key={e.id} style={{ cursor: "pointer" }} title="คลิกเพื่อดู/แก้ไขข้อมูลพนักงาน" onClick={() => ctx.openEmp(e.id)}>
+                    <td><div className="row" style={{ gap: 9 }}><Avatar name={e.name} initials={e.initials} color={e.color} size={28} /><div><div style={{ fontWeight: 600 }}>{e.name}</div><div className="muted" style={{ fontSize: 11 }}>รหัส {e.id}</div></div></div></td>
+                    <td className="muted">{deptName(e.dept)}</td>
+                    <td><div className="row wrap" style={{ gap: 5 }}>{missing.map((m) => <span key={m.k} className="badge b-red" style={{ fontSize: 10.5 }}>{m.label}</span>)}</div></td>
+                    <td><Icon name="chevRight" size={15} color="var(--text-3)" /></td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </Card>
     </div>
   );
 }

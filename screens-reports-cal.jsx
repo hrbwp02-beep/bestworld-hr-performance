@@ -461,6 +461,25 @@ function Settings({ ctx }) {
     await ctx.refresh();
     toast("บันทึกการตั้งค่าเรียบร้อย", "check");
   };
+  // ---- ผู้ประเมินรายหน่วยงาน ----
+  const evaluatorOptions = (window.EMPLOYEES || []).slice().sort((a, b) => (deptName(a.dept) + a.name).localeCompare(deptName(b.dept) + b.name, "th"));
+  // ผู้ประเมินปัจจุบันของหน่วยงาน = supervisor_id ที่พบบ่อยที่สุดในหน่วยงานนั้น
+  const deptEvaluator = (deptId) => {
+    const counts = {};
+    (window.EMPLOYEES || []).forEach((e) => { if (e.dept === deptId && e.supervisor_id) counts[e.supervisor_id] = (counts[e.supervisor_id] || 0) + 1; });
+    let best = "", bn = 0; Object.entries(counts).forEach(([k, n]) => { if (n > bn) { bn = n; best = k; } });
+    return best;
+  };
+  const setDeptEvaluator = async (deptId, empId) => {
+    const ev = (window.EMPLOYEES || []).find((x) => x.id === empId);
+    let q = window.sb.from("employees").update({ supervisor_id: empId || null, reviewer: ev ? ev.name : null }).eq("dept", deptId);
+    if (empId) q = q.neq("id", empId); // ไม่ตั้งให้คนคนนั้นเป็นหัวหน้าของตัวเอง
+    const { error } = await q;
+    if (error) { toast("อัปเดตไม่สำเร็จ: " + error.message, "x"); return; }
+    await ctx.refresh();
+    toast(empId ? ("ตั้งผู้ประเมินของ" + deptName(deptId) + " เป็น " + (ev ? ev.name : "") + " แล้ว") : ("ล้างผู้ประเมินของ" + deptName(deptId) + "แล้ว"), "check");
+  };
+
   const delUser = async (u) => {
     if (!window.confirm("ลบผู้ใช้ " + u.name + " และบัญชีล็อกอินออกจากระบบ?")) return;
     const { data, error } = await window.sb.functions.invoke("admin-users", { body: { action: "delete", app_user_id: u.id } });
@@ -550,6 +569,30 @@ function Settings({ ctx }) {
                 <button className="icon-btn" style={{ width: 30, height: 30 }} title="ลบขั้น" disabled={stages.length <= 1} onClick={() => delStage(i)}><Icon name="x" size={15} color="var(--red)" /></button>
               </div>
             ))}
+          </div>
+        </Card>
+
+        <Card>
+          <CardHead title="ผู้ประเมินรายหน่วยงาน" sub="เลือกผู้ประเมิน (หัวหน้า) ของแต่ละหน่วยงาน · เปลี่ยนแล้วอัปเดตข้อมูลพนักงานทั้งหน่วยงานทันที" />
+          <div style={{ padding: "8px 12px", maxHeight: 380, overflowY: "auto" }}>
+            <div style={{ fontSize: 12, background: "var(--accent-soft)", color: "var(--accent-700)", borderRadius: 9, padding: "9px 12px", margin: "4px 2px 10px", lineHeight: 1.7 }}>
+              เมื่อเลือกผู้ประเมิน ระบบจะตั้งให้เป็น<b>ผู้บังคับบัญชา/ผู้ประเมิน</b>ของพนักงานทุกคนในหน่วยงานนั้นทันที และจะเป็นค่าตั้งต้นในฟอร์มประเมิน
+            </div>
+            {(window.DEPARTMENTS || []).map((dp) => {
+              const cur = deptEvaluator(dp.id);
+              return (
+                <div key={dp.id} className="between" style={{ padding: "10px 8px", borderBottom: "1px solid var(--border-2)", gap: 10 }}>
+                  <div className="row" style={{ gap: 10, minWidth: 0 }}>
+                    <span className="tag-dot" style={{ background: dp.color, width: 11, height: 11 }} />
+                    <span style={{ fontWeight: 600, fontSize: 13.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{dp.name}</span>
+                  </div>
+                  <select className="select" style={{ maxWidth: 280, flex: "0 1 280px" }} value={cur} onChange={(e) => setDeptEvaluator(dp.id, e.target.value)}>
+                    <option value="">— ไม่กำหนด —</option>
+                    {evaluatorOptions.map((o) => <option key={o.id} value={o.id}>{o.name} · {deptShort(o.dept)}{o.position ? " · " + o.position : ""}</option>)}
+                  </select>
+                </div>
+              );
+            })}
           </div>
         </Card>
 

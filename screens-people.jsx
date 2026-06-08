@@ -1004,7 +1004,7 @@ function HRDataDashboard({ ctx }) {
   const dist = (mapFn, order) => {
     const o = {}; R.forEach((x) => { const k = mapFn(x) || "(ไม่ระบุ)"; o[k] = (o[k] || 0) + 1; });
     let arr = Object.entries(o).map(([label, n]) => ({ label, n }));
-    if (order) arr.sort((a, b) => order.indexOf(a.label) - order.indexOf(b.label));
+    if (order) { const idx = (l) => { const i = order.indexOf(l); return i === -1 ? 999 : i; }; arr.sort((a, b) => idx(a.label) - idx(b.label)); }
     else arr.sort((a, b) => b.n - a.n);
     return arr;
   };
@@ -1021,7 +1021,7 @@ function HRDataDashboard({ ctx }) {
   const EDU_ORDER = ["ประถมศึกษา", "มัธยมต้น", "มัธยมปลาย", "ปวช.", "ปวส.", "ปริญญาตรี", "ปริญญาโท", "(ไม่ระบุ)"];
   const AGE_ORDER = ["ต่ำกว่า 30 ปี", "30–39 ปี", "40–49 ปี", "50 ปีขึ้นไป", "(ไม่ระบุ)"];
   const TEN_ORDER = ["ต่ำกว่า 2 ปี", "2–5 ปี", "5–10 ปี", "10 ปีขึ้นไป", "(ไม่ระบุ)"];
-  const LV_ORDER = ["ผู้บริหารระดับสูง", "ผู้บริหาร", "หัวหน้างาน", "เจ้าหน้าที่", "พนักงาน"];
+  const LV_ORDER = ["ผู้บริหารระดับสูง", "ผู้บริหาร", "หัวหน้างาน", "วิศวกร", "เจ้าหน้าที่", "ช่างฝีมือ", "ปฏิบัติการ", "พนักงาน"];
   const PB = ["#2563eb", "#0d9488", "#7c3aed", "#e08a00", "#db2777", "#0891b2", "#16a34a", "#64748b"];
   const exportCSV = () => {
     downloadCSV("hr_employees.csv", ["รหัส", "รหัส HR", "ชื่อ", "หน่วยงาน", "ตำแหน่ง", "วันเกิด", "อายุ", "วันเริ่มงาน", "อายุงาน", "เพศ", "สัญชาติ", "พื้นที่", "วุฒิการศึกษา", "ระดับ", "Generation"],

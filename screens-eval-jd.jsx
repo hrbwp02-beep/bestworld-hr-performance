@@ -29,8 +29,19 @@ const fmtApprovalTime = (iso) => { try { const d = new Date(iso); const m = ["�
    EVALUATION
    ========================================================= */
 function Evaluation({ ctx }) {
-  const APPROVAL_STAGES = getApprovalStages();
   const e = EMPLOYEES.find((x) => x.id === ctx.evalEmp) || EMPLOYEES[0];
+  // ===== สายประเมินตามหน่วยงาน: หัวหน้างาน → ผู้จัดการ → HR (ข้ามขั้นที่ไม่มีคนกำหนด) =====
+  const _empById = (id) => (EMPLOYEES || []).find((x) => x.id === id) || null;
+  const _deptRow = (window.DEPARTMENTS || []).find((d) => d.id === e.dept) || {};
+  const _chainRaw = [
+    { key: "supervisor", label: "หัวหน้างาน", id: _deptRow.supervisor_id },
+    { key: "manager", label: "ผู้จัดการ", id: _deptRow.manager_id },
+    { key: "hr", label: "ฝ่ายบุคคล (HR)", id: (window.APP_SETTINGS || {}).hr_evaluator_id },
+  ];
+  let APPROVAL_STAGES = _chainRaw
+    .filter((s) => s.id && s.id !== e.id) // ข้ามขั้นที่ยังไม่กำหนดคน และไม่ให้ประเมินตัวเอง
+    .map((s) => { const p = _empById(s.id); return { key: s.key, label: s.label + (p ? " · " + p.name : ""), evaluator_id: s.id }; });
+  if (!APPROVAL_STAGES.length) APPROVAL_STAGES = getApprovalStages(); // fallback ใช้ลำดับรวมจากตั้งค่า
   // align the form with the employee's real JD + department KPIs
   const norm = (s) => String(s || "").replace(/\s+/g, "").trim();
   const _jdlib = window.JD_LIBRARY || [];
@@ -80,8 +91,9 @@ function Evaluation({ ctx }) {
   const [submitted, setSubmitted] = useS3(false);
   const [comment, setComment] = useS3("");
   const [saving, setSaving] = useS3(false);
-  const evalSup = (EMPLOYEES || []).find((x) => x.id === e.supervisor_id) || null; // ผู้ประเมิน (หัวหน้างาน)
-  const [evalCode, setEvalCode] = useS3(e.supervisor_id || "");
+  const _firstEvaluator = (APPROVAL_STAGES[0] && APPROVAL_STAGES[0].evaluator_id) || e.supervisor_id || "";
+  const evalSup = (EMPLOYEES || []).find((x) => x.id === _firstEvaluator) || null; // ผู้ประเมินขั้นแรก
+  const [evalCode, setEvalCode] = useS3(_firstEvaluator);
   const evalCodeName = ((EMPLOYEES || []).find((x) => x.id === evalCode) || {}).name || e.reviewer || "";
   const [pickDept, setPickDept] = useS3(e.dept);
   const [pickSec, setPickSec] = useS3(window.sectionOf(e.position));
@@ -388,7 +400,7 @@ function Evaluation({ ctx }) {
                           {i < arr.length - 1 && <span style={{ width: 2, flex: 1, minHeight: 28, background: "var(--border)" }} />}
                         </div>
                         <div style={{ paddingBottom: 18 }}>
-                          <div style={{ fontWeight: 600, fontSize: 13.5 }}>{s.label}{i === 0 && e.reviewer ? " · " + e.reviewer : ""}</div>
+                          <div style={{ fontWeight: 600, fontSize: 13.5 }}>{s.label}</div>
                           <div className="muted" style={{ fontSize: 12.5 }}>{log ? ("อนุมัติโดย " + log.by + " · " + fmtApprovalTime(log.at)) : current ? "รอดำเนินการขั้นนี้" : done ? "ผ่านแล้ว" : "รอขั้นก่อนหน้า"}</div>
                         </div>
                       </div>

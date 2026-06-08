@@ -2,11 +2,19 @@
 const { useState: useS3, useMemo: useM3 } = React;
 
 // ---- Multi-level approval workflow (Phase 7) ----
-const APPROVAL_STAGES = [
+// ลำดับสายอนุมัติเริ่มต้น — ปรับได้จากหน้าตั้งค่า (เก็บใน app_settings.approval_stages)
+const DEFAULT_APPROVAL_STAGES = [
   { key: "supervisor", label: "หัวหน้างาน / ผู้ประเมิน" },
   { key: "manager", label: "ผู้จัดการฝ่าย" },
   { key: "hr", label: "ฝ่ายทรัพยากรบุคคล" },
 ];
+// อ่านลำดับสายอนุมัติจากการตั้งค่า (fallback เป็นค่าเริ่มต้น)
+function getApprovalStages() {
+  const s = window.APP_SETTINGS && window.APP_SETTINGS.approval_stages;
+  return Array.isArray(s) && s.length ? s : DEFAULT_APPROVAL_STAGES;
+}
+window.getApprovalStages = getApprovalStages;
+window.DEFAULT_APPROVAL_STAGES = DEFAULT_APPROVAL_STAGES;
 async function currentApprover() {
   try {
     const u = (await window.sb.auth.getUser()).data.user;
@@ -21,6 +29,7 @@ const fmtApprovalTime = (iso) => { try { const d = new Date(iso); const m = ["�
    EVALUATION
    ========================================================= */
 function Evaluation({ ctx }) {
+  const APPROVAL_STAGES = getApprovalStages();
   const e = EMPLOYEES.find((x) => x.id === ctx.evalEmp) || EMPLOYEES[0];
   // align the form with the employee's real JD + department KPIs
   const norm = (s) => String(s || "").replace(/\s+/g, "").trim();

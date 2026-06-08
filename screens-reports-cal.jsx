@@ -433,15 +433,28 @@ function Settings({ ctx }) {
   const [busy, setBusy] = useS4(false);
   const [tiers, setTiers] = useS4(() => JSON.parse(JSON.stringify(s.bonus_tiers || window.BONUS_TIERS_DEFAULT)));
   const setTier = (g, f, v) => setTiers((p) => ({ ...p, [g]: { ...p[g], [f]: v === "" ? 0 : Number(v) } }));
+  // ลำดับสายอนุมัติ / สายบังคับบัญชา (approval workflow)
+  const [stages, setStages] = useS4(() => {
+    const src = (Array.isArray(s.approval_stages) && s.approval_stages.length) ? s.approval_stages : (window.DEFAULT_APPROVAL_STAGES || []);
+    return JSON.parse(JSON.stringify(src));
+  });
+  const slug = (str) => "stage_" + Math.random().toString(36).slice(2, 7);
+  const addStage = () => setStages((p) => [...p, { key: slug(), label: "" }]);
+  const setStageLabel = (i, v) => setStages((p) => p.map((x, j) => j === i ? { ...x, label: v } : x));
+  const delStage = (i) => setStages((p) => p.filter((_, j) => j !== i));
+  const moveStage = (i, d) => setStages((p) => { const a = [...p]; const j = i + d; if (j < 0 || j >= a.length) return p; [a[i], a[j]] = [a[j], a[i]]; return a; });
   const total = w.kpi + w.comp + w.jd;
   const users = window.APP_USERS || [];
   const me = window.CURRENT_USER || {};
 
   const saveSettings = async () => {
+    const cleanStages = stages.map((x) => ({ key: x.key || ("stage_" + Math.random().toString(36).slice(2, 7)), label: (x.label || "").trim() })).filter((x) => x.label);
+    if (!cleanStages.length) { toast("ต้องมีอย่างน้อย 1 ขั้นในสายอนุมัติ", "x"); return; }
     setBusy(true);
     const { error } = await window.sb.from("app_settings").update({
       cycle_name: cycleName, start_date: startDate || null, end_date: endDate || null,
-      w_kpi: w.kpi, w_comp: w.comp, w_jd: w.jd, eval_open: evalOpen, bonus_tiers: tiers, updated_at: new Date().toISOString(),
+      w_kpi: w.kpi, w_comp: w.comp, w_jd: w.jd, eval_open: evalOpen, bonus_tiers: tiers,
+      approval_stages: cleanStages, updated_at: new Date().toISOString(),
     }).eq("id", 1);
     setBusy(false);
     if (error) { toast("บันทึกไม่สำเร็จ: " + error.message, "x"); return; }
@@ -517,6 +530,24 @@ function Settings({ ctx }) {
               <div key={k}>
                 <div className="between" style={{ marginBottom: 7 }}><span style={{ fontSize: 13, fontWeight: 500 }}>{l}</span><span className="mono" style={{ fontWeight: 700, color: c }}>{w[k]}%</span></div>
                 <input type="range" min="0" max="100" step="5" value={w[k]} onChange={(e) => setW({ ...w, [k]: +e.target.value, jd: 0 })} style={{ width: "100%", accentColor: c }} />
+              </div>
+            ))}
+          </div>
+        </Card>
+
+        <Card>
+          <CardHead title="สายบังคับบัญชา / ลำดับการประเมิน" sub="ลำดับขั้นการอนุมัติผลประเมิน · จากบนลงล่าง" right={<button className="btn btn-soft btn-sm" onClick={addStage}><Icon name="plus" size={14} />เพิ่มขั้น</button>} />
+          <div style={{ padding: "10px 14px" }}>
+            <div style={{ fontSize: 12, background: "var(--accent-soft)", color: "var(--accent-700)", borderRadius: 9, padding: "9px 12px", marginBottom: 12, lineHeight: 1.7 }}>
+              เมื่อพนักงานส่งผลประเมิน ระบบจะส่งให้อนุมัติ<b>ตามลำดับนี้</b> · ใช้ลูกศรเพื่อสลับลำดับ · ต้องมีอย่างน้อย 1 ขั้น · กด <b>“บันทึกการตั้งค่า”</b> ด้านล่างเพื่อยืนยัน
+            </div>
+            {stages.map((st, i) => (
+              <div key={st.key || i} className="row" style={{ gap: 8, padding: "8px 4px", borderBottom: "1px solid var(--border-2)" }}>
+                <span style={{ width: 26, height: 26, borderRadius: 8, background: "var(--accent)", color: "#fff", display: "grid", placeItems: "center", fontSize: 12.5, fontWeight: 700, flex: "0 0 26px" }}>{i + 1}</span>
+                <input className="input" style={{ flex: 1 }} value={st.label} placeholder="เช่น ผู้จัดการฝ่าย" onChange={(e) => setStageLabel(i, e.target.value)} />
+                <button className="icon-btn" style={{ width: 30, height: 30 }} title="เลื่อนขึ้น" disabled={i === 0} onClick={() => moveStage(i, -1)}><Icon name="chevUp" size={15} /></button>
+                <button className="icon-btn" style={{ width: 30, height: 30 }} title="เลื่อนลง" disabled={i === stages.length - 1} onClick={() => moveStage(i, 1)}><Icon name="chevDown" size={15} /></button>
+                <button className="icon-btn" style={{ width: 30, height: 30 }} title="ลบขั้น" disabled={stages.length <= 1} onClick={() => delStage(i)}><Icon name="x" size={15} color="var(--red)" /></button>
               </div>
             ))}
           </div>

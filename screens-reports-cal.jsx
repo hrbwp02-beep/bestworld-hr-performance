@@ -435,6 +435,7 @@ function Settings({ ctx }) {
   const setTier = (g, f, v) => setTiers((p) => ({ ...p, [g]: { ...p[g], [f]: v === "" ? 0 : Number(v) } }));
   const total = w.kpi + w.comp + w.jd;
   const users = window.APP_USERS || [];
+  const me = window.CURRENT_USER || {};
 
   const saveSettings = async () => {
     setBusy(true);
@@ -457,6 +458,20 @@ function Settings({ ctx }) {
     const { error } = await window.sb.from("app_users").update({ active: v }).eq("id", u.id);
     if (error) { toast("อัปเดตไม่สำเร็จ", "x"); return; }
     await ctx.refresh();
+  };
+  // set / reset login password — provisions a real login when the user has none yet
+  const pwdUser = async (u) => {
+    const hasLogin = !!u.auth_uid;
+    const verb = hasLogin ? "ตั้งรหัสผ่านใหม่ให้" : "สร้างบัญชีล็อกอินให้";
+    const pwd = window.prompt(verb + " " + u.name + "\nกรอกรหัสผ่าน (อย่างน้อย 6 ตัวอักษร):", "");
+    if (pwd == null) return;
+    if (pwd.length < 6) { toast("รหัสผ่านต้องยาวอย่างน้อย 6 ตัวอักษร", "x"); return; }
+    const { data, error } = await window.sb.functions.invoke("admin-users", {
+      body: { action: hasLogin ? "reset_password" : "provision", app_user_id: u.id, password: pwd },
+    });
+    if (error || !data || !data.ok) { toast((data && data.error) || "ดำเนินการไม่สำเร็จ", "x"); return; }
+    await ctx.refresh();
+    toast(hasLogin ? "ตั้งรหัสผ่านใหม่แล้ว" : "สร้างบัญชีล็อกอินแล้ว — ผู้ใช้ล็อกอินได้ทันที", "check");
   };
   const delComp = async (c) => {
     if (!window.confirm("ลบสมรรถนะ " + c.name + "?")) return;
@@ -526,25 +541,35 @@ function Settings({ ctx }) {
           <CardHead title="สิทธิ์ผู้ใช้งาน" sub={`${users.length} ผู้ใช้ในระบบ`} right={<button className="btn btn-soft btn-sm" onClick={() => setUserModal({})}><Icon name="plus" size={14} />เพิ่มผู้ใช้</button>} />
           <div style={{ padding: "8px 12px" }}>
             <div style={{ fontSize: 12, background: "var(--accent-soft)", color: "var(--accent-700)", borderRadius: 9, padding: "9px 12px", margin: "4px 2px 10px", lineHeight: 1.7 }}>
-              กำหนด<b>บทบาทและสิทธิ์</b>ของผู้ใช้แต่ละคน · สลับสวิตช์เพื่อ<b>เปิด/ปิดการเข้าถึง</b> · <Icon name="edit" size={12} /> แก้ไข · <Icon name="x" size={12} /> ลบ
+              กำหนด<b>บทบาทและสิทธิ์</b>ของผู้ใช้แต่ละคน · สลับสวิตช์เพื่อ<b>เปิด/ปิดการเข้าถึง</b> · <Icon name="edit" size={12} /> แก้ไข · <Icon name="lock" size={12} /> รหัสผ่าน · <Icon name="x" size={12} /> ลบ
             </div>
             {users.length === 0 && <div className="muted" style={{ padding: "16px 10px", fontSize: 13 }}>ยังไม่มีผู้ใช้ — กด “เพิ่มผู้ใช้”</div>}
             {users.map((u) => {
               const rm = roleMeta(u.role);
+              const isMe = !!me.email && (u.email || "").toLowerCase() === me.email.toLowerCase();
+              const hasLogin = !!u.auth_uid;
               return (
                 <div key={u.id} className="between" style={{ padding: "11px 10px", borderBottom: "1px solid var(--border-2)", gap: 10 }}>
                   <div className="row" style={{ gap: 11, minWidth: 0 }}>
                     <Avatar name={u.name} size={34} color={u.active ? "#2563eb" : "#94a3b8"} />
                     <div style={{ minWidth: 0 }}>
-                      <div className="row" style={{ gap: 7 }}><span style={{ fontWeight: 600, fontSize: 13.5 }}>{u.name}</span>{!u.active && <Badge cls="b-gray">ปิดใช้งาน</Badge>}</div>
+                      <div className="row" style={{ gap: 7 }}>
+                        <span style={{ fontWeight: 600, fontSize: 13.5 }}>{u.name}</span>
+                        {isMe && <Badge cls="b-blue">คุณ</Badge>}
+                        {!u.active && <Badge cls="b-gray">ปิดใช้งาน</Badge>}
+                        {!hasLogin && <Badge cls="b-amber">ยังไม่มีบัญชีล็อกอิน</Badge>}
+                      </div>
                       <div className="muted" style={{ fontSize: 12, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{u.email}{u.dept ? " · " + deptShort(u.dept) : ""}</div>
                     </div>
                   </div>
                   <div className="row" style={{ gap: 6 }}>
                     <Badge cls={rm.cls} dot>{rm.label}</Badge>
-                    <span title={u.active ? "กำลังเปิดใช้งาน — กดเพื่อระงับการเข้าถึง" : "ถูกระงับ — กดเพื่อเปิดใช้งาน"}><Toggle on={u.active} onChange={(v) => toggleUser(u, v)} /></span>
+                    <span title={isMe ? "ไม่สามารถระงับบัญชีของตนเองได้" : (u.active ? "กำลังเปิดใช้งาน — กดเพื่อระงับการเข้าถึง" : "ถูกระงับ — กดเพื่อเปิดใช้งาน")}>
+                      <Toggle on={u.active} onChange={(v) => { if (isMe) { toast("ไม่สามารถระงับบัญชีของตนเองได้", "x"); return; } toggleUser(u, v); }} />
+                    </span>
+                    <button className="icon-btn" style={{ width: 32, height: 32 }} title={hasLogin ? "ตั้งรหัสผ่านใหม่" : "สร้างบัญชีล็อกอิน"} onClick={() => pwdUser(u)}><Icon name="lock" size={14} color={hasLogin ? "var(--text-2)" : "#d97706"} /></button>
                     <button className="icon-btn" style={{ width: 32, height: 32 }} title="แก้ไขบทบาท/ข้อมูล" onClick={() => setUserModal(u)}><Icon name="edit" size={14} /></button>
-                    <button className="icon-btn" style={{ width: 32, height: 32 }} title="ลบผู้ใช้" onClick={() => delUser(u)}><Icon name="x" size={15} color="var(--red)" /></button>
+                    {!isMe && <button className="icon-btn" style={{ width: 32, height: 32 }} title="ลบผู้ใช้" onClick={() => delUser(u)}><Icon name="x" size={15} color="var(--red)" /></button>}
                   </div>
                 </div>
               );

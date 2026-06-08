@@ -6,6 +6,7 @@
 // Deployed via the Supabase MCP (verify_jwt = true). Actions:
 //   create         { name, email, password, role, dept, active }
 //   delete         { app_user_id }
+//   provision      { app_user_id, password }   (give an existing row a real login)
 //   reset_password { app_user_id, password }
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
@@ -90,6 +91,24 @@ Deno.serve(async (req: Request) => {
         }
       }
       await admin.from("app_users").delete().eq("id", id);
+      return reply({ ok: true });
+    }
+
+    if (action === "provision") {
+      // create a real login account for an EXISTING app_users row that has none yet
+      const id = body.app_user_id;
+      const password = String(body.password ?? "");
+      if (!id || password.length < 6) return reply({ ok: false, error: "รหัสผ่านต้องยาวอย่างน้อย 6 ตัวอักษร" });
+      const { data: row } = await admin.from("app_users").select("id, email, name, auth_uid").eq("id", id).maybeSingle();
+      if (!row) return reply({ ok: false, error: "ไม่พบผู้ใช้" });
+      if (row.auth_uid) return reply({ ok: false, error: "ผู้ใช้นี้มีบัญชีล็อกอินอยู่แล้ว" });
+      if (!row.email) return reply({ ok: false, error: "ผู้ใช้นี้ไม่มีอีเมล" });
+      const { data: created, error: cErr } = await admin.auth.admin.createUser({
+        email: row.email, password, email_confirm: true, user_metadata: { name: row.name },
+      });
+      if (cErr) return reply({ ok: false, error: "สร้างบัญชีไม่สำเร็จ: " + cErr.message });
+      const { error: uErr } = await admin.from("app_users").update({ auth_uid: created.user!.id }).eq("id", id);
+      if (uErr) { await admin.auth.admin.deleteUser(created.user!.id); return reply({ ok: false, error: "อัปเดตไม่สำเร็จ: " + uErr.message }); }
       return reply({ ok: true });
     }
 

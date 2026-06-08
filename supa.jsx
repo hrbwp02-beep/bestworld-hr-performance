@@ -43,6 +43,10 @@ window.downloadCSV = downloadCSV;
 const _num = (x) => (x == null ? null : Number(x));
 
 async function loadHRData() {
+  // who is logged in right now (for permission gating + showing the real user)
+  let authEmail = "";
+  try { const { data } = await sb.auth.getUser(); authEmail = (data?.user?.email || "").toLowerCase(); } catch { /* not logged in */ }
+
   const tables = [
     "departments", "competencies", "employees", "jd_library", "notifications",
     "kpi_items", "jd_items", "kpi_defs", "submissions", "teams", "app_users", "performance_trend",
@@ -176,6 +180,8 @@ async function loadHRData() {
     JD_LIBRARY: jdLibrary, NOTIFS: notifications, KPI_ITEMS: kpiItems, JD_ITEMS: jdItems,
     KPI_DEFS, KPI_MONTHLY, SUBMISSIONS, TEAMS: teams, SUMMARY, STATUS_PIE, COMP_RADAR, GRADE_DIST, HR_ROSTER,
     APP_USERS: appUsers || [], APP_SETTINGS: appSettings || null, CYCLE_YEAR: cycleYear,
+    CURRENT_USER: (appUsers || []).find((u) => (u.email || "").toLowerCase() === authEmail)
+      || (authEmail ? { name: authEmail.split("@")[0], email: authEmail, role: "viewer", active: true } : null),
     KPI_DEPTS: departments.filter((d) => KPI_DEFS.some((k) => k.dept === d.id)).map((d) => d.id),
     ...(trCur.length ? { TREND: trCur } : {}),
     ...(trPrev.length ? { TREND_PREV: trPrev } : {}),

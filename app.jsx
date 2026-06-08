@@ -145,6 +145,10 @@ function App() {
   if (!dataReady) return (<><BootSplash text="กำลังโหลดข้อมูล…" /><ToastHost />{Panel}</>);
 
   const [tTitle, tSub] = TITLES[route] || TITLES.dashboard;
+  const cu = window.CURRENT_USER || {};
+  const cuRole = (window.roleMeta ? window.roleMeta(cu.role) : { label: cu.role || "" });
+  const cuName = cu.name || "ผู้ใช้งาน";
+  const cuInitials = (cuName.trim()[0] || "U");
 
   return (
     <div className="app" data-density={t.density}>
@@ -170,8 +174,8 @@ function App() {
         </nav>
         <div className="side-foot">
           <div className="side-user" onClick={() => go("settings")}>
-            <Avatar name="สุดารัตน์ (HR)" initials="HR" color="#0d9488" size={36} />
-            <div className="meta"><b>คุณสุดารัตน์</b><span>ผู้ดูแลระบบ HR</span></div>
+            <Avatar name={cuName} initials={cuInitials} color="#0d9488" size={36} />
+            <div className="meta"><b>{cuName}</b><span>{cuRole.label}</span></div>
           </div>
         </div>
       </aside>
@@ -218,8 +222,8 @@ function App() {
 
           <div style={{ position: "relative" }}>
             <button className="row" style={{ gap: 9, background: "none", border: "none", cursor: "pointer", padding: 2 }} onClick={() => { setMenuOpen(!menuOpen); setNotifOpen(false); }}>
-              <Avatar name="HR" initials="HR" color="#0d9488" size={38} />
-              <div className="hide-md" style={{ textAlign: "left", lineHeight: 1.25 }}><div style={{ fontWeight: 600, fontSize: 13 }}>คุณสุดารัตน์</div><div className="muted" style={{ fontSize: 11.5 }}>HR Admin</div></div>
+              <Avatar name={cuName} initials={cuInitials} color="#0d9488" size={38} />
+              <div className="hide-md" style={{ textAlign: "left", lineHeight: 1.25 }}><div style={{ fontWeight: 600, fontSize: 13 }}>{cuName}</div><div className="muted" style={{ fontSize: 11.5 }}>{cuRole.label}</div></div>
               <span className="hide-md muted"><Icon name="chevDown" size={15} /></span>
             </button>
             {menuOpen && (

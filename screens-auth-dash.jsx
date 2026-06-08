@@ -34,6 +34,12 @@ function LoginScreen({ onLogin, logo }) {
     setErr(""); setBusy(true);
     const { error } = await window.sb.auth.signInWithPassword({ email: u.trim(), password: p });
     if (error) { setBusy(false); setErr("เข้าสู่ระบบไม่สำเร็จ — ตรวจสอบอีเมล/รหัสผ่านอีกครั้ง"); return; }
+    // enforce account status: a suspended (active=false) user must not get in
+    const { data: au } = await window.sb.from("app_users").select("active").eq("email", u.trim().toLowerCase()).maybeSingle();
+    if (au && au.active === false) {
+      await window.sb.auth.signOut();
+      setBusy(false); setErr("บัญชีนี้ถูกระงับการใช้งาน กรุณาติดต่อผู้ดูแลระบบ"); return;
+    }
     if (onLogin) onLogin();
   };
 

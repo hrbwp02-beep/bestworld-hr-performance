@@ -186,8 +186,8 @@ function Dashboard({ ctx }) {
   const t = ctx.t;
   const layout = t.dashLayout || "airy";
   const cy = +(window.CYCLE_YEAR || 2569);
-  // เฉพาะหน่วยงานที่มีพนักงานจริง (ตัดระดับองค์กร/หน่วยงานว่างคะแนน 0 ออก)
-  const realDepts = (DEPARTMENTS || []).filter((d) => d.id !== "company" && (d.head || 0) > 0);
+  // เฉพาะหน่วยงานที่มีพนักงานจริง (ตัดหน่วยงานว่างคะแนน 0 ออก)
+  const realDepts = (DEPARTMENTS || []).filter((d) => (d.head || 0) > 0);
   const topDepts = [...realDepts].sort((a, b) => b.score - a.score);
 
   const StatRow = ({ compact }) => (

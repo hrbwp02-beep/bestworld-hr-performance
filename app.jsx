@@ -149,6 +149,10 @@ function App() {
   const cuRole = (window.roleMeta ? window.roleMeta(cu.role) : { label: cu.role || "" });
   const cuName = cu.name || "ผู้ใช้งาน";
   const cuInitials = (cuName.trim()[0] || "U");
+  // หาพนักงานที่ตรงกับบัญชีผู้ใช้ปัจจุบัน (จับคู่ด้วยชื่อ ตัดคำนำหน้า/ช่องว่าง)
+  const _normName = (s) => (s || "").replace(/^(นาย|นางสาว|นาง|คุณ|น\.ส\.)\s*/, "").replace(/\s+/g, "").toLowerCase();
+  const myEmp = (window.EMPLOYEES || []).find((e) => _normName(e.name) === _normName(cuName)) || null;
+  const openMyProfile = () => { if (myEmp) openEmp(myEmp.id); else toast("ไม่พบข้อมูลพนักงานที่ตรงกับบัญชีนี้ในระบบ", "info"); };
 
   return (
     <div className="app" data-density={t.density}>
@@ -173,7 +177,7 @@ function App() {
           </button>
         </nav>
         <div className="side-foot">
-          <div className="side-user" onClick={() => go("settings")}>
+          <div className="side-user" onClick={openMyProfile} style={{ cursor: "pointer" }}>
             <Avatar name={cuName} initials={cuInitials} color="#0d9488" size={36} />
             <div className="meta"><b>{cuName}</b><span>{cuRole.label}</span></div>
           </div>
@@ -233,7 +237,7 @@ function App() {
                   {[["user", "โปรไฟล์ของฉัน"], ["settings", "ตั้งค่า"], ["history", "ประวัติการใช้งาน"]].map(([ic, l]) => (
                     <button key={l} className="row" style={{ gap: 11, width: "100%", padding: "10px 12px", border: "none", background: "none", cursor: "pointer", borderRadius: 9, fontSize: 13.5, color: "var(--text)" }}
                       onMouseEnter={(e) => e.currentTarget.style.background = "var(--surface-2)"} onMouseLeave={(e) => e.currentTarget.style.background = "none"}
-                      onClick={() => { setMenuOpen(false); if (l === "ตั้งค่า") go("settings"); }}><Icon name={ic} size={17} color="var(--text-2)" />{l}</button>
+                      onClick={() => { setMenuOpen(false); if (l === "ตั้งค่า") go("settings"); else if (l === "โปรไฟล์ของฉัน") openMyProfile(); }}><Icon name={ic} size={17} color="var(--text-2)" />{l}</button>
                   ))}
                   <hr className="divider" style={{ margin: "5px 0" }} />
                   <button className="row" style={{ gap: 11, width: "100%", padding: "10px 12px", border: "none", background: "none", cursor: "pointer", borderRadius: 9, fontSize: 13.5, color: "var(--red)" }}

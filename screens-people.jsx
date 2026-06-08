@@ -996,6 +996,7 @@ function HROrgStructure({ employees }) {
 }
 
 function HRDataDashboard({ ctx }) {
+  const [sub, setSub] = useS2("overview"); // หน้าย่อย: ภาพรวม / โครงสร้างองค์กร
   const R = window.EMPLOYEES || []; // ใช้ฐานพนักงานรวม (เชื่อมข้อมูลแล้ว)
   const total = R.length;
   const genderOf = (x) => x.gender || (x.female ? "หญิง" : "ชาย");
@@ -1051,8 +1052,17 @@ function HRDataDashboard({ ctx }) {
     <div className="grid">
       <div className="page-head">
         <div><h1>แดชบอร์ดข้อมูลพนักงาน</h1><p>ข้อมูลเชิงประชากร · พนักงานทั้งหมด {total} คน</p></div>
-        <button className="btn btn-pri" onClick={exportCSV}><Icon name="download" size={16} />Export Excel</button>
+        {sub === "overview" && <button className="btn btn-pri" onClick={exportCSV}><Icon name="download" size={16} />Export Excel</button>}
       </div>
+
+      <Card><div style={{ padding: "0 8px" }}><Tabs tabs={[{ id: "overview", label: "ภาพรวมข้อมูล" }, { id: "org", label: "โครงสร้างองค์กร" }]} active={sub} onChange={setSub} /></div></Card>
+
+      {sub === "org" ? (
+        <Card>
+          <CardHead title="โครงสร้างองค์กร (ตามตำแหน่งงาน)" sub="ผังต้นไม้ · ตำแหน่งสูงสุดอยู่บนสุด · ตัวเลข = จำนวนคนต่อตำแหน่ง (เลื่อนแนวนอนเพื่อดูทุกหน่วยงาน)" />
+          <div className="card-pad"><HROrgStructure employees={R} /></div>
+        </Card>
+      ) : (<>
 
       <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(180px,1fr))" }}>
         <Stat icon="users" label="พนักงานทั้งหมด" value={total} unit="คน" tone="#2563eb" soft="#e8effb" />
@@ -1081,12 +1091,6 @@ function HRDataDashboard({ ctx }) {
         <Card><CardHead title="ระดับการศึกษา" sub="Education" /><div className="card-pad"><HRBars rows={dist((x) => x.education || "(ไม่ระบุ)", EDU_ORDER)} palette={PB} /></div></Card>
         <Card><CardHead title="โครงสร้างระดับตำแหน่ง" sub="Organization pyramid" /><div className="card-pad"><HRPyramid rows={dist((x) => x.level, LV_ORDER)} /></div></Card>
       </div>
-
-      {/* โครงสร้างองค์กรตามตำแหน่งงาน */}
-      <Card>
-        <CardHead title="โครงสร้างองค์กร (ตามตำแหน่งงาน)" sub="ผังต้นไม้ · ตำแหน่งสูงสุดอยู่บนสุด · ตัวเลข = จำนวนคนต่อตำแหน่ง (เลื่อนแนวนอนเพื่อดูทุกหน่วยงาน)" />
-        <div className="card-pad"><HROrgStructure employees={R} /></div>
-      </Card>
 
       {/* ตรวจสอบความครบถ้วนของข้อมูล */}
       <Card>
@@ -1117,6 +1121,7 @@ function HRDataDashboard({ ctx }) {
           )}
         </div>
       </Card>
+      </>)}
     </div>
   );
 }

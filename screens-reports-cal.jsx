@@ -322,20 +322,24 @@ function UserModal({ user, ctx, onClose }) {
   const [f, setF] = useS4(() => ({
     name: (user && user.name) || "", email: (user && user.email) || "",
     role: (user && user.role) || "viewer", dept: (user && user.dept) || "", active: user ? !!user.active : true,
+    scope: (user && Array.isArray(user.dept_scope) ? user.dept_scope : (user && user.dept ? [user.dept] : [])),
     password: "",
   }));
   const [busy, setBusy] = useS4(false);
   const [err, setErr] = useS4("");
   const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
+  const toggleScope = (id) => setF((p) => ({ ...p, scope: p.scope.indexOf(id) > -1 ? p.scope.filter((x) => x !== id) : [...p.scope, id] }));
+  const fullAccess = f.role === "admin" || f.role === "hr"; // เห็นทุกหน่วยงานอยู่แล้ว
   const genPwd = () => set("password", "Bw" + Math.random().toString(36).slice(2, 8) + Math.floor(Math.random() * 90 + 10) + "!");
 
   const save = async () => {
     if (!f.name.trim()) { setErr("กรุณากรอกชื่อผู้ใช้"); return; }
     if (!f.email.trim()) { setErr("กรุณากรอกอีเมล"); return; }
     setErr(""); setBusy(true);
+    const scopeVal = fullAccess ? null : (f.scope.length ? f.scope : (f.dept ? [f.dept] : null));
     if (isEdit) {
-      // editing only updates role/dept/active (email/login are fixed)
-      const { error } = await window.sb.from("app_users").update({ name: f.name.trim(), role: f.role, dept: f.dept || null, active: !!f.active }).eq("id", user.id);
+      // editing updates role/dept/active + ขอบเขตหน่วยงาน (email/login are fixed)
+      const { error } = await window.sb.from("app_users").update({ name: f.name.trim(), role: f.role, dept: f.dept || null, active: !!f.active, dept_scope: scopeVal }).eq("id", user.id);
       if (error) { setBusy(false); setErr("บันทึกไม่สำเร็จ: " + error.message); return; }
       await ctx.refresh(); toast("อัปเดตสิทธิ์ผู้ใช้แล้ว", "check"); onClose(); return;
     }
@@ -345,6 +349,8 @@ function UserModal({ user, ctx, onClose }) {
       body: { action: "create", name: f.name.trim(), email: f.email.trim(), password: f.password, role: f.role, dept: f.dept || null, active: f.active },
     });
     if (error || !data || !data.ok) { setBusy(false); setErr((data && data.error) || (error && error.message) || "สร้างบัญชีไม่สำเร็จ"); return; }
+    // บันทึกขอบเขตหน่วยงานให้บัญชีที่เพิ่งสร้าง
+    await window.sb.from("app_users").update({ dept_scope: scopeVal }).eq("email", f.email.trim().toLowerCase());
     await ctx.refresh();
     toast("สร้างบัญชี “" + f.name.trim() + "” แล้ว — ล็อกอินได้ทันที", "check");
     onClose();
@@ -371,7 +377,30 @@ function UserModal({ user, ctx, onClose }) {
         )}
         <div className="grid" style={{ gridTemplateColumns: "1fr 1fr" }}>
           <div className="field"><label>บทบาท / สิทธิ์</label><select className="select" value={f.role} onChange={(e) => set("role", e.target.value)}>{ROLES.map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}</select></div>
-          <div className="field"><label>หน่วยงาน</label><select className="select" value={f.dept} onChange={(e) => set("dept", e.target.value)}><option value="">— ไม่ระบุ —</option>{(window.DEPARTMENTS || []).map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}</select></div>
+          <div className="field"><label>หน่วยงานหลัก (สังกัด)</label><select className="select" value={f.dept} onChange={(e) => set("dept", e.target.value)}><option value="">— ไม่ระบุ —</option>{(window.DEPARTMENTS || []).map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}</select></div>
+        </div>
+        {/* ขอบเขตหน่วยงานที่เข้าดูได้ — รองรับผู้จัดการที่ดูหลายหน่วยงาน */}
+        <div className="field">
+          <label>หน่วยงานที่เข้าดูได้ (ขอบเขตการมองเห็น)</label>
+          {fullAccess ? (
+            <div className="row" style={{ gap: 8, fontSize: 12.5, color: "var(--text-2)", padding: "8px 2px" }}><Icon name="check" size={14} color="#16a34a" stroke={2.6} />บทบาทนี้เข้าดูได้ทุกหน่วยงานทั้งองค์กร</div>
+          ) : (
+            <>
+              <div className="row wrap" style={{ gap: 7, marginTop: 4 }}>
+                {(window.DEPARTMENTS || []).map((d) => {
+                  const on = f.scope.indexOf(d.id) > -1;
+                  return (
+                    <button type="button" key={d.id} onClick={() => toggleScope(d.id)}
+                      className="row" style={{ gap: 6, padding: "6px 11px", borderRadius: 999, cursor: "pointer", fontSize: 12.5, fontWeight: 600,
+                        border: "1px solid " + (on ? "var(--accent)" : "var(--border)"), background: on ? "var(--accent-soft)" : "var(--surface)", color: on ? "var(--accent-700)" : "var(--text-2)" }}>
+                      <Icon name={on ? "check" : "plus"} size={13} stroke={2.6} />{d.name}
+                    </button>
+                  );
+                })}
+              </div>
+              <span className="muted" style={{ fontSize: 11.5, marginTop: 6, display: "block" }}>เลือกได้หลายหน่วยงาน · ถ้าไม่เลือกจะใช้หน่วยงานหลักเป็นค่าเริ่มต้น</span>
+            </>
+          )}
         </div>
         <div style={{ background: "var(--surface-2)", borderRadius: 10, padding: "12px 14px" }}>
           <div className="row" style={{ gap: 8, marginBottom: 8 }}><Icon name="lock" size={15} color="var(--accent-700)" /><b style={{ fontSize: 13 }}>สิทธิ์ของบทบาท “{roleMeta(f.role).label}”</b></div>

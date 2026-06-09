@@ -189,11 +189,12 @@ const glassInput = { background: "rgba(255,255,255,.08)", border: "1px solid rgb
    DASHBOARD
    ========================================================= */
 function Dashboard({ ctx }) {
+  const EMPLOYEES = window.scopeEmployees(window.EMPLOYEES || []); // จำกัดตามขอบเขตหน่วยงานของผู้ใช้
   const t = ctx.t;
   const layout = t.dashLayout || "airy";
   const cy = +(window.CYCLE_YEAR || 2569);
   // เฉพาะหน่วยงานที่มีพนักงานจริง (ตัดหน่วยงานว่างคะแนน 0 ออก)
-  const realDepts = (DEPARTMENTS || []).filter((d) => (d.head || 0) > 0);
+  const realDepts = (DEPARTMENTS || []).filter((d) => (d.head || 0) > 0 && window.inScope(d.id));
   const topDepts = [...realDepts].sort((a, b) => b.score - a.score);
 
   const StatRow = ({ compact }) => (

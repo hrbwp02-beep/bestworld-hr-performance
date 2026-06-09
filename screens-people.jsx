@@ -344,6 +344,7 @@ function DepartmentModal({ dep, ctx, onClose }) {
    EMPLOYEE LIST
    ========================================================= */
 function EmployeeList({ ctx }) {
+  const EMPLOYEES = window.scopeEmployees(window.EMPLOYEES || []); // จำกัดตามขอบเขตหน่วยงานของผู้ใช้
   const [q, setQ] = useS2("");
   const [dept, setDept] = useS2("all");
   const [status, setStatus] = useS2("all");
@@ -670,6 +671,7 @@ function EmployeeProfile({ ctx, empId }) {
    EVALUATION TRACKING — ติดตามงานที่ต้องประเมิน แยกหน่วยงาน
    ========================================================= */
 function EvalTracking({ ctx }) {
+  const EMPLOYEES = window.scopeEmployees(window.EMPLOYEES || []); // จำกัดตามขอบเขตหน่วยงานของผู้ใช้
   const [open, setOpen] = useS2({});
   const [view, setView] = useS2("pending");
   const cy = +(window.CYCLE_YEAR || 2569);
@@ -997,7 +999,7 @@ function HROrgStructure({ employees }) {
 
 function HRDataDashboard({ ctx }) {
   const [sub, setSub] = useS2("overview"); // หน้าย่อย: ภาพรวม / โครงสร้างองค์กร
-  const R = window.EMPLOYEES || []; // ใช้ฐานพนักงานรวม (เชื่อมข้อมูลแล้ว)
+  const R = window.scopeEmployees(window.EMPLOYEES || []); // ฐานพนักงานรวม จำกัดตามขอบเขตหน่วยงานของผู้ใช้
   const total = R.length;
   const genderOf = (x) => x.gender || (x.female ? "หญิง" : "ชาย");
   const tenYears = (x) => { if (x.tenure_years != null) return x.tenure_years; if (!x.hire_date) return null; const d = new Date(x.hire_date); if (isNaN(d)) return null; return (Date.now() - d) / (365.25 * 86400 * 1000); };

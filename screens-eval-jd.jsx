@@ -254,7 +254,7 @@ function Evaluation({ ctx }) {
           </div>
           <div className="row wrap" style={{ gap: 10 }}>
             <select className="select" style={{ minWidth: 150 }} value={pickDept} onChange={(ev) => setPickDept(ev.target.value)} title="เลือกหน่วยงาน">
-              {(window.DEPARTMENTS || []).filter((d) => (EMPLOYEES || []).some((emp) => emp.dept === d.id)).map((d) => (
+              {(window.DEPARTMENTS || []).filter((d) => window.inScope(d.id) && (EMPLOYEES || []).some((emp) => emp.dept === d.id)).map((d) => (
                 <option key={d.id} value={d.id}>{d.name} ({(EMPLOYEES || []).filter((emp) => emp.dept === d.id).length})</option>
               ))}
             </select>

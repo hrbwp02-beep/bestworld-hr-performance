@@ -175,13 +175,23 @@ async function loadHRData() {
   const GRADE_KEYS = [["A+", "#15803d"], ["A", "#16a34a"], ["B+", "#0d9488"], ["B", "#0891b2"], ["C", "#2563eb"], ["D", "#e11d48"]];
   const GRADE_DIST = GRADE_KEYS.map(([g, color]) => ({ g, color, n: EMPLOYEES.filter((e) => e.status === "done" && e.band.key === g).length }));
 
+  const currentUser = (appUsers || []).find((u) => (u.email || "").toLowerCase() === authEmail)
+    || (authEmail ? { name: authEmail.split("@")[0], email: authEmail, role: "viewer", active: true } : null);
+  // ขอบเขตการมองเห็นตามหน่วยงาน: admin/hr เห็นทุกหน่วยงาน · อื่นๆ เห็นเฉพาะ dept_scope (หรือ dept ของตัวเอง)
+  const _allAccess = !currentUser || currentUser.role === "admin" || currentUser.role === "hr";
+  const _scopeDepts = _allAccess ? [] : (Array.isArray(currentUser.dept_scope) && currentUser.dept_scope.length
+    ? currentUser.dept_scope
+    : (currentUser.dept ? [currentUser.dept] : []));
+  window.SCOPE = { all: _allAccess, depts: _scopeDepts };
+  window.inScope = (deptId) => window.SCOPE.all || window.SCOPE.depts.indexOf(deptId) > -1;
+  window.scopeEmployees = (list) => window.SCOPE.all ? (list || []) : (list || []).filter((e) => window.SCOPE.depts.indexOf(e.dept) > -1);
+
   Object.assign(window, {
     DEPARTMENTS: departments, COMPETENCIES: competencies, EMPLOYEES,
     JD_LIBRARY: jdLibrary, NOTIFS: notifications, KPI_ITEMS: kpiItems, JD_ITEMS: jdItems,
     KPI_DEFS, KPI_MONTHLY, SUBMISSIONS, TEAMS: teams, SUMMARY, STATUS_PIE, COMP_RADAR, GRADE_DIST, HR_ROSTER,
     APP_USERS: appUsers || [], APP_SETTINGS: appSettings || null, CYCLE_YEAR: cycleYear,
-    CURRENT_USER: (appUsers || []).find((u) => (u.email || "").toLowerCase() === authEmail)
-      || (authEmail ? { name: authEmail.split("@")[0], email: authEmail, role: "viewer", active: true } : null),
+    CURRENT_USER: currentUser,
     KPI_DEPTS: departments.filter((d) => KPI_DEFS.some((k) => k.dept === d.id)).map((d) => d.id),
     ...(trCur.length ? { TREND: trCur } : {}),
     ...(trPrev.length ? { TREND_PREV: trPrev } : {}),

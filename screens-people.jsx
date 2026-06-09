@@ -1062,7 +1062,7 @@ function HRDataDashboard({ ctx }) {
       {sub === "org" ? (
         <Card>
           <CardHead title="โครงสร้างองค์กร (ตามตำแหน่งงาน)" sub="ผังต้นไม้ · ตำแหน่งสูงสุดอยู่บนสุด · ตัวเลข = จำนวนคนต่อตำแหน่ง (เลื่อนแนวนอนเพื่อดูทุกหน่วยงาน)" />
-          <div className="card-pad"><HROrgStructure employees={R} /></div>
+          <div className="card-pad"><HROrgStructure employees={window.EMPLOYEES || []} /></div>
         </Card>
       ) : (<>
 

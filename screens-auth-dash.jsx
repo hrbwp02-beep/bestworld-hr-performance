@@ -196,24 +196,38 @@ function Dashboard({ ctx }) {
   // เฉพาะหน่วยงานที่มีพนักงานจริง (ตัดหน่วยงานว่างคะแนน 0 ออก)
   const realDepts = (DEPARTMENTS || []).filter((d) => (d.head || 0) > 0 && window.inScope(d.id));
   const topDepts = [...realDepts].sort((a, b) => b.score - a.score);
+  // สรุปตามขอบเขตผู้ใช้ (admin/hr = ทั้งองค์กร, อื่นๆ = เฉพาะหน่วยงานที่ดูแล)
+  const _doneE = EMPLOYEES.filter((e) => e.status === "done");
+  const _scoredE = EMPLOYEES.filter((e) => e.overall > 0);
+  const SUM = window.SCOPE.all ? SUMMARY : {
+    total: EMPLOYEES.length,
+    done: _doneE.length,
+    pending: EMPLOYEES.filter((e) => e.status === "pending" || e.status === "review").length,
+    avgScore: _scoredE.length ? Math.round(_scoredE.reduce((a, e) => a + e.overall, 0) / _scoredE.length * 10) / 10 : 0,
+    avgTrend: SUMMARY.avgTrend,
+    topDept: (topDepts[0] || {}).name || "-", topDeptScore: (topDepts[0] || {}).score || 0,
+  };
+  const _GK = [["A+", "#15803d"], ["A", "#16a34a"], ["B+", "#0d9488"], ["B", "#0891b2"], ["C", "#2563eb"], ["D", "#e11d48"]];
+  const gradeDist = window.SCOPE.all ? (window.GRADE_DIST || []) : _GK.map(([g, color]) => ({ g, color, n: _doneE.filter((e) => e.band && e.band.key === g).length }));
+  const scopeLabel = window.SCOPE.all ? "ทั้งองค์กร" : (window.SCOPE.depts.map((id) => deptShort(id)).join(", ") || "หน่วยงานของคุณ");
 
   const StatRow = ({ compact }) => (
     <div className="grid" style={{ gridTemplateColumns: `repeat(auto-fit, minmax(${compact ? 175 : 210}px, 1fr))` }}>
-      <Stat icon="users" label="พนักงานทั้งหมด" value={SUMMARY.total} unit="คน" tone="#2563eb" soft="#e8effb" sub={`${DEPARTMENTS.length} หน่วยงาน`} />
-      <Stat icon="checkCircle" label="ประเมินแล้ว" value={SUMMARY.done} unit="คน" tone="#16a34a" soft="#e7f6ec" sub={`${Math.round(SUMMARY.done / SUMMARY.total * 100)}% ของทั้งหมด`} />
-      <Stat icon="clock" label="รอดำเนินการ" value={SUMMARY.pending} unit="คน" tone="#e08a00" soft="#fdf1dc" sub="ครบกำหนด 15 มิ.ย." />
-      <Stat icon="target" label="คะแนนเฉลี่ยองค์กร" value={SUMMARY.avgScore} tone="#7c3aed" soft="#f1ebfd" delta={SUMMARY.avgTrend} sub="เทียบปีก่อน" />
-      {!compact && <Stat icon="trophy" label="หน่วยงานอันดับ 1" value={SUMMARY.topDeptScore} tone="#0d9488" soft="#e2f4f2" sub={SUMMARY.topDept} />}
+      <Stat icon="users" label="พนักงานทั้งหมด" value={SUM.total} unit="คน" tone="#2563eb" soft="#e8effb" sub={window.SCOPE.all ? `${DEPARTMENTS.length} หน่วยงาน` : scopeLabel} />
+      <Stat icon="checkCircle" label="ประเมินแล้ว" value={SUM.done} unit="คน" tone="#16a34a" soft="#e7f6ec" sub={`${SUM.total ? Math.round(SUM.done / SUM.total * 100) : 0}% ของทั้งหมด`} />
+      <Stat icon="clock" label="รอดำเนินการ" value={SUM.pending} unit="คน" tone="#e08a00" soft="#fdf1dc" sub="ครบกำหนด 15 มิ.ย." />
+      <Stat icon="target" label={window.SCOPE.all ? "คะแนนเฉลี่ยองค์กร" : "คะแนนเฉลี่ย"} value={SUM.avgScore} tone="#7c3aed" soft="#f1ebfd" delta={SUM.avgTrend} sub="เทียบปีก่อน" />
+      {!compact && <Stat icon="trophy" label="หน่วยงานอันดับ 1" value={SUM.topDeptScore} tone="#0d9488" soft="#e2f4f2" sub={SUM.topDept} />}
     </div>
   );
 
   const TrendCard = ({ tall }) => {
-    const dist = window.GRADE_DIST || [];
+    const dist = gradeDist;
     const maxN = Math.max(1, ...dist.map((d) => d.n));
     const totalDone = dist.reduce((s, d) => s + d.n, 0) || 1;
     return (
       <Card>
-        <CardHead title="การกระจายเกรดผลการประเมิน" sub={`พนักงานประเมินแล้ว ${SUMMARY.done} คน · ${COMPANY.cycle}`} />
+        <CardHead title="การกระจายเกรดผลการประเมิน" sub={`พนักงานประเมินแล้ว ${SUM.done} คน · ${COMPANY.cycle}`} />
         <div className="card-pad" style={{ display: "flex", flexDirection: "column", gap: 14, minHeight: tall ? 280 : 230, justifyContent: "center" }}>
           {dist.map((d) => (
             <div key={d.g} className="row" style={{ gap: 12, alignItems: "center" }}>
@@ -237,10 +251,17 @@ function Dashboard({ ctx }) {
     </Card>
   );
 
+  const _cntS = (s) => EMPLOYEES.filter((e) => e.status === s).length;
+  const statusPie = window.SCOPE.all ? STATUS_PIE : [
+    { label: "ประเมินแล้ว", v: _cntS("done"), color: "#16a34a" },
+    { label: "กำลังประเมิน", v: _cntS("progress"), color: "#2563eb" },
+    { label: "รออนุมัติ", v: _cntS("review"), color: "#e08a00" },
+    { label: "รอประเมิน", v: _cntS("pending"), color: "#cbd5e1" },
+  ];
   const StatusCard = () => (
     <Card>
       <CardHead title="สถานะการประเมิน" sub={COMPANY.cycle} />
-      <div className="card-pad"><Donut data={STATUS_PIE} centerLabel="พนักงาน" /></div>
+      <div className="card-pad"><Donut data={statusPie} centerLabel="พนักงาน" /></div>
     </Card>
   );
 
@@ -327,8 +348,8 @@ function Dashboard({ ctx }) {
         <div className="grid" style={{ gridTemplateColumns: "1fr 1.5fr" }}>
           <Card className="card-pad" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16, textAlign: "center" }}>
             <div className="muted" style={{ fontWeight: 600, fontSize: 14 }}>คะแนนเฉลี่ยทั้งองค์กร</div>
-            <Ring value={SUMMARY.avgScore} size={180} />
-            <Badge cls="b-green" dot>เพิ่มขึ้น {SUMMARY.avgTrend} จากปีก่อน</Badge>
+            <Ring value={SUM.avgScore} size={180} />
+            <Badge cls="b-green" dot>เพิ่มขึ้น {SUM.avgTrend} จากปีก่อน</Badge>
             <div className="row" style={{ gap: 24, marginTop: 4 }}>
               <div><div className="mono" style={{ fontSize: 22, fontWeight: 700, color: "#16a34a" }}>{SUMMARY.highPotential}</div><div className="muted" style={{ fontSize: 12 }}>High Potential</div></div>
               <div style={{ width: 1, background: "var(--border)" }} />
@@ -336,10 +357,10 @@ function Dashboard({ ctx }) {
             </div>
           </Card>
           <div className="grid" style={{ gridTemplateColumns: "1fr 1fr" }}>
-            <Stat icon="users" label="พนักงานทั้งหมด" value={SUMMARY.total} unit="คน" tone="#2563eb" soft="#e8effb" />
-            <Stat icon="checkCircle" label="ประเมินแล้ว" value={SUMMARY.done} unit="คน" tone="#16a34a" soft="#e7f6ec" />
-            <Stat icon="clock" label="รอดำเนินการ" value={SUMMARY.pending} unit="คน" tone="#e08a00" soft="#fdf1dc" />
-            <Stat icon="trophy" label="อันดับ 1" value={SUMMARY.topDeptScore} tone="#0d9488" soft="#e2f4f2" sub={SUMMARY.topDept} />
+            <Stat icon="users" label="พนักงานทั้งหมด" value={SUM.total} unit="คน" tone="#2563eb" soft="#e8effb" />
+            <Stat icon="checkCircle" label="ประเมินแล้ว" value={SUM.done} unit="คน" tone="#16a34a" soft="#e7f6ec" />
+            <Stat icon="clock" label="รอดำเนินการ" value={SUM.pending} unit="คน" tone="#e08a00" soft="#fdf1dc" />
+            <Stat icon="trophy" label="อันดับ 1" value={SUM.topDeptScore} tone="#0d9488" soft="#e2f4f2" sub={SUM.topDept} />
           </div>
         </div>
         <div className="grid" style={{ gridTemplateColumns: "1.5fr 1fr" }}>

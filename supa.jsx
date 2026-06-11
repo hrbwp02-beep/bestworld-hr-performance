@@ -40,6 +40,19 @@ function downloadCSV(filename, headers, rows) {
 }
 window.downloadCSV = downloadCSV;
 
+// ---------- notifications helpers ----------
+// อีเมล (บัญชีล็อกอิน) ของพนักงานจาก employee_id
+window.empEmail = (empId) => { const a = (window.APP_USERS || []).find((u) => u.employee_id === empId); return a ? a.email : null; };
+// ส่งการแจ้งเตือนถึงผู้รับ (ถ้าไม่มีอีเมลผู้รับ จะไม่ส่ง)
+window.notify = async (recipientEmail, type, title, body) => {
+  if (!recipientEmail) return;
+  try { await window.sb.from("notifications").insert({ type: type || "info", title, body: body || null, recipient_email: recipientEmail }); } catch (e) { /* ignore */ }
+};
+window.markNotifsRead = async () => {
+  const email = (window.CURRENT_USER || {}).email; if (!email) return;
+  try { await window.sb.from("notifications").update({ read: true }).eq("recipient_email", email).eq("read", false); } catch (e) { /* ignore */ }
+};
+
 const _num = (x) => (x == null ? null : Number(x));
 
 async function loadHRData() {
@@ -63,6 +76,13 @@ async function loadHRData() {
     departments, competencies, empRows, jdLibrary, notifications,
     kpiItems, jdItems, kpiDefRows, subRows, teams, appUsers, trendRows, appSettings,
   ] = results.map((r) => r.data);
+
+  // การแจ้งเตือน: แสดงเฉพาะของผู้ใช้ปัจจุบัน (recipient_email = ตัวเอง) + broadcast (null) เรียงใหม่สุดก่อน
+  const _relTime = (iso) => { if (!iso) return ""; const s = Math.floor((Date.now() - new Date(iso)) / 1000); if (s < 60) return "เมื่อสักครู่"; const m = Math.floor(s / 60); if (m < 60) return m + " นาทีที่แล้ว"; const h = Math.floor(m / 60); if (h < 24) return h + " ชั่วโมงที่แล้ว"; return Math.floor(h / 24) + " วันที่แล้ว"; };
+  const myNotifs = (notifications || [])
+    .filter((n) => !n.recipient_email || (n.recipient_email || "").toLowerCase() === authEmail)
+    .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
+    .map((n) => ({ ...n, time: n.time || _relTime(n.created_at) }));
 
   // evaluation cycle year — derived early so we can match this year's records
   let cycleYear = 2569;
@@ -188,7 +208,7 @@ async function loadHRData() {
 
   Object.assign(window, {
     DEPARTMENTS: departments, COMPETENCIES: competencies, EMPLOYEES,
-    JD_LIBRARY: jdLibrary, NOTIFS: notifications, KPI_ITEMS: kpiItems, JD_ITEMS: jdItems,
+    JD_LIBRARY: jdLibrary, NOTIFS: myNotifs, KPI_ITEMS: kpiItems, JD_ITEMS: jdItems,
     KPI_DEFS, KPI_MONTHLY, SUBMISSIONS, TEAMS: teams, SUMMARY, STATUS_PIE, COMP_RADAR, GRADE_DIST, HR_ROSTER,
     APP_USERS: appUsers || [], APP_SETTINGS: appSettings || null, CYCLE_YEAR: cycleYear,
     CURRENT_USER: currentUser,

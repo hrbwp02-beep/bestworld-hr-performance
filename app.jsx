@@ -29,6 +29,18 @@ const NAV = [
   { id: "reports", label: "รายงาน", icon: "reports" },
   { id: "calibration", label: "Calibration", icon: "calibration" },
 ];
+// สิทธิ์เข้าถึงหน้าตามบทบาท ("*" = ทุกหน้า)
+const ROLE_PAGES = {
+  admin: "*",
+  hr: "*",
+  manager: ["dashboard", "employee", "hrdata", "evaltrack", "eval", "kpi", "profile"],
+  supervisor: ["dashboard", "employee", "hrdata", "evaltrack", "eval", "profile"],
+  viewer: ["dashboard", "hrdata", "profile"],
+};
+const pagesFor = (role) => ROLE_PAGES[role] || ROLE_PAGES.viewer;
+const canSeePage = (role, id) => { const p = pagesFor(role); return p === "*" || p.indexOf(id) > -1; };
+const canSeeSettings = (role) => role === "admin" || role === "hr";
+
 const TITLES = {
   dashboard: ["ภาพรวมการประเมิน", "Performance Dashboard"],
   exec: ["มุมมองผู้บริหาร", "Executive Drill-down"],
@@ -71,6 +83,8 @@ function App() {
   const [mobileOpen, setMobileOpen] = useA(false);
   const [notifOpen, setNotifOpen] = useA(false);
   const [menuOpen, setMenuOpen] = useA(false);
+  const [pwOpen, setPwOpen] = useA(false);
+  const [searchQ, setSearchQ] = useA("");
   const [subId, setSubId] = useA(null);
   const [execDept, setExecDept] = useA(null);
   const [dataVer, setDataVer] = useA(0);
@@ -144,15 +158,20 @@ function App() {
   if (loadErr) return (<><BootSplash text={"โหลดข้อมูลไม่สำเร็จ · " + loadErr} error /><ToastHost />{Panel}</>);
   if (!dataReady) return (<><BootSplash text="กำลังโหลดข้อมูล…" /><ToastHost />{Panel}</>);
 
-  const [tTitle, tSub] = TITLES[route] || TITLES.dashboard;
   const cu = window.CURRENT_USER || {};
   const cuRole = (window.roleMeta ? window.roleMeta(cu.role) : { label: cu.role || "" });
   const cuName = cu.name || "ผู้ใช้งาน";
   const cuInitials = (cuName.trim()[0] || "U");
-  // หาพนักงานที่ตรงกับบัญชีผู้ใช้ปัจจุบัน (จับคู่ด้วยชื่อ ตัดคำนำหน้า/ช่องว่าง)
+  // จำกัดสิทธิ์เข้าหน้า: ถ้าหน้าปัจจุบันไม่ได้รับอนุญาต ให้ตกกลับไปหน้าภาพรวม
+  const routeAllowed = (r) => r === "settings" ? canSeeSettings(cu.role) : canSeePage(cu.role, r);
+  const effRoute = routeAllowed(route) ? route : "dashboard";
+  const [tTitle, tSub] = TITLES[effRoute] || TITLES.dashboard;
+  // หาพนักงานที่ตรงกับบัญชีผู้ใช้: ใช้ employee_id ที่ผูกไว้ก่อน แล้วค่อย fallback เทียบชื่อ
   const _normName = (s) => (s || "").replace(/^(นาย|นางสาว|นาง|คุณ|น\.ส\.)\s*/, "").replace(/\s+/g, "").toLowerCase();
-  const myEmp = (window.EMPLOYEES || []).find((e) => _normName(e.name) === _normName(cuName)) || null;
+  const myEmp = (cu.employee_id && (window.EMPLOYEES || []).find((e) => e.id === cu.employee_id))
+    || (window.EMPLOYEES || []).find((e) => _normName(e.name) === _normName(cuName)) || null;
   const openMyProfile = () => { if (myEmp) openEmp(myEmp.id); else toast("ไม่พบข้อมูลพนักงานที่ตรงกับบัญชีนี้ในระบบ", "info"); };
+  const visibleNav = NAV.filter((n) => canSeePage(cu.role, n.id));
 
   return (
     <div className="app" data-density={t.density}>
@@ -164,17 +183,19 @@ function App() {
         </div>
         <nav className="side-nav">
           <div className="side-section">เมนูหลัก</div>
-          {NAV.map((n) => (
-            <button key={n.id} className={"nav-item" + (route === n.id || (route === "profile" && n.id === "employee") ? " active" : "")} onClick={() => go(n.id)}>
+          {visibleNav.map((n) => (
+            <button key={n.id} className={"nav-item" + (effRoute === n.id || (effRoute === "profile" && n.id === "employee") ? " active" : "")} onClick={() => go(n.id)}>
               <Icon name={n.icon} size={20} stroke={1.9} />
               <span className="lbl">{n.label}</span>
               {n.id === "eval" && <span className="nav-badge">{SUMMARY.pending}</span>}
             </button>
           ))}
+          {canSeeSettings(cu.role) && <>
           <div className="side-section">ระบบ</div>
-          <button className={"nav-item" + (route === "settings" ? " active" : "")} onClick={() => go("settings")}>
+          <button className={"nav-item" + (effRoute === "settings" ? " active" : "")} onClick={() => go("settings")}>
             <Icon name="settings" size={20} stroke={1.9} /><span className="lbl">ตั้งค่า</span>
           </button>
+          </>}
         </nav>
         <div className="side-foot">
           <div className="side-user" onClick={openMyProfile} style={{ cursor: "pointer" }}>
@@ -193,10 +214,26 @@ function App() {
             <div className="top-sub">{tSub}</div>
           </div>
           <div className="top-spacer" />
-          <div className="search hide-xs">
+          <div className="search hide-xs" style={{ position: "relative" }}>
             <Icon name="search" size={18} />
-            <input placeholder="ค้นหาพนักงาน, ตำแหน่ง…" />
-            <kbd className="hide-sm">⌘K</kbd>
+            <input placeholder="ค้นหาพนักงาน, ตำแหน่ง…" value={searchQ} onChange={(e) => setSearchQ(e.target.value)} />
+            {!searchQ && <kbd className="hide-sm">⌘K</kbd>}
+            {searchQ.trim().length >= 2 && (() => {
+              const ql = searchQ.trim().toLowerCase();
+              const res = window.scopeEmployees(window.EMPLOYEES || []).filter((e) => (e.name || "").toLowerCase().includes(ql) || (e.position || "").toLowerCase().includes(ql) || String(e.id).includes(ql)).slice(0, 8);
+              return (
+                <div className="card" style={{ position: "absolute", top: 46, left: 0, right: 0, zIndex: 60, boxShadow: "var(--shadow-lg)", padding: 6, maxHeight: 360, overflowY: "auto" }}>
+                  {res.length === 0 ? <div className="muted" style={{ padding: "10px 12px", fontSize: 13 }}>ไม่พบผลลัพธ์</div> : res.map((e) => (
+                    <button key={e.id} className="row" style={{ gap: 10, width: "100%", padding: "8px 10px", border: "none", background: "none", cursor: "pointer", borderRadius: 8, textAlign: "left" }}
+                      onMouseEnter={(ev) => ev.currentTarget.style.background = "var(--surface-2)"} onMouseLeave={(ev) => ev.currentTarget.style.background = "none"}
+                      onClick={() => { openEmp(e.id); setSearchQ(""); }}>
+                      <Avatar name={e.name} initials={e.initials} color={e.color} size={30} />
+                      <div style={{ minWidth: 0 }}><div style={{ fontWeight: 600, fontSize: 13 }}>{e.name}</div><div className="muted" style={{ fontSize: 11.5 }}>{e.position} · {window.deptShort ? window.deptShort(e.dept) : e.dept}</div></div>
+                    </button>
+                  ))}
+                </div>
+              );
+            })()}
           </div>
 
           <div style={{ position: "relative" }}>
@@ -218,7 +255,7 @@ function App() {
                       );
                     })}
                   </div>
-                  <button className="btn btn-soft btn-sm" style={{ margin: 12, width: "calc(100% - 24px)" }} onClick={() => { setNotifOpen(false); toast("ทำเครื่องหมายอ่านทั้งหมดแล้ว", "check"); }}>อ่านทั้งหมด</button>
+                  <button className="btn btn-soft btn-sm" style={{ margin: 12, width: "calc(100% - 24px)" }} onClick={async () => { setNotifOpen(false); await window.markNotifsRead(); await refresh(); toast("ทำเครื่องหมายอ่านทั้งหมดแล้ว", "check"); }}>อ่านทั้งหมด</button>
                 </div>
               </>
             )}
@@ -234,10 +271,10 @@ function App() {
               <>
                 <div style={{ position: "fixed", inset: 0, zIndex: 49 }} onClick={() => setMenuOpen(false)} />
                 <div className="card" style={{ position: "absolute", right: 0, top: 52, width: 220, zIndex: 50, boxShadow: "var(--shadow-lg)", padding: 6 }}>
-                  {[["user", "โปรไฟล์ของฉัน"], ["settings", "ตั้งค่า"], ["history", "ประวัติการใช้งาน"]].map(([ic, l]) => (
-                    <button key={l} className="row" style={{ gap: 11, width: "100%", padding: "10px 12px", border: "none", background: "none", cursor: "pointer", borderRadius: 9, fontSize: 13.5, color: "var(--text)" }}
+                  {[["user", "โปรไฟล์ของฉัน", "profile"], ["lock", "เปลี่ยนรหัสผ่าน", "pw"], ...(canSeeSettings(cu.role) ? [["settings", "ตั้งค่า", "settings"]] : [])].map(([ic, l, act]) => (
+                    <button key={act} className="row" style={{ gap: 11, width: "100%", padding: "10px 12px", border: "none", background: "none", cursor: "pointer", borderRadius: 9, fontSize: 13.5, color: "var(--text)" }}
                       onMouseEnter={(e) => e.currentTarget.style.background = "var(--surface-2)"} onMouseLeave={(e) => e.currentTarget.style.background = "none"}
-                      onClick={() => { setMenuOpen(false); if (l === "ตั้งค่า") go("settings"); else if (l === "โปรไฟล์ของฉัน") openMyProfile(); }}><Icon name={ic} size={17} color="var(--text-2)" />{l}</button>
+                      onClick={() => { setMenuOpen(false); if (act === "settings") go("settings"); else if (act === "profile") openMyProfile(); else if (act === "pw") setPwOpen(true); }}><Icon name={ic} size={17} color="var(--text-2)" />{l}</button>
                   ))}
                   <hr className="divider" style={{ margin: "5px 0" }} />
                   <button className="row" style={{ gap: 11, width: "100%", padding: "10px 12px", border: "none", background: "none", cursor: "pointer", borderRadius: 9, fontSize: 13.5, color: "var(--red)" }}
@@ -250,25 +287,56 @@ function App() {
         </header>
 
         <main className="content">
-          {route === "dashboard" && <Dashboard ctx={ctx} />}
-          {route === "exec" && <ExecDashboard ctx={ctx} />}
-          {route === "employee" && <EmployeeList ctx={ctx} />}
-          {route === "hrdata" && <HRDataDashboard ctx={ctx} />}
-          {route === "evaltrack" && <EvalTracking ctx={ctx} />}
-          {route === "profile" && <EmployeeProfile ctx={ctx} empId={empId} />}
-          {route === "kpi" && <KPIModule ctx={ctx} />}
-          {route === "eval" && <Evaluation key={ctx.evalEmp} ctx={ctx} />}
-          {route === "jd" && <JDManagement ctx={ctx} />}
-          {route === "reports" && <Reports ctx={ctx} />}
-          {route === "calibration" && <Calibration ctx={ctx} />}
-          {route === "settings" && <Settings ctx={ctx} />}
+          {effRoute === "dashboard" && <Dashboard ctx={ctx} />}
+          {effRoute === "exec" && <ExecDashboard ctx={ctx} />}
+          {effRoute === "employee" && <EmployeeList ctx={ctx} />}
+          {effRoute === "hrdata" && <HRDataDashboard ctx={ctx} />}
+          {effRoute === "evaltrack" && <EvalTracking ctx={ctx} />}
+          {effRoute === "profile" && <EmployeeProfile ctx={ctx} empId={empId} />}
+          {effRoute === "kpi" && <KPIModule ctx={ctx} />}
+          {effRoute === "eval" && <Evaluation key={ctx.evalEmp} ctx={ctx} />}
+          {effRoute === "jd" && <JDManagement ctx={ctx} />}
+          {effRoute === "reports" && <Reports ctx={ctx} />}
+          {effRoute === "calibration" && <Calibration ctx={ctx} />}
+          {effRoute === "settings" && <Settings ctx={ctx} />}
         </main>
       </div>
 
       {subId && <SubmissionDrawer subId={subId} onClose={() => setSubId(null)} ctx={ctx} />}
+      {pwOpen && <ChangePasswordModal onClose={() => setPwOpen(false)} />}
       <ToastHost />
       {Panel}
     </div>
+  );
+}
+
+// เปลี่ยนรหัสผ่านของตัวเอง (ผู้ใช้ที่ล็อกอินอยู่)
+function ChangePasswordModal({ onClose }) {
+  const [p1, setP1] = useA("");
+  const [p2, setP2] = useA("");
+  const [busy, setBusy] = useA(false);
+  const [err, setErr] = useA("");
+  const save = async () => {
+    if (p1.length < 6) { setErr("รหัสผ่านต้องยาวอย่างน้อย 6 ตัวอักษร"); return; }
+    if (p1 !== p2) { setErr("รหัสผ่านทั้งสองช่องไม่ตรงกัน"); return; }
+    setErr(""); setBusy(true);
+    const { error } = await window.sb.auth.updateUser({ password: p1 });
+    setBusy(false);
+    if (error) { setErr("เปลี่ยนไม่สำเร็จ: " + error.message); return; }
+    toast("เปลี่ยนรหัสผ่านเรียบร้อย", "check"); onClose();
+  };
+  return (
+    <Modal title="เปลี่ยนรหัสผ่าน" onClose={onClose}
+      footer={<>
+        <button className="btn btn-ghost" onClick={onClose} disabled={busy}>ยกเลิก</button>
+        <button className="btn btn-pri" onClick={save} disabled={busy}><Icon name="check" size={15} />{busy ? "กำลังบันทึก…" : "บันทึก"}</button>
+      </>}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        {err && <div style={{ padding: "10px 13px", borderRadius: 10, background: "var(--red-soft)", color: "#be123c", fontSize: 13 }}>{err}</div>}
+        <div className="field"><label>รหัสผ่านใหม่</label><input className="input" type="password" value={p1} onChange={(e) => setP1(e.target.value)} placeholder="อย่างน้อย 6 ตัวอักษร" /></div>
+        <div className="field"><label>ยืนยันรหัสผ่านใหม่</label><input className="input" type="password" value={p2} onChange={(e) => setP2(e.target.value)} /></div>
+      </div>
+    </Modal>
   );
 }
 

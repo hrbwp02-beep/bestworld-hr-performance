@@ -161,6 +161,10 @@ function Evaluation({ ctx }) {
         kpi: kScore, comp: cScore, status: finalStatus === "review" ? "review" : "progress", history: e.history || [],
       }).eq("id", e.id);
       if (upErr) { toast("บันทึกคะแนนพนักงานไม่สำเร็จ: " + upErr.message, "x"); return; }
+      if (isSubmit) {
+        const s0 = APPROVAL_STAGES[0];
+        await window.notify(window.empEmail(s0 && s0.evaluator_id), "info", "มีผลประเมินรออนุมัติ", e.name + " (" + deptShort(e.dept) + ") ส่งผลประเมินรอการอนุมัติจากคุณ");
+      }
       await ctx.refresh();
       if (finalStatus === "review") { setSubmitted(true); toast("ส่งเข้าสายอนุมัติแล้ว → " + APPROVAL_STAGES[0].label, "checkCircle"); }
       else toast("บันทึกฉบับร่างแล้ว", "check");
@@ -189,6 +193,8 @@ function Evaluation({ ctx }) {
       if (!next) {
         const histVal = Math.round((rec.kpi_score || 0) * 0.6 + (rec.comp_score || 0) * 0.4);
         await window.sb.from("employees").update({ status: "done", history: [...(e.history || []), histVal] }).eq("id", e.id);
+      } else {
+        await window.notify(window.empEmail(next.evaluator_id), "info", "มีผลประเมินรออนุมัติ", e.name + " (" + deptShort(e.dept) + ") รอการอนุมัติขั้น " + next.label);
       }
       await ctx.refresh();
       toast(next ? ("อนุมัติขั้น " + curLabel + " แล้ว → " + next.label) : "อนุมัติครบทุกขั้น เสร็จสมบูรณ์", "checkCircle");
@@ -204,6 +210,8 @@ function Evaluation({ ctx }) {
       const log = [...(rec.approvals || []), { stage: rec.stage || "", act: "ตีกลับให้แก้ไข", by: who.name, at: new Date().toISOString(), note: comment.trim() || null }];
       await window.sb.from("evaluations").update({ stage: "draft", status: "progress", approvals: log }).eq("employee_id", e.id).eq("cycle_year", cy);
       await window.sb.from("employees").update({ status: "progress" }).eq("id", e.id);
+      const s0 = APPROVAL_STAGES[0];
+      await window.notify(window.empEmail(s0 && s0.evaluator_id), "warn", "ผลประเมินถูกตีกลับ", e.name + " (" + deptShort(e.dept) + ") ถูกตีกลับให้แก้ไข" + (comment.trim() ? " · " + comment.trim() : ""));
       await ctx.refresh();
       toast("ตีกลับให้แก้ไขแล้ว", "check");
     } catch (err) { toast("ไม่สำเร็จ: " + (err && err.message ? err.message : String(err)), "x"); }
@@ -410,7 +418,7 @@ function Evaluation({ ctx }) {
                 <div className="field" style={{ marginTop: 8 }}><label style={{ fontSize: 12.5 }}>ผู้ประเมิน (หัวหน้างาน) · รหัส</label>
                   <select className="select" value={evalCode} onChange={(ev) => setEvalCode(ev.target.value)} disabled={isApproved}>
                     <option value="">— ไม่ระบุ —</option>
-                    {(EMPLOYEES || []).slice().sort((a, b) => (a.dept || "").localeCompare(b.dept || "")).map((x) => <option key={x.id} value={x.id}>{x.id} · {x.name} ({deptShort(x.dept)})</option>)}
+                    {window.scopeEmployees(EMPLOYEES || []).slice().sort((a, b) => (a.dept || "").localeCompare(b.dept || "")).map((x) => <option key={x.id} value={x.id}>{x.id} · {x.name} ({deptShort(x.dept)})</option>)}
                   </select>
                   {evalCode && <span className="muted" style={{ fontSize: 11.5 }}>รหัส {evalCode} · {evalCodeName}</span>}
                 </div>

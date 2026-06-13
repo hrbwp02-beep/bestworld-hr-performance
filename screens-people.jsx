@@ -479,6 +479,43 @@ function EmployeeList({ ctx }) {
 function EmployeeProfile({ ctx, empId }) {
   const e = EMPLOYEES.find((x) => x.id === empId) || EMPLOYEES[0];
   const [editing, setEditing] = useS2(false);
+  const [discModal, setDiscModal] = useS2(null);
+  const [trainModal, setTrainModal] = useS2(null);
+  const isHR = ["admin", "hr"].includes((window.CURRENT_USER || {}).role);
+  const myDisc = (window.DISCIPLINARY || []).filter((d) => d.employee_id === e.id);
+  const myTrain = (window.TRAININGS || []).filter((t) => t.employee_id === e.id);
+  const delDisc = async (d) => { if (!window.confirm("ลบรายการนี้?")) return; await window.sb.from("disciplinary").delete().eq("id", d.id); await window.sb.from("employees").update({ warnings: Math.max(0, myDisc.length - 1) }).eq("id", e.id); await window.audit("ลบใบเตือน", "disciplinary", { employee_id: e.id }); await ctx.refresh(); toast("ลบแล้ว", "check"); };
+  const delTrain = async (t) => { if (!window.confirm("ลบรายการนี้?")) return; await window.sb.from("trainings").delete().eq("id", t.id); await ctx.refresh(); toast("ลบแล้ว", "check"); };
+  // พิมพ์ผลประเมินรายบุคคลเป็น PDF (เปิดหน้าพิมพ์)
+  const printResult = () => {
+    const ev2 = e.eval || {};
+    const row = (lbl, val) => `<tr><td style="padding:6px 10px;color:#555">${lbl}</td><td style="padding:6px 10px;font-weight:600">${val}</td></tr>`;
+    const itemsHtml = (arr, title) => arr && arr.length ? `<h3 style="margin:14px 0 6px">${title}</h3><table style="width:100%;border-collapse:collapse;font-size:13px">${arr.map((x) => `<tr><td style="padding:4px 10px;border-bottom:1px solid #eee">${x.name}</td><td style="padding:4px 10px;border-bottom:1px solid #eee;text-align:right">${x.score != null ? x.score : "-"}</td></tr>`).join("")}</table>` : "";
+    const html = `<!doctype html><html><head><meta charset="utf-8"><title>ผลประเมิน ${e.name}</title>
+      <style>body{font-family:'Sarabun','TH Sarabun New',Tahoma,sans-serif;color:#1a1a1a;padding:30px;max-width:780px;margin:auto}h1{font-size:20px;margin:0}h2{font-size:15px;color:#2563eb}table{border-collapse:collapse}@media print{button{display:none}}</style></head>
+      <body>
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #2563eb;padding-bottom:12px">
+        <div><h1>แบบสรุปผลการประเมินผลการปฏิบัติงาน</h1><div style="color:#666">บริษัท เบสท์เวิลด์ อินเตอร์พลาส จำกัด · ${(window.APP_SETTINGS||{}).cycle_name||"รอบประเมิน"}</div></div>
+        <button onclick="window.print()" style="padding:8px 16px;background:#2563eb;color:#fff;border:none;border-radius:8px;cursor:pointer">พิมพ์ / บันทึก PDF</button>
+      </div>
+      <table style="width:100%;margin-top:14px">
+        ${row("ชื่อ-นามสกุล", e.name)}${row("รหัสพนักงาน", e.id)}${row("ตำแหน่ง", e.position)}${row("หน่วยงาน", deptName(e.dept))}
+        ${row("ผู้ประเมิน", (ev2.evaluator||e.reviewer||"-"))}
+      </table>
+      <h2 style="margin-top:18px">คะแนนรวม: ${ev2.overall != null ? ev2.overall : (e.overall||"-")} · เกรด ${ev2.grade || (e.band&&e.band.label)||"-"}</h2>
+      ${itemsHtml(ev2.items && ev2.items.a, "ส่วน A · ผลงาน/KPI")}
+      ${itemsHtml(ev2.items && ev2.items.b, "ส่วน B · สมรรถนะ")}
+      ${ev2.comment ? `<h3 style="margin:14px 0 6px">ความเห็นผู้ประเมิน</h3><div style="font-size:13px">${ev2.comment}</div>` : ""}
+      <div style="margin-top:50px;display:flex;justify-content:space-around;text-align:center;font-size:13px">
+        <div>..............................<br>ผู้ถูกประเมิน<br>(${e.name})</div>
+        <div>..............................<br>ผู้ประเมิน<br>(${ev2.evaluator||e.reviewer||"-"})</div>
+        <div>..............................<br>ผู้อนุมัติ (HR)</div>
+      </div>
+      </body></html>`;
+    const w = window.open("", "_blank");
+    if (!w) { toast("เบราว์เซอร์บล็อกหน้าต่างพิมพ์ — อนุญาต popup แล้วลองใหม่", "x"); return; }
+    w.document.write(html); w.document.close();
+  };
   const delEmp = async () => {
     if (!window.confirm("ลบพนักงาน " + e.name + " ออกจากระบบ?")) return;
     const { error } = await window.sb.from("employees").delete().eq("id", e.id);
@@ -548,8 +585,9 @@ function EmployeeProfile({ ctx, empId }) {
           </div>
           <div className="row wrap" style={{ gap: 9, alignSelf: "flex-start" }}>
             <button className="btn btn-ghost" onClick={() => { downloadCSV("employee_" + e.id + ".csv", ["รหัส", "ชื่อ", "หน่วยงาน", "ตำแหน่ง", "ระดับ", "อายุงาน", "สถานะ", "KPI", "Competency", "คะแนนรวม", "ผู้ประเมิน"], [[e.id, e.name, deptName(e.dept), e.position, e.level, e.tenure, (statusMeta(e.status) || {}).label || e.status, e.kpi, e.comp, e.overall, e.reviewer]]); toast("ส่งออกข้อมูลพนักงานแล้ว", "download"); }}><Icon name="download" size={16} />Export</button>
-            <button className="btn btn-ghost" onClick={() => setEditing(true)}><Icon name="edit" size={16} />แก้ไข</button>
-            <button className="btn btn-ghost" onClick={delEmp} style={{ color: "var(--red)" }}><Icon name="x" size={16} />ลบ</button>
+            {!notRated && <button className="btn btn-ghost" onClick={printResult}><Icon name="file" size={16} />พิมพ์ผล (PDF)</button>}
+            {isHR && <button className="btn btn-ghost" onClick={() => setEditing(true)}><Icon name="edit" size={16} />แก้ไข</button>}
+            {isHR && <button className="btn btn-ghost" onClick={delEmp} style={{ color: "var(--red)" }}><Icon name="x" size={16} />ลบ</button>}
             <button className="btn btn-pri" onClick={() => ctx.startEval(e.id)}><Icon name="eval" size={16} />ประเมินผล</button>
           </div>
         </div>
@@ -662,7 +700,130 @@ function EmployeeProfile({ ctx, empId }) {
           </div>
         </div>
       </div>
+
+      {/* แผนพัฒนารายบุคคล (IDP) + การรับทราบผล */}
+      <div className="grid" style={{ gridTemplateColumns: "1fr 1fr" }}>
+        <Card>
+          <CardHead title="แผนพัฒนารายบุคคล (IDP)" sub="กำหนดในฟอร์มประเมิน แท็บ เป้าหมาย & พัฒนา" />
+          <div className="card-pad">
+            {(ev && ev.idp && ev.idp.length) ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {ev.idp.map((p, i) => (
+                  <div key={i} className="row" style={{ gap: 10, alignItems: "flex-start" }}>
+                    <span style={{ color: "#0d9488", flex: "0 0 auto", marginTop: 2 }}><Icon name="target" size={15} /></span>
+                    <div><div style={{ fontWeight: 600, fontSize: 13.5 }}>{p.area}</div><div className="muted" style={{ fontSize: 12.5 }}>{p.action}{p.due ? " · ภายใน " + p.due : ""}</div></div>
+                  </div>
+                ))}
+              </div>
+            ) : <div className="muted" style={{ textAlign: "center", padding: "20px 0", fontSize: 13 }}>ยังไม่มีแผนพัฒนา</div>}
+          </div>
+        </Card>
+        <Card>
+          <CardHead title="การรับทราบผลประเมิน" sub="พนักงานยืนยันผ่านหน้า ดูผลของฉัน" />
+          <div className="card-pad">
+            {ev && ev.ack_status === "acknowledged" ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <Badge cls="b-green" dot>รับทราบผลแล้ว{ev.ack_at ? " · " + new Date(ev.ack_at).toLocaleDateString("th-TH") : ""}</Badge>
+                {ev.ack_comment && <div style={{ fontSize: 13, background: "var(--surface-2)", borderRadius: 8, padding: "8px 12px" }}>“{ev.ack_comment}”</div>}
+              </div>
+            ) : ev && ev.ack_status === "appealed" ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <Badge cls="b-amber" dot>ขออุทธรณ์ผล</Badge>
+                {ev.ack_comment && <div style={{ fontSize: 13, background: "var(--surface-2)", borderRadius: 8, padding: "8px 12px" }}>“{ev.ack_comment}”</div>}
+              </div>
+            ) : <div className="muted" style={{ textAlign: "center", padding: "20px 0", fontSize: 13 }}>ยังไม่รับทราบผล</div>}
+          </div>
+        </Card>
+      </div>
+
+      {/* ใบเตือน/วินัย + ประวัติการอบรม */}
+      <div className="grid" style={{ gridTemplateColumns: "1fr 1fr" }}>
+        <Card>
+          <CardHead title="ใบเตือน / วินัย" sub={myDisc.length + " รายการ"} right={isHR ? <button className="btn btn-soft btn-sm" onClick={() => setDiscModal({})}><Icon name="plus" size={14} />เพิ่ม</button> : null} />
+          <div style={{ padding: "8px 12px" }}>
+            {myDisc.length === 0 ? <div className="muted" style={{ textAlign: "center", padding: "18px 0", fontSize: 13 }}>ไม่มีประวัติใบเตือน</div> : myDisc.map((d) => (
+              <div key={d.id} className="between" style={{ padding: "10px 6px", borderBottom: "1px solid var(--border-2)", gap: 10 }}>
+                <div className="row" style={{ gap: 10, minWidth: 0 }}><Icon name="alert" size={16} color="#e11d48" /><div style={{ minWidth: 0 }}><div style={{ fontWeight: 600, fontSize: 13 }}>{d.type || "ใบเตือน"}{d.date ? " · " + d.date : ""}</div><div className="muted" style={{ fontSize: 12 }}>{d.reason}</div></div></div>
+                {isHR && <button className="icon-btn" style={{ width: 30, height: 30 }} onClick={() => delDisc(d)}><Icon name="x" size={14} color="var(--red)" /></button>}
+              </div>
+            ))}
+          </div>
+        </Card>
+        <Card>
+          <CardHead title="ประวัติการอบรม / ใบรับรอง" sub={myTrain.length + " รายการ"} right={isHR ? <button className="btn btn-soft btn-sm" onClick={() => setTrainModal({})}><Icon name="plus" size={14} />เพิ่ม</button> : null} />
+          <div style={{ padding: "8px 12px" }}>
+            {myTrain.length === 0 ? <div className="muted" style={{ textAlign: "center", padding: "18px 0", fontSize: 13 }}>ยังไม่มีประวัติการอบรม</div> : myTrain.map((t) => (
+              <div key={t.id} className="between" style={{ padding: "10px 6px", borderBottom: "1px solid var(--border-2)", gap: 10 }}>
+                <div className="row" style={{ gap: 10, minWidth: 0 }}><Icon name="award" size={16} color="#0d9488" /><div style={{ minWidth: 0 }}><div style={{ fontWeight: 600, fontSize: 13 }}>{t.name}</div><div className="muted" style={{ fontSize: 12 }}>{[t.provider, t.date, t.hours ? t.hours + " ชม." : null, t.result].filter(Boolean).join(" · ")}</div></div></div>
+                {isHR && <button className="icon-btn" style={{ width: 30, height: 30 }} onClick={() => delTrain(t)}><Icon name="x" size={14} color="var(--red)" /></button>}
+              </div>
+            ))}
+          </div>
+        </Card>
+      </div>
+
+      {discModal && <DisciplinaryModal emp={e} ctx={ctx} count={myDisc.length} onClose={() => setDiscModal(null)} />}
+      {trainModal && <TrainingModal emp={e} ctx={ctx} onClose={() => setTrainModal(null)} />}
     </div>
+  );
+}
+
+/* ---------- เพิ่มใบเตือน/วินัย ---------- */
+function DisciplinaryModal({ emp, ctx, count, onClose }) {
+  const [f, setF] = useS2({ date: new Date().toISOString().slice(0, 10), type: "ตักเตือนวาจา", reason: "" });
+  const [busy, setBusy] = useS2(false);
+  const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
+  const save = async () => {
+    if (!f.reason.trim()) { toast("กรุณากรอกเหตุผล", "x"); return; }
+    setBusy(true);
+    const { error } = await window.sb.from("disciplinary").insert({ employee_id: emp.id, date: f.date || null, type: f.type, reason: f.reason.trim(), created_by: (window.CURRENT_USER || {}).email });
+    if (error) { setBusy(false); toast("บันทึกไม่สำเร็จ: " + error.message, "x"); return; }
+    await window.sb.from("employees").update({ warnings: (count || 0) + 1 }).eq("id", emp.id);
+    await window.audit("เพิ่มใบเตือน", "disciplinary", { employee_id: emp.id, type: f.type });
+    await ctx.refresh(); toast("บันทึกใบเตือนแล้ว", "check"); onClose();
+  };
+  return (
+    <Modal title={"เพิ่มใบเตือน/วินัย · " + emp.name} onClose={onClose}
+      footer={<><button className="btn btn-ghost" onClick={onClose} disabled={busy}>ยกเลิก</button><button className="btn btn-pri" onClick={save} disabled={busy}><Icon name="check" size={15} />บันทึก</button></>}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        <div className="grid" style={{ gridTemplateColumns: "1fr 1fr" }}>
+          <div className="field"><label>วันที่</label><input className="input" type="date" value={f.date} onChange={(e) => set("date", e.target.value)} /></div>
+          <div className="field"><label>ประเภท</label><select className="select" value={f.type} onChange={(e) => set("type", e.target.value)}>{["ตักเตือนวาจา", "ตักเตือนลายลักษณ์อักษร", "พักงาน", "อื่นๆ"].map((x) => <option key={x} value={x}>{x}</option>)}</select></div>
+        </div>
+        <div className="field"><label>เหตุผล / รายละเอียด *</label><textarea className="input" rows={3} value={f.reason} onChange={(e) => set("reason", e.target.value)} /></div>
+      </div>
+    </Modal>
+  );
+}
+
+/* ---------- เพิ่มประวัติการอบรม ---------- */
+function TrainingModal({ emp, ctx, onClose }) {
+  const [f, setF] = useS2({ name: "", provider: "", date: new Date().toISOString().slice(0, 10), hours: "", result: "ผ่าน" });
+  const [busy, setBusy] = useS2(false);
+  const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
+  const save = async () => {
+    if (!f.name.trim()) { toast("กรุณากรอกชื่อหลักสูตร", "x"); return; }
+    setBusy(true);
+    const { error } = await window.sb.from("trainings").insert({ employee_id: emp.id, name: f.name.trim(), provider: f.provider.trim() || null, date: f.date || null, hours: f.hours ? Number(f.hours) : null, result: f.result, created_by: (window.CURRENT_USER || {}).email });
+    if (error) { setBusy(false); toast("บันทึกไม่สำเร็จ: " + error.message, "x"); return; }
+    await window.audit("เพิ่มประวัติอบรม", "trainings", { employee_id: emp.id, name: f.name.trim() });
+    await ctx.refresh(); toast("บันทึกประวัติอบรมแล้ว", "check"); onClose();
+  };
+  return (
+    <Modal title={"เพิ่มประวัติการอบรม · " + emp.name} onClose={onClose}
+      footer={<><button className="btn btn-ghost" onClick={onClose} disabled={busy}>ยกเลิก</button><button className="btn btn-pri" onClick={save} disabled={busy}><Icon name="check" size={15} />บันทึก</button></>}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        <div className="field"><label>ชื่อหลักสูตร *</label><input className="input" value={f.name} onChange={(e) => set("name", e.target.value)} placeholder="เช่น ความปลอดภัยในการทำงาน" /></div>
+        <div className="grid" style={{ gridTemplateColumns: "1fr 1fr" }}>
+          <div className="field"><label>ผู้จัด/สถาบัน</label><input className="input" value={f.provider} onChange={(e) => set("provider", e.target.value)} /></div>
+          <div className="field"><label>วันที่</label><input className="input" type="date" value={f.date} onChange={(e) => set("date", e.target.value)} /></div>
+        </div>
+        <div className="grid" style={{ gridTemplateColumns: "1fr 1fr" }}>
+          <div className="field"><label>จำนวนชั่วโมง</label><input className="input" type="number" value={f.hours} onChange={(e) => set("hours", e.target.value)} /></div>
+          <div className="field"><label>ผลการอบรม</label><select className="select" value={f.result} onChange={(e) => set("result", e.target.value)}>{["ผ่าน", "ไม่ผ่าน", "รอผล"].map((x) => <option key={x} value={x}>{x}</option>)}</select></div>
+        </div>
+      </div>
+    </Modal>
   );
 }
 

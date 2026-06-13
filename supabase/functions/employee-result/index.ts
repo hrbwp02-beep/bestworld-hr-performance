@@ -46,10 +46,28 @@ Deno.serve(async (req: Request) => {
     const ym = String(st?.cycle_name ?? "").match(/(25\d{2}|20\d{2})/);
     if (ym) cycleYear = Number(ym[1]);
 
+    // === การกระทำจากพนักงาน (ยืนยันตัวตนด้วยรหัส+วันเกิดแล้วด้านบน) ===
+    const action = String(body?.action ?? "lookup");
+    if (action === "acknowledge") {
+      const ackComment = String(body?.comment ?? "").trim();
+      const ackStatus = body?.appeal ? "appealed" : "acknowledged";
+      const { data: evRow } = await db.from("evaluations").select("id").eq("employee_id", code).eq("cycle_year", cycleYear).maybeSingle();
+      if (!evRow) return reply({ found: true, ok: false, error: "ยังไม่มีผลประเมินให้รับทราบ" });
+      await db.from("evaluations").update({ ack_status: ackStatus, ack_comment: ackComment || null, ack_at: new Date().toISOString() }).eq("id", evRow.id);
+      return reply({ found: true, ok: true });
+    }
+    if (action === "self_assess") {
+      const self = body?.self ?? null; // { overall, comment }
+      const { data: evRow } = await db.from("evaluations").select("id").eq("employee_id", code).eq("cycle_year", cycleYear).maybeSingle();
+      if (evRow) await db.from("evaluations").update({ self_assessment: self, self_at: new Date().toISOString() }).eq("id", evRow.id);
+      else await db.from("evaluations").insert({ employee_id: code, cycle_year: cycleYear, status: "progress", stage: "draft", self_assessment: self, self_at: new Date().toISOString() });
+      return reply({ found: true, ok: true });
+    }
+
     const { data: dept } = await db.from("departments").select("name").eq("id", emp.dept).maybeSingle();
     const { data: jd } = emp.jd_id ? await db.from("jd_library").select("id, title").eq("id", emp.jd_id).maybeSingle() : { data: null };
     const { data: ev } = await db.from("evaluations")
-      .select("a_score, b_score, kpi_score, comp_score, overall, grade, bonus_months, raise_pct, has_warning, status, stage, evaluator, evaluator_code, comment, items, cycle_year")
+      .select("a_score, b_score, kpi_score, comp_score, overall, grade, bonus_months, raise_pct, has_warning, status, stage, evaluator, evaluator_code, comment, items, cycle_year, self_assessment, self_at, ack_status, ack_comment, ack_at, goals, idp")
       .eq("employee_id", code).eq("cycle_year", cycleYear).maybeSingle();
 
     return reply({
@@ -68,6 +86,9 @@ Deno.serve(async (req: Request) => {
         status: ev.status, stage: ev.stage,
         evaluator: ev.evaluator, evaluator_code: ev.evaluator_code,
         comment: ev.comment, items: ev.items,
+        self_assessment: ev.self_assessment, self_at: ev.self_at,
+        ack_status: ev.ack_status, ack_comment: ev.ack_comment, ack_at: ev.ack_at,
+        goals: ev.goals, idp: ev.idp,
       } : null,
     });
   } catch (e) {

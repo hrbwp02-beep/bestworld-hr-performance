@@ -95,6 +95,25 @@ function Evaluation({ ctx }) {
   const evalSup = (EMPLOYEES || []).find((x) => x.id === _firstEvaluator) || null; // ผู้ประเมินขั้นแรก
   const [evalCode, setEvalCode] = useS3(_firstEvaluator);
   const evalCodeName = ((EMPLOYEES || []).find((x) => x.id === evalCode) || {}).name || e.reviewer || "";
+  const [goals, setGoals] = useS3(() => (e.eval && Array.isArray(e.eval.goals)) ? e.eval.goals : []);
+  const [idp, setIdp] = useS3(() => (e.eval && Array.isArray(e.eval.idp)) ? e.eval.idp : []);
+  const [savingPlan, setSavingPlan] = useS3(false);
+  const savePlan = async () => {
+    if (savingPlan) return; setSavingPlan(true);
+    try {
+      const cy = +(window.CYCLE_YEAR || 2569);
+      const cleanGoals = goals.filter((g) => (g.name || "").trim());
+      const cleanIdp = idp.filter((p) => (p.area || "").trim());
+      const payload = { goals: cleanGoals, goal_status: cleanGoals.length ? "agreed" : "none", goal_at: new Date().toISOString(), idp: cleanIdp };
+      let error;
+      if (e.eval) ({ error } = await window.sb.from("evaluations").update(payload).eq("employee_id", e.id).eq("cycle_year", cy));
+      else ({ error } = await window.sb.from("evaluations").insert({ employee_id: e.id, cycle_year: cy, status: "progress", stage: "draft", ...payload }));
+      if (error) { toast("บันทึกไม่สำเร็จ: " + error.message, "x"); return; }
+      await window.audit("บันทึกเป้าหมาย/IDP", "evaluations", { employee_id: e.id });
+      await ctx.refresh(); toast("บันทึกเป้าหมาย & แผนพัฒนาแล้ว", "check");
+    } finally { setSavingPlan(false); }
+  };
+  const selfA = (e.eval && e.eval.self_assessment) || null; // ผลประเมินตนเองของพนักงาน (ถ้ามี)
   const [pickDept, setPickDept] = useS3(e.dept);
   const [pickSec, setPickSec] = useS3(window.sectionOf(e.position));
   const deptEmps = (EMPLOYEES || []).filter((emp) => emp.dept === pickDept);
@@ -165,6 +184,7 @@ function Evaluation({ ctx }) {
         const s0 = APPROVAL_STAGES[0];
         await window.notify(window.empEmail(s0 && s0.evaluator_id), "info", "มีผลประเมินรออนุมัติ", e.name + " (" + deptShort(e.dept) + ") ส่งผลประเมินรอการอนุมัติจากคุณ");
       }
+      await window.audit(isSubmit ? "ส่งผลประเมินเข้าสายอนุมัติ" : "บันทึกร่างผลประเมิน", "evaluations", { employee_id: e.id, overall: Math.round(overall) });
       await ctx.refresh();
       if (finalStatus === "review") { setSubmitted(true); toast("ส่งเข้าสายอนุมัติแล้ว → " + APPROVAL_STAGES[0].label, "checkCircle"); }
       else toast("บันทึกฉบับร่างแล้ว", "check");
@@ -196,6 +216,7 @@ function Evaluation({ ctx }) {
       } else {
         await window.notify(window.empEmail(next.evaluator_id), "info", "มีผลประเมินรออนุมัติ", e.name + " (" + deptShort(e.dept) + ") รอการอนุมัติขั้น " + next.label);
       }
+      await window.audit("อนุมัติผลประเมิน (" + curLabel + ")", "evaluations", { employee_id: e.id });
       await ctx.refresh();
       toast(next ? ("อนุมัติขั้น " + curLabel + " แล้ว → " + next.label) : "อนุมัติครบทุกขั้น เสร็จสมบูรณ์", "checkCircle");
     } catch (err) { toast("อนุมัติไม่สำเร็จ: " + (err && err.message ? err.message : String(err)), "x"); }
@@ -219,6 +240,7 @@ function Evaluation({ ctx }) {
   };
 
   const tabs = [
+    { id: "plan", label: "เป้าหมาย & พัฒนา" },
     { id: "a", label: "A · ผลงาน/KPI (70%)", count: aTotal },
     { id: "b", label: "B · สมรรถนะ (30%)", count: bTotal },
     { id: "approve", label: "สรุป & อนุมัติ" },
@@ -289,6 +311,52 @@ function Evaluation({ ctx }) {
 
       <Card>
         <div style={{ padding: "0 8px" }}><Tabs tabs={tabs} active={tab} onChange={setTab} /></div>
+
+        {/* แท็บ เป้าหมายต้นรอบ + แผนพัฒนา (IDP) + ผลประเมินตนเอง */}
+        {tab === "plan" && (
+          <div className="card-pad fade-up" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+            {selfA && (
+              <div style={{ background: "var(--accent-soft)", borderRadius: 10, padding: "10px 14px", fontSize: 12.5, color: "var(--accent-700)" }}>
+                <b>พนักงานประเมินตนเองแล้ว</b>{e.eval.self_at ? " · " + new Date(e.eval.self_at).toLocaleDateString("th-TH") : ""}
+                {selfA.overall != null ? " · คะแนนที่ประเมินตนเอง " + selfA.overall : ""}{selfA.comment ? " · “" + selfA.comment + "”" : ""}
+              </div>
+            )}
+            {/* เป้าหมายต้นรอบ */}
+            <div>
+              <div className="between" style={{ marginBottom: 8 }}>
+                <b style={{ fontSize: 14 }}><Icon name="target" size={15} color="#2563eb" /> เป้าหมายที่ตกลงต้นรอบ</b>
+                <button className="btn btn-soft btn-sm" onClick={() => setGoals((p) => [...p, { name: "", target: "" }])}><Icon name="plus" size={13} />เพิ่มเป้าหมาย</button>
+              </div>
+              {goals.length === 0 && <div className="muted" style={{ fontSize: 12.5, padding: "4px 2px 10px" }}>ยังไม่กำหนดเป้าหมาย — ใช้ตกลงร่วมกับพนักงานตอนต้นรอบ</div>}
+              {goals.map((g, i) => (
+                <div key={i} className="row" style={{ gap: 8, marginBottom: 8 }}>
+                  <input className="input" style={{ flex: 2 }} placeholder="เป้าหมาย/ตัวชี้วัด" value={g.name} onChange={(ev) => setGoals((p) => p.map((x, j) => j === i ? { ...x, name: ev.target.value } : x))} />
+                  <input className="input" style={{ flex: 1 }} placeholder="ค่าเป้าหมาย" value={g.target || ""} onChange={(ev) => setGoals((p) => p.map((x, j) => j === i ? { ...x, target: ev.target.value } : x))} />
+                  <button className="icon-btn" style={{ width: 32, height: 32 }} onClick={() => setGoals((p) => p.filter((_, j) => j !== i))}><Icon name="x" size={14} color="var(--red)" /></button>
+                </div>
+              ))}
+            </div>
+            {/* แผนพัฒนา IDP */}
+            <div>
+              <div className="between" style={{ marginBottom: 8 }}>
+                <b style={{ fontSize: 14 }}><Icon name="award" size={15} color="#0d9488" /> แผนพัฒนารายบุคคล (IDP)</b>
+                <button className="btn btn-soft btn-sm" onClick={() => setIdp((p) => [...p, { area: "", action: "", due: "" }])}><Icon name="plus" size={13} />เพิ่มแผน</button>
+              </div>
+              {idp.length === 0 && <div className="muted" style={{ fontSize: 12.5, padding: "4px 2px 10px" }}>ยังไม่มีแผนพัฒนา — แนะนำกำหนดจากสมรรถนะที่ควรพัฒนา</div>}
+              {idp.map((p, i) => (
+                <div key={i} className="row" style={{ gap: 8, marginBottom: 8 }}>
+                  <input className="input" style={{ flex: 1 }} placeholder="ด้านที่พัฒนา" value={p.area} onChange={(ev) => setIdp((q) => q.map((x, j) => j === i ? { ...x, area: ev.target.value } : x))} />
+                  <input className="input" style={{ flex: 2 }} placeholder="วิธีพัฒนา/หลักสูตร" value={p.action || ""} onChange={(ev) => setIdp((q) => q.map((x, j) => j === i ? { ...x, action: ev.target.value } : x))} />
+                  <input className="input" style={{ flex: 1 }} placeholder="ภายใน" value={p.due || ""} onChange={(ev) => setIdp((q) => q.map((x, j) => j === i ? { ...x, due: ev.target.value } : x))} />
+                  <button className="icon-btn" style={{ width: 32, height: 32 }} onClick={() => setIdp((q) => q.filter((_, j) => j !== i))}><Icon name="x" size={14} color="var(--red)" /></button>
+                </div>
+              ))}
+            </div>
+            <div className="row" style={{ justifyContent: "flex-end" }}>
+              <button className="btn btn-pri" onClick={savePlan} disabled={savingPlan}><Icon name="check" size={15} />{savingPlan ? "กำลังบันทึก…" : "บันทึกเป้าหมาย & แผนพัฒนา"}</button>
+            </div>
+          </div>
+        )}
 
         {/* ส่วน A — ผลงานตามเป้าหมาย / KPI (หน้าที่หลักจาก JD) · น้ำหนัก 70% */}
         {tab === "a" && (

@@ -52,7 +52,8 @@ function Reports({ ctx }) {
   const low = EMPLOYEES.filter((e) => e.overall < 72);
   const heatCols = COMPETENCIES.map((c) => c.name);
   const heatVals = DEPARTMENTS.map((d, di) => COMPETENCIES.map((c, ci) => Math.round(Math.max(58, Math.min(95, d.score + [3,6,-2,-6,8][ci] + (di%3-1)*2)))));
-  const yearCompare = []; // ยังไม่มีข้อมูลย้อนหลัง — จะสะสมจากผลประเมินจริงแต่ละปี
+  // กราฟเทียบรายปี — จากประวัติที่เก็บไว้จริง (ตั้งค่า > เก็บประวัติรอบ)
+  const yearCompare = (window.CYCLE_ARCHIVE || []).map((c) => ({ m: String(c.cycle_year), v: Number(c.avg_score) || 0 }));
   const hasEvalData = EMPLOYEES.some((e) => e.status === "done");
 
   const tabs = [
@@ -490,6 +491,7 @@ function Settings({ ctx }) {
     }).eq("id", 1);
     setBusy(false);
     if (error) { toast("บันทึกไม่สำเร็จ: " + error.message, "x"); return; }
+    await window.audit("บันทึกการตั้งค่าระบบ", "app_settings", { w_kpi: w.kpi, w_comp: w.comp });
     await ctx.refresh();
     toast("บันทึกการตั้งค่าเรียบร้อย", "check");
   };
@@ -530,6 +532,31 @@ function Settings({ ctx }) {
     }
     await ctx.refresh();
     toast("ตั้ง HR (ผู้อนุมัติขั้นสุดท้าย) แล้ว", "check");
+  };
+
+  // ---- จัดการรอบประเมิน: เก็บประวัติ + เตือนผู้ค้าง ----
+  const archiveCycle = async () => {
+    const cy = +(window.CYCLE_YEAR || 2569);
+    if (!window.confirm("เก็บสรุปผลรอบ " + cy + " เข้าประวัติ? (ใช้สำหรับกราฟเปรียบเทียบรายปี)")) return;
+    const emps = window.EMPLOYEES || [];
+    const done = emps.filter((e) => e.status === "done");
+    const scored = emps.filter((e) => e.overall > 0);
+    const avg = scored.length ? Math.round(scored.reduce((a, e) => a + e.overall, 0) / scored.length * 10) / 10 : 0;
+    const byDept = (window.DEPARTMENTS || []).map((d) => { const de = done.filter((e) => e.dept === d.id); return { dept: d.id, name: d.name, n: de.length, score: de.length ? Math.round(de.reduce((a, e) => a + e.overall, 0) / de.length * 10) / 10 : 0 }; });
+    const byGrade = (window.GRADE_DIST || []).map((g) => ({ g: g.g, n: g.n }));
+    await window.sb.from("cycle_archive").delete().eq("cycle_year", cy);
+    const { error } = await window.sb.from("cycle_archive").insert({ cycle_year: cy, total: emps.length, done: done.length, avg_score: avg, by_dept: byDept, by_grade: byGrade });
+    if (error) { toast("บันทึกไม่สำเร็จ: " + error.message, "x"); return; }
+    await window.audit("เก็บประวัติรอบ", "cycle_archive", { cycle_year: cy });
+    await ctx.refresh(); toast("เก็บประวัติรอบ " + cy + " แล้ว", "check");
+  };
+  const remindPending = async () => {
+    const emps = (window.EMPLOYEES || []).filter((e) => e.status !== "done");
+    if (!emps.length) { toast("ทุกคนประเมินเสร็จแล้ว", "check"); return; }
+    let n = 0;
+    for (const e of emps) { const email = window.empEmail(e.supervisor_id); if (email) { await window.notify(email, "warn", "เตือน: ค้างประเมิน", e.name + " (" + deptShort(e.dept) + ") ยังไม่เสร็จสิ้นการประเมิน"); n++; } }
+    await window.audit("ส่งเตือนค้างประเมิน", "notifications", { count: n });
+    toast("ส่งการเตือนถึงผู้ประเมินแล้ว " + n + " รายการ", "check");
   };
 
   const delUser = async (u) => {
@@ -756,6 +783,34 @@ function Settings({ ctx }) {
                 ))}
               </tbody>
             </table>
+          </div>
+        </Card>
+
+        <Card>
+          <CardHead title="จัดการรอบประเมิน" sub="เก็บประวัติรอบ + เตือนผู้ค้างประเมิน" />
+          <div className="card-pad" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div className="between" style={{ border: "1px solid var(--border)", borderRadius: 11, padding: "12px 15px", gap: 10 }}>
+              <div><div style={{ fontWeight: 600, fontSize: 13.5 }}>เก็บประวัติรอบนี้</div><div className="muted" style={{ fontSize: 12 }}>บันทึกคะแนนเฉลี่ย/เกรด เข้าประวัติ เพื่อกราฟเทียบรายปี</div></div>
+              <button className="btn btn-soft btn-sm" onClick={archiveCycle}><Icon name="download" size={14} />เก็บประวัติ</button>
+            </div>
+            <div className="between" style={{ border: "1px solid var(--border)", borderRadius: 11, padding: "12px 15px", gap: 10 }}>
+              <div><div style={{ fontWeight: 600, fontSize: 13.5 }}>เตือนผู้ค้างประเมิน</div><div className="muted" style={{ fontSize: 12 }}>ส่งการแจ้งเตือนถึงผู้ประเมินของพนักงานที่ยังไม่เสร็จ</div></div>
+              <button className="btn btn-soft btn-sm" onClick={remindPending}><Icon name="bell" size={14} />ส่งเตือน</button>
+            </div>
+            <div className="muted" style={{ fontSize: 11.5 }}>ประวัติที่เก็บแล้ว: {(window.CYCLE_ARCHIVE || []).map((c) => c.cycle_year).join(", ") || "ยังไม่มี"}</div>
+          </div>
+        </Card>
+
+        <Card>
+          <CardHead title="บันทึกการใช้งาน (Audit Log)" sub={(window.AUDIT_LOG || []).length + " รายการล่าสุด"} />
+          <div style={{ padding: "8px 12px", maxHeight: 300, overflowY: "auto" }}>
+            {(window.AUDIT_LOG || []).length === 0 ? <div className="muted" style={{ padding: "14px 4px", fontSize: 13 }}>ยังไม่มีบันทึก</div>
+              : (window.AUDIT_LOG || []).map((a) => (
+                <div key={a.id} className="row" style={{ gap: 9, padding: "8px 4px", borderBottom: "1px solid var(--border-2)", fontSize: 12.5 }}>
+                  <Icon name="clock" size={14} color="var(--text-3)" />
+                  <div style={{ minWidth: 0 }}><div style={{ fontWeight: 600 }}>{a.action}{a.entity ? " · " + a.entity : ""}</div><div className="muted" style={{ fontSize: 11 }}>{a.actor_email || "—"} · {a.at ? new Date(a.at).toLocaleString("th-TH") : ""}</div></div>
+                </div>
+              ))}
           </div>
         </Card>
       </div>

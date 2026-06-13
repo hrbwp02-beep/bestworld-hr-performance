@@ -17,6 +17,17 @@ function LoginScreen({ onLogin, logo }) {
   const [look, setLook] = useS1(false);
   const [res, setRes] = useS1(null);
   const [selfErr, setSelfErr] = useS1("");
+  const [actBusy, setActBusy] = useS1(false);
+  const [ackComment, setAckComment] = useS1("");
+  const [selfScore, setSelfScore] = useS1(80);
+  const [selfComment, setSelfComment] = useS1("");
+  const doSelfAction = async (payload, okMsg) => {
+    setActBusy(true); setSelfErr("");
+    const { data, error } = await window.sb.functions.invoke("employee-result", { body: { code: code.trim(), birthdate: dob, ...payload } });
+    setActBusy(false);
+    if (error || !data || !data.ok) { setSelfErr((data && data.error) || "ดำเนินการไม่สำเร็จ"); return; }
+    toast(okMsg, "check"); lookup();
+  };
   const lookup = async (e) => {
     if (e) e.preventDefault();
     if (!code.trim()) { setSelfErr("กรุณากรอกรหัสพนักงาน"); return; }
@@ -174,6 +185,32 @@ function LoginScreen({ onLogin, logo }) {
                     {ev.comment && <div style={{ color: "rgba(255,255,255,.75)", fontSize: 12.5, marginTop: 2 }}>หมายเหตุ: {ev.comment}</div>}
                   </div>
                 </>)}
+
+                {/* รับทราบผล (เมื่ออนุมัติแล้ว) */}
+                {ev && ev.status === "done" && (
+                  ev.ack_status === "acknowledged" ? <div style={{ marginTop: 12 }}><span className="badge" style={{ background: "#16a34a", color: "#fff", fontWeight: 700 }}>✓ รับทราบผลแล้ว</span></div>
+                  : ev.ack_status === "appealed" ? <div style={{ marginTop: 12 }}><span className="badge" style={{ background: "#e08a00", color: "#fff", fontWeight: 700 }}>ขออุทธรณ์ผลแล้ว</span></div>
+                  : <div style={{ marginTop: 14, borderTop: "1px solid rgba(255,255,255,.14)", paddingTop: 12 }}>
+                      <div style={{ fontSize: 12.5, color: "rgba(255,255,255,.7)", marginBottom: 6 }}>กรุณายืนยันการรับทราบผลประเมิน</div>
+                      <textarea className="input" rows={2} placeholder="ความเห็นเพิ่มเติม (ถ้ามี)" value={ackComment} onChange={(e) => setAckComment(e.target.value)} style={{ ...glassInput, paddingLeft: 12 }} />
+                      <div className="row" style={{ gap: 8, marginTop: 8 }}>
+                        <button className="btn btn-pri" disabled={actBusy} style={{ flex: 1 }} onClick={() => doSelfAction({ action: "acknowledge", comment: ackComment }, "รับทราบผลเรียบร้อย")}>รับทราบผล</button>
+                        <button className="btn btn-ghost" disabled={actBusy} onClick={() => doSelfAction({ action: "acknowledge", appeal: true, comment: ackComment }, "ส่งคำขออุทธรณ์แล้ว")} style={{ color: "#ffd5dd" }}>ขออุทธรณ์</button>
+                      </div>
+                    </div>
+                )}
+
+                {/* ประเมินตนเอง (ก่อนหัวหน้าประเมิน) */}
+                {(!ev || ev.status !== "done") && (
+                  ev && ev.self_at ? <div style={{ marginTop: 12 }}><span className="badge" style={{ background: "#2563eb", color: "#fff", fontWeight: 700 }}>✓ ส่งผลประเมินตนเองแล้ว</span></div>
+                  : <div style={{ marginTop: 14, borderTop: "1px solid rgba(255,255,255,.14)", paddingTop: 12 }}>
+                      <div style={{ fontWeight: 700, fontSize: 13.5, marginBottom: 8 }}>ประเมินตนเอง</div>
+                      <label style={{ fontSize: 12, color: "rgba(255,255,255,.7)" }}>คะแนนที่ให้ตัวเอง: <b>{selfScore}</b></label>
+                      <input type="range" min="0" max="100" value={selfScore} onChange={(e) => setSelfScore(+e.target.value)} style={{ width: "100%", accentColor: "#2563eb" }} />
+                      <textarea className="input" rows={2} placeholder="จุดเด่น / สิ่งที่อยากพัฒนา" value={selfComment} onChange={(e) => setSelfComment(e.target.value)} style={{ ...glassInput, paddingLeft: 12, marginTop: 6 }} />
+                      <button className="btn btn-pri" disabled={actBusy} style={{ width: "100%", marginTop: 8 }} onClick={() => doSelfAction({ action: "self_assess", self: { overall: selfScore, comment: selfComment } }, "ส่งผลประเมินตนเองแล้ว")}>ส่งผลประเมินตนเอง</button>
+                    </div>
+                )}
               </div>
             )}
           </div>

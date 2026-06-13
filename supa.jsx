@@ -48,6 +48,13 @@ window.notify = async (recipientEmail, type, title, body) => {
   if (!recipientEmail) return;
   try { await window.sb.from("notifications").insert({ type: type || "info", title, body: body || null, recipient_email: recipientEmail }); } catch (e) { /* ignore */ }
 };
+// บันทึก audit log (ใครทำอะไร) — เงียบถ้าพลาด
+window.audit = async (action, entity, detail) => {
+  try {
+    const email = (window.CURRENT_USER || {}).email || (await window.sb.auth.getUser()).data?.user?.email || null;
+    await window.sb.from("audit_log").insert({ actor_email: email, action, entity: entity || null, detail: detail || null });
+  } catch (e) { /* ignore */ }
+};
 window.markNotifsRead = async () => {
   const email = (window.CURRENT_USER || {}).email; if (!email) return;
   try { await window.sb.from("notifications").update({ read: true }).eq("recipient_email", email).eq("read", false); } catch (e) { /* ignore */ }
@@ -71,6 +78,18 @@ async function loadHRData() {
   results.push(await sb.from("app_settings").select("*").eq("id", 1).maybeSingle());
   const failed = results.filter((r) => r.error);
   if (failed.length) throw new Error(failed.map((r) => r.error.message).join(" · "));
+
+  // ตารางใหม่ (ไม่มีคอลัมน์ sort) — โหลดแยก ไม่ให้ error ทำให้ทั้งระบบล่ม
+  const [disc, trains, cycArc, audit] = await Promise.all([
+    sb.from("disciplinary").select("*").order("date", { ascending: false }),
+    sb.from("trainings").select("*").order("date", { ascending: false }),
+    sb.from("cycle_archive").select("*").order("cycle_year", { ascending: true }),
+    sb.from("audit_log").select("*").order("at", { ascending: false }).limit(50),
+  ]);
+  window.DISCIPLINARY = disc.data || [];
+  window.TRAININGS = trains.data || [];
+  window.CYCLE_ARCHIVE = cycArc.data || [];
+  window.AUDIT_LOG = audit.data || [];
 
   const [
     departments, competencies, empRows, jdLibrary, notifications,

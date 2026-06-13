@@ -52,9 +52,8 @@ function Reports({ ctx }) {
   const low = EMPLOYEES.filter((e) => e.overall < 72);
   const heatCols = COMPETENCIES.map((c) => c.name);
   const heatVals = DEPARTMENTS.map((d, di) => COMPETENCIES.map((c, ci) => Math.round(Math.max(58, Math.min(95, d.score + [3,6,-2,-6,8][ci] + (di%3-1)*2)))));
-  const yearCompare = [
-    { m: "2564", v: 78.1 }, { m: "2565", v: 79.6 }, { m: "2566", v: 81.2 }, { m: "2567", v: 82.9 }, { m: "2568", v: 84.7 },
-  ];
+  const yearCompare = []; // ยังไม่มีข้อมูลย้อนหลัง — จะสะสมจากผลประเมินจริงแต่ละปี
+  const hasEvalData = EMPLOYEES.some((e) => e.status === "done");
 
   const tabs = [
     { id: "ranking", label: "อันดับพนักงาน" },
@@ -125,15 +124,17 @@ function Reports({ ctx }) {
         {tab === "heatmap" && (
           <div className="card-pad fade-up">
             <p className="muted" style={{ marginTop: 0, fontSize: 13.5 }}>คะแนนเฉลี่ยสมรรถนะแต่ละหน่วยงาน · สีเขียว = สูง / สีแดง = ต่ำ</p>
-            <Heatmap rows={DEPARTMENTS.map((d) => d.short)} cols={heatCols} values={heatVals} />
+            {hasEvalData ? <Heatmap rows={DEPARTMENTS.map((d) => d.short)} cols={heatCols} values={heatVals} />
+              : <div className="muted" style={{ padding: "24px 10px", fontSize: 13, textAlign: "center" }}>ยังไม่มีผลการประเมิน — ข้อมูลจะแสดงเมื่อมีการประเมินในรอบนี้</div>}
           </div>
         )}
 
         {tab === "yoy" && (
           <div className="card-pad fade-up grid" style={{ gridTemplateColumns: "1.4fr 1fr" }}>
             <div>
-              <b style={{ display: "block", marginBottom: 12 }}>คะแนนเฉลี่ยองค์กรย้อนหลัง 5 ปี</b>
-              <LineChart data={yearCompare} height={260} min={74} />
+              <b style={{ display: "block", marginBottom: 12 }}>คะแนนเฉลี่ยองค์กรย้อนหลัง</b>
+              {yearCompare.length ? <LineChart data={yearCompare} height={260} min={74} />
+                : <div className="muted" style={{ padding: "24px 10px", fontSize: 13 }}>ยังไม่มีข้อมูลย้อนหลัง — ระบบจะสะสมคะแนนเฉลี่ยของแต่ละปีหลังปิดรอบประเมิน</div>}
             </div>
             <div>
               <b style={{ display: "block", marginBottom: 12 }}>เปลี่ยนแปลงรายหน่วยงาน (YoY)</b>
@@ -228,11 +229,12 @@ function Calibration({ ctx }) {
     { id: "forced", label: "Forced Ranking" },
     { id: "successor", label: "ผู้สืบทอดตำแหน่ง" },
   ];
-  const successors = [
-    { role: "ผู้จัดการฝ่ายผลิต", current: "สมชาย ศรีสุข", ready: [{ id: "E1001", t: "พร้อมทันที" }, { id: "E1004", t: "1-2 ปี" }] },
-    { role: "ผู้จัดการแผนก QC", current: "สุดารัตน์ วงศ์ทอง", ready: [{ id: "E1006", t: "พร้อมทันที" }] },
-    { role: "ผู้จัดการ R&D", current: "กนกวรรณ มั่นคง", ready: [{ id: "E1018", t: "1-2 ปี" }] },
-  ];
+  // ผู้สืบทอดตำแหน่ง — คำนวณจากโครงสร้างจริง: ผู้จัดการปัจจุบันของหน่วยงาน + หัวหน้างานในหน่วยงานเป็นผู้สืบทอด
+  const successors = (window.DEPARTMENTS || []).filter((d) => d.manager_id).map((d) => {
+    const mgr = EMPLOYEES.find((e) => e.id === d.manager_id);
+    const ready = EMPLOYEES.filter((e) => e.dept === d.id && e.level === "หัวหน้างาน").map((e) => ({ id: e.id, t: "ผู้สืบทอดที่มีศักยภาพ" }));
+    return { role: "ผู้จัดการ" + (d.short ? " " + d.short : ""), current: mgr ? mgr.name : "—", ready };
+  }).filter((s) => s.ready.length);
 
   return (
     <div className="grid">
@@ -283,6 +285,7 @@ function Calibration({ ctx }) {
         {tab === "successor" && (
           <div className="card-pad fade-up" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             <p className="muted" style={{ marginTop: 0, fontSize: 13.5 }}>แผนผู้สืบทอดตำแหน่งสำคัญ (Succession Planning)</p>
+            {successors.length === 0 && <div className="muted" style={{ padding: "16px 10px", fontSize: 13 }}>ยังไม่มีข้อมูลผู้สืบทอด — กำหนดผู้จัดการ/หัวหน้างานรายหน่วยงานได้ที่หน้าตั้งค่า</div>}
             {successors.map((s, i) => (
               <div key={i} style={{ border: "1px solid var(--border)", borderRadius: 14, padding: 18 }}>
                 <div className="between wrap" style={{ gap: 12 }}>

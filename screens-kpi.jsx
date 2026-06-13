@@ -144,7 +144,11 @@ function KPIOverview({ ctx }) {
   const allKpis = KPI_DEFS.filter((k) => k.status === "approved").map((k) => ({ ...k, score: kpiScore(k) })).filter((k) => k.score != null);
   const topKpis = [...allKpis].sort((a, b) => b.score - a.score).slice(0, 5);
   const botKpis = [...allKpis].sort((a, b) => a.score - b.score).slice(0, 5);
-  const companyTrend = KPI_MONTHS.map((m, i) => ({ m, v: Math.round((96 - (5 - i) * 0.9) * 10) / 10 }));
+  // แนวโน้ม KPI องค์กร = ค่าเฉลี่ย Achievement จริงของทุกหน่วยงานรายเดือน (0 ถ้ายังไม่มีข้อมูล)
+  const companyTrend = KPI_MONTHS.map((m, i) => {
+    const vals = depts.map((d) => (deptKpiTrend(d.id)[i] || {}).v || 0).filter((v) => v > 0);
+    return { m, v: vals.length ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length * 10) / 10 : 0 };
+  });
   const subStatusPie = ["approved", "submitted", "rejected", "overdue", "draft"].map((k) => ({
     label: SUB_STATUS[k].l, v: cycleSubs.filter((s) => s.status === k).length, color: SUB_STATUS[k].c,
   })).filter((x) => x.v > 0);

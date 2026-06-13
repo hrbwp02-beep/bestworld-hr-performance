@@ -14,3 +14,7 @@ node_modules/
 # build output
 dist/
 build/
+
+# ไฟล์ที่มีรหัสผ่าน/บันทึกภายใน (ห้าม commit)
+*.xlsx
+*-NOTES.md

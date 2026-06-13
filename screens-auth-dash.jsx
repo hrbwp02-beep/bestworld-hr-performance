@@ -80,7 +80,7 @@ function LoginScreen({ onLogin, logo }) {
             ติดตาม KPI และ Competency รายบุคคล หน่วยงาน และทั้งองค์กร เชื่อมโยงกับ Job Description พร้อมรายงานเชิงลึกสำหรับฝ่าย HR และผู้บริหาร
           </p>
           <div className="row" style={{ gap: 30, marginTop: 32 }}>
-            {[["พนักงานในระบบ", "147 คน"], ["รอบประเมิน", "ปี 2569"], ["หน่วยงาน", "11 ฝ่าย"]].map(([k, v]) => (
+            {[["พนักงานในระบบ", "157 คน"], ["รอบประเมิน", "ปี 2569"], ["หน่วยงาน", "12 หน่วยงาน"]].map(([k, v]) => (
               <div key={k}><div style={{ fontSize: 22, fontWeight: 700, fontFamily: "var(--mono)" }}>{v}</div><div style={{ fontSize: 12.5, color: "rgba(255,255,255,.55)" }}>{k}</div></div>
             ))}
           </div>

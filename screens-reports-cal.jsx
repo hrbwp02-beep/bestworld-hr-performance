@@ -534,6 +534,29 @@ function Settings({ ctx }) {
     toast("ตั้ง HR (ผู้อนุมัติขั้นสุดท้าย) แล้ว", "check");
   };
 
+  // ---- อัปโหลดโลโก้องค์กร ----
+  const [logoBusy, setLogoBusy] = useS4(false);
+  const uploadLogo = async (file) => {
+    if (!file) return;
+    if (!/^image\//.test(file.type)) { toast("กรุณาเลือกไฟล์รูปภาพ", "x"); return; }
+    setLogoBusy(true);
+    const ext = (file.name.split(".").pop() || "png").toLowerCase();
+    const path = "logo_" + Date.now() + "." + ext;
+    const up = await window.sb.storage.from("branding").upload(path, file, { upsert: true, contentType: file.type });
+    if (up.error) { setLogoBusy(false); toast("อัปโหลดไม่สำเร็จ: " + up.error.message, "x"); return; }
+    const pub = window.sb.storage.from("branding").getPublicUrl(path).data.publicUrl;
+    const { error } = await window.sb.from("app_settings").update({ logo_url: pub }).eq("id", 1);
+    setLogoBusy(false);
+    if (error) { toast("บันทึกไม่สำเร็จ: " + error.message, "x"); return; }
+    await window.audit("อัปโหลดโลโก้", "app_settings", null);
+    await ctx.refresh(); toast("อัปเดตโลโก้องค์กรแล้ว", "check");
+  };
+  const removeLogo = async () => {
+    if (!window.confirm("ลบโลโก้ที่อัปโหลด และกลับไปใช้ค่าเริ่มต้น?")) return;
+    await window.sb.from("app_settings").update({ logo_url: null }).eq("id", 1);
+    await ctx.refresh(); toast("ลบโลโก้แล้ว", "check");
+  };
+
   // ---- จัดการรอบประเมิน: เก็บประวัติ + เตือนผู้ค้าง ----
   const archiveCycle = async () => {
     const cy = +(window.CYCLE_YEAR || 2569);
@@ -783,6 +806,23 @@ function Settings({ ctx }) {
                 ))}
               </tbody>
             </table>
+          </div>
+        </Card>
+
+        <Card>
+          <CardHead title="โลโก้องค์กร" sub="อัปโหลดรูปจริง (PNG/JPG) ใช้ทั่วทั้งระบบ" />
+          <div className="card-pad" style={{ display: "flex", alignItems: "center", gap: 16 }}>
+            <div style={{ width: 72, height: 72, borderRadius: 12, background: "var(--surface-2)", display: "grid", placeItems: "center", overflow: "hidden", flex: "0 0 72px" }}>
+              <img src={(window.APP_SETTINGS || {}).logo_url || "logo.svg"} alt="logo" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <label className="btn btn-soft btn-sm" style={{ cursor: "pointer", display: "inline-flex" }}>
+                <Icon name="upload" size={14} />{logoBusy ? "กำลังอัปโหลด…" : "เลือกรูปอัปโหลด"}
+                <input type="file" accept="image/*" style={{ display: "none" }} disabled={logoBusy} onChange={(e) => { const f = e.target.files && e.target.files[0]; e.target.value = ""; uploadLogo(f); }} />
+              </label>
+              {(window.APP_SETTINGS || {}).logo_url && <button className="btn btn-ghost btn-sm" style={{ marginLeft: 8, color: "var(--red)" }} onClick={removeLogo}>ลบ</button>}
+              <div className="muted" style={{ fontSize: 11.5, marginTop: 6 }}>แนะนำรูปสี่เหลี่ยมจัตุรัส พื้นโปร่ง · เปลี่ยนแล้วใช้ทันทีทุกหน้า</div>
+            </div>
           </div>
         </Card>
 

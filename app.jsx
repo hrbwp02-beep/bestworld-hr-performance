@@ -56,11 +56,13 @@ const TITLES = {
   settings: ["ตั้งค่า", "Settings"],
 };
 
-// โลโก้ BWP — ใช้ logo.png ถ้ามี ไม่งั้น fallback เป็นตัวอักษร "BW"
+// โลโก้ BWP — ใช้รูปที่อัปโหลด (app_settings.logo_url) ก่อน, ไม่มีก็ใช้ logo.svg, สุดท้าย fallback ตัวอักษร "BW"
 function LogoMark({ fontSize = 16 }) {
-  const [ok, setOk] = useA(true);
-  if (!ok) return <b style={{ fontSize, fontWeight: 700 }}>BW</b>;
-  return <img src="logo.svg" alt="BWP" onError={() => setOk(false)} style={{ width: "100%", height: "100%", objectFit: "contain", borderRadius: 8 }} />;
+  const [stage, setStage] = useA(0); // 0=uploaded, 1=svg, 2=text
+  const uploaded = (window.APP_SETTINGS || {}).logo_url || "";
+  const src = stage === 0 && uploaded ? uploaded : "logo.svg";
+  if (stage >= 2) return <b style={{ fontSize, fontWeight: 700 }}>BW</b>;
+  return <img src={src} alt="BWP" onError={() => setStage((s) => s + 1)} style={{ width: "100%", height: "100%", objectFit: "contain", borderRadius: 8 }} />;
 }
 
 function BootSplash({ text, error }) {
@@ -161,7 +163,7 @@ function App() {
   );
 
   if (checking) return (<><BootSplash text="กำลังเริ่มระบบ…" /><ToastHost />{Panel}</>);
-  if (!session) return (<><LoginScreen onLogin={() => {}} logo="logo.svg" /><ToastHost />{Panel}</>);
+  if (!session) return (<><LoginScreen onLogin={() => {}} logo={(window.APP_SETTINGS || {}).logo_url || "logo.svg"} /><ToastHost />{Panel}</>);
   if (loadErr) return (<><BootSplash text={"โหลดข้อมูลไม่สำเร็จ · " + loadErr} error /><ToastHost />{Panel}</>);
   if (!dataReady) return (<><BootSplash text="กำลังโหลดข้อมูล…" /><ToastHost />{Panel}</>);
 

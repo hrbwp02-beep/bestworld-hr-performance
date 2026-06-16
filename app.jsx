@@ -56,11 +56,18 @@ const TITLES = {
   settings: ["ตั้งค่า", "Settings"],
 };
 
+// โลโก้ BWP — ใช้ logo.png ถ้ามี ไม่งั้น fallback เป็นตัวอักษร "BW"
+function LogoMark({ fontSize = 16 }) {
+  const [ok, setOk] = useA(true);
+  if (!ok) return <b style={{ fontSize, fontWeight: 700 }}>BW</b>;
+  return <img src="logo.svg" alt="BWP" onError={() => setOk(false)} style={{ width: "100%", height: "100%", objectFit: "contain", borderRadius: 8 }} />;
+}
+
 function BootSplash({ text, error }) {
   return (
     <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", background: "#0a1832", color: "#fff" }}>
       <div style={{ textAlign: "center", maxWidth: 420, padding: 24 }}>
-        <div className="side-logo" style={{ width: 56, height: 56, margin: "0 auto 18px" }}><Icon name="layers" size={28} /></div>
+        <div className="side-logo" style={{ width: 56, height: 56, margin: "0 auto 18px" }}><LogoMark fontSize={20} /></div>
         <div style={{ fontWeight: 600, fontSize: 16 }}>{COMPANY.name}</div>
         <div style={{ marginTop: 10, color: error ? "#ffb4c0" : "rgba(255,255,255,.62)", fontSize: 13.5, lineHeight: 1.6 }}>{text}</div>
         {!error && <div className="boot-spin" style={{ margin: "20px auto 0" }} />}
@@ -154,7 +161,7 @@ function App() {
   );
 
   if (checking) return (<><BootSplash text="กำลังเริ่มระบบ…" /><ToastHost />{Panel}</>);
-  if (!session) return (<><LoginScreen onLogin={() => {}} logo={null} /><ToastHost />{Panel}</>);
+  if (!session) return (<><LoginScreen onLogin={() => {}} logo="logo.svg" /><ToastHost />{Panel}</>);
   if (loadErr) return (<><BootSplash text={"โหลดข้อมูลไม่สำเร็จ · " + loadErr} error /><ToastHost />{Panel}</>);
   if (!dataReady) return (<><BootSplash text="กำลังโหลดข้อมูล…" /><ToastHost />{Panel}</>);
 
@@ -178,7 +185,7 @@ function App() {
       {mobileOpen && <div className="scrim-side" onClick={() => setMobileOpen(false)} />}
       <aside className={"sidebar " + (t.sidebarStyle === "light" ? "light " : "") + (collapsed ? "collapsed " : "") + (mobileOpen ? "mobile-open" : "")}>
         <div className="side-brand">
-          <div className="side-logo"><b style={{ fontSize: 16, fontWeight: 700 }}>BW</b></div>
+          <div className="side-logo"><LogoMark fontSize={16} /></div>
           <div className="side-brand-txt"><b>{COMPANY.name}</b><span>Performance System</span></div>
         </div>
         <nav className="side-nav">

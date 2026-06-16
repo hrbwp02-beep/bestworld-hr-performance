@@ -77,7 +77,7 @@ function LoginScreen({ onLogin, logo }) {
       {/* left brand panel */}
       <div className="hide-xs" style={{ flex: 1, position: "relative", zIndex: 1, display: "flex", flexDirection: "column", justifyContent: "space-between", padding: "54px 60px", color: "#fff" }}>
         <div className="row" style={{ gap: 13 }}>
-          <div className="side-logo" style={{ width: 46, height: 46 }}>{logo ? <img src={logo} alt="" /> : <Icon name="layers" size={24} />}</div>
+          <div className="side-logo" style={{ width: 46, height: 46 }}>{logo ? <img src={logo} alt="BWP" style={{ width: "100%", height: "100%", objectFit: "contain" }} onError={(e) => { e.currentTarget.style.display = "none"; }} /> : <Icon name="layers" size={24} />}</div>
           <div style={{ lineHeight: 1.25 }}>
             <b style={{ fontSize: 16 }}>{COMPANY.name}</b><br />
             <span style={{ fontSize: 12, color: "rgba(255,255,255,.6)" }}>Performance Management System</span>
@@ -103,7 +103,7 @@ function LoginScreen({ onLogin, logo }) {
       <div style={{ position: "relative", zIndex: 1, flex: "0 0 auto", width: "min(480px, 100%)", display: "grid", placeItems: "center", padding: 24 }}>
         {!selfMode && <form onSubmit={submit} style={{ width: "min(400px, 100%)", background: "rgba(255,255,255,.09)", backdropFilter: "blur(22px)",
           border: "1px solid rgba(255,255,255,.18)", borderRadius: 22, padding: "38px 34px", boxShadow: "0 28px 70px rgba(0,0,0,.4)" }}>
-          <div className="side-logo mobile-only" style={{ width: 48, height: 48, marginBottom: 18 }}>{logo ? <img src={logo} alt="" /> : <Icon name="layers" size={24} />}</div>
+          <div className="side-logo mobile-only" style={{ width: 48, height: 48, marginBottom: 18 }}>{logo ? <img src={logo} alt="BWP" style={{ width: "100%", height: "100%", objectFit: "contain" }} onError={(e) => { e.currentTarget.style.display = "none"; }} /> : <Icon name="layers" size={24} />}</div>
           <h2 style={{ margin: 0, color: "#fff", fontSize: 23, fontWeight: 700 }}>เข้าสู่ระบบ</h2>
           <p style={{ margin: "7px 0 26px", color: "rgba(255,255,255,.62)", fontSize: 14 }}>ยินดีต้อนรับกลับ กรุณาเข้าสู่ระบบเพื่อใช้งาน</p>
 

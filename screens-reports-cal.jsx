@@ -540,11 +540,10 @@ function Settings({ ctx }) {
     if (!file) return;
     if (!/^image\//.test(file.type)) { toast("กรุณาเลือกไฟล์รูปภาพ", "x"); return; }
     setLogoBusy(true);
-    const ext = (file.name.split(".").pop() || "png").toLowerCase();
-    const path = "logo_" + Date.now() + "." + ext;
+    const path = "org-logo"; // path คงที่ → หน้าล็อกอินอ้างถึงได้โดยไม่ต้องอ่าน DB
     const up = await window.sb.storage.from("branding").upload(path, file, { upsert: true, contentType: file.type });
     if (up.error) { setLogoBusy(false); toast("อัปโหลดไม่สำเร็จ: " + up.error.message, "x"); return; }
-    const pub = window.sb.storage.from("branding").getPublicUrl(path).data.publicUrl;
+    const pub = window.sb.storage.from("branding").getPublicUrl(path).data.publicUrl + "?v=" + Date.now();
     const { error } = await window.sb.from("app_settings").update({ logo_url: pub }).eq("id", 1);
     setLogoBusy(false);
     if (error) { toast("บันทึกไม่สำเร็จ: " + error.message, "x"); return; }

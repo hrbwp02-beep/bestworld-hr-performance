@@ -9,6 +9,8 @@ const SUPABASE_KEY = "sb_publishable_4C-xYuDcE0AZWvLZ5ZPEeQ_czQ29jQu";
 
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 window.sb = sb;
+// URL สาธารณะคงที่ของโลโก้ (ใช้ได้แม้ยังไม่ล็อกอิน เช่น หน้าล็อกอิน)
+window.LOGO_PUBLIC_URL = SUPABASE_URL + "/storage/v1/object/public/branding/org-logo";
 
 // ---------- role definitions (permissions) ----------
 const ROLES = [

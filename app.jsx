@@ -163,7 +163,7 @@ function App() {
   );
 
   if (checking) return (<><BootSplash text="กำลังเริ่มระบบ…" /><ToastHost />{Panel}</>);
-  if (!session) return (<><LoginScreen onLogin={() => {}} logo={(window.APP_SETTINGS || {}).logo_url || "logo.svg"} /><ToastHost />{Panel}</>);
+  if (!session) return (<><LoginScreen onLogin={() => {}} logo={(window.APP_SETTINGS || {}).logo_url || window.LOGO_PUBLIC_URL || "logo.svg"} /><ToastHost />{Panel}</>);
   if (loadErr) return (<><BootSplash text={"โหลดข้อมูลไม่สำเร็จ · " + loadErr} error /><ToastHost />{Panel}</>);
   if (!dataReady) return (<><BootSplash text="กำลังโหลดข้อมูล…" /><ToastHost />{Panel}</>);
 

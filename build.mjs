@@ -14,9 +14,11 @@ let bundle = "// build จาก JSX — อย่าแก้ไฟล์นี
 for (const f of order) {
   const code = await readFile(f, "utf8");
   const res = await transform(code, { loader: "jsx", charset: "utf8", jsx: "transform", target: "es2018" });
-  // หุ้มแต่ละไฟล์ด้วย IIFE เพื่อแยก scope เหมือน babel-standalone (กัน const ชื่อซ้ำชนกัน เช่น KPI_MONTHS)
-  // การแชร์ข้ามไฟล์ใช้ window (Object.assign(window,...)) จึงยังทำงานได้ปกติ
-  bundle += `\n/* ===== ${f} ===== */\n(function(){\n${res.code}\n})();\n`;
+  // เลียนแบบ babel-standalone: top-level function ถูกทำเป็น global (บน window) — ดึงชื่อมาจาก source
+  // (const/let ไม่ถูกทำ global จึงคงหุ้ม IIFE แยก scope กัน const ซ้ำชนกัน เช่น KPI_MONTHS)
+  const fnNames = [...new Set([...code.matchAll(/^(?:async\s+)?function\s+([A-Za-z0-9_$]+)/gm)].map((m) => m[1]))];
+  const exposer = fnNames.map((n) => `try{window.${n}=${n};}catch(e){}`).join("");
+  bundle += `\n/* ===== ${f} ===== */\n(function(){\n${res.code}\n${exposer}\n})();\n`;
 }
 
 await mkdir("dist", { recursive: true });

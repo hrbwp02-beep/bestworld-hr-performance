@@ -94,10 +94,10 @@ function KPIMonthlyGrid({ dept, ctx }) {
       <div className="tbl-wrap">
         <table className="tbl" style={{ fontSize: 12.5 }}>
           <thead><tr>
-            <th style={{ minWidth: 190, position: "sticky", left: 0, background: "var(--surface)", zIndex: 1 }}>ตัวชี้วัด</th>
-            <th style={{ whiteSpace: "nowrap" }}>เป้าหมาย 2569</th>
-            {KPI_MONTHS.map((m) => <th key={m} style={{ textAlign: "center" }}>{m}</th>)}
-            <th>เฉลี่ย</th><th>% บรรลุ</th>
+            <th scope="col" style={{ minWidth: 190, position: "sticky", left: 0, background: "var(--surface)", zIndex: 1 }}>ตัวชี้วัด</th>
+            <th scope="col" style={{ whiteSpace: "nowrap" }}>เป้าหมาย 2569</th>
+            {KPI_MONTHS.map((m) => <th scope="col" key={m} style={{ textAlign: "center" }}>{m}</th>)}
+            <th scope="col">เฉลี่ย</th><th scope="col">% บรรลุ</th>
           </tr></thead>
           <tbody>
             {kpis.map((k) => {
@@ -376,8 +376,8 @@ function KPIDefine({ ctx }) {
         <div className="tbl-wrap">
           <table className="tbl">
             <thead><tr>
-              <th style={{ minWidth: 170 }}>วัตถุประสงค์ / เป้าหมาย</th><th style={{ minWidth: 220 }}>ตัวชี้วัด (วิธีคิด)</th><th>ประเภท</th>
-              <th>น้ำหนัก</th><th style={{ minWidth: 120 }}>เป้าหมายปี 2569</th><th>ผลจริง</th><th style={{ minWidth: 130 }}>คะแนน</th><th style={{ position: "sticky", right: 0, background: "var(--surface-2)" }}>จัดการ</th>
+              <th scope="col" style={{ minWidth: 170 }}>วัตถุประสงค์ / เป้าหมาย</th><th scope="col" style={{ minWidth: 220 }}>ตัวชี้วัด (วิธีคิด)</th><th scope="col">ประเภท</th>
+              <th scope="col">น้ำหนัก</th><th scope="col" style={{ minWidth: 120 }}>เป้าหมายปี 2569</th><th scope="col">ผลจริง</th><th scope="col" style={{ minWidth: 130 }}>คะแนน</th><th scope="col" style={{ position: "sticky", right: 0, background: "var(--surface-2)" }}>จัดการ</th>
             </tr></thead>
             <tbody>
               {approved.map((k) => {
@@ -564,7 +564,7 @@ function KPISubmissions({ ctx }) {
       <Card>
         <div className="tbl-wrap">
           <table className="tbl">
-            <thead><tr><th>รหัส</th><th>หน่วยงาน</th><th>รอบ</th><th>ครบกำหนด</th><th>ส่งจริง</th><th>ผู้ส่ง</th><th>หลักฐาน</th><th>สถานะ</th><th></th></tr></thead>
+            <thead><tr><th scope="col">รหัส</th><th scope="col">หน่วยงาน</th><th scope="col">รอบ</th><th scope="col">ครบกำหนด</th><th scope="col">ส่งจริง</th><th scope="col">ผู้ส่ง</th><th scope="col">หลักฐาน</th><th scope="col">สถานะ</th><th scope="col"></th></tr></thead>
             <tbody>
               {rows.map((s) => {
                 const st = SUB_STATUS[s.status];

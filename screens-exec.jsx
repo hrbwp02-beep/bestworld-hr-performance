@@ -60,7 +60,7 @@ function ExecDashboard({ ctx }) {
             <CardHead title="เจาะลึกรายหน่วยงาน" sub="คลิกเพื่อดูทีมและตัวชี้วัด" right={<TrafficLegend />} />
             <div className="tbl-wrap">
               <table className="tbl">
-                <thead><tr><th>หน่วยงาน</th><th>จำนวน KPI</th><th>พนักงาน</th><th>Achievement</th><th>สถานะ</th><th>แนวโน้ม</th><th></th></tr></thead>
+                <thead><tr><th scope="col">หน่วยงาน</th><th scope="col">จำนวน KPI</th><th scope="col">พนักงาน</th><th scope="col">Achievement</th><th scope="col">สถานะ</th><th scope="col">แนวโน้ม</th><th scope="col"></th></tr></thead>
                 <tbody>
                   {depts.map((d) => {
                     const t = trafficOf(d.ach);
@@ -171,7 +171,7 @@ function ExecDashboard({ ctx }) {
                 <CardHead title="สมาชิกทีม · คะแนนรายบุคคล" sub="คลิกเพื่อดูโปรไฟล์" right={<Badge cls="b-blue" dot>{members.length} คน</Badge>} />
                 <div className="tbl-wrap">
                   <table className="tbl">
-                    <thead><tr><th>พนักงาน</th><th>ตำแหน่ง</th><th>KPI</th><th>คะแนนรวม</th><th>เกรด</th><th></th></tr></thead>
+                    <thead><tr><th scope="col">พนักงาน</th><th scope="col">ตำแหน่ง</th><th scope="col">KPI</th><th scope="col">คะแนนรวม</th><th scope="col">เกรด</th><th scope="col"></th></tr></thead>
                     <tbody>
                       {members.map((e) => (
                         <tr key={e.id} style={{ cursor: "pointer" }} onClick={() => ctx.openEmp(e.id)}>

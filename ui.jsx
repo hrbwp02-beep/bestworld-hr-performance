@@ -144,15 +144,29 @@ function Drawer({ title, sub, onClose, children, footer, width }) {
 }
 
 function Modal({ title, onClose, children, footer }) {
+  const ref = React.useRef(null);
   useEffect(() => {
-    const h = (e) => e.key === "Escape" && onClose();
+    const sel = 'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
+    const node = ref.current;
+    const first = node && node.querySelector(sel);
+    if (first) first.focus();
+    const h = (e) => {
+      if (e.key === "Escape") { onClose(); return; }
+      if (e.key === "Tab" && node) {
+        const f = [...node.querySelectorAll(sel)].filter((el) => el.offsetParent !== null);
+        if (!f.length) return;
+        const a = f[0], z = f[f.length - 1];
+        if (e.shiftKey && document.activeElement === a) { e.preventDefault(); z.focus(); }
+        else if (!e.shiftKey && document.activeElement === z) { e.preventDefault(); a.focus(); }
+      }
+    };
     window.addEventListener("keydown", h); return () => window.removeEventListener("keydown", h);
   }, []);
   return (
     <>
       <div className="scrim" onClick={onClose} />
-      <div className="modal">
-        <div className="card-head"><div><h3>{title}</h3></div><div className="spacer" /><button className="icon-btn" onClick={onClose}><Icon name="x" size={18} /></button></div>
+      <div className="modal" ref={ref} role="dialog" aria-modal="true" aria-label={typeof title === "string" ? title : undefined}>
+        <div className="card-head"><div><h3>{title}</h3></div><div className="spacer" /><button className="icon-btn" aria-label="ปิด" onClick={onClose}><Icon name="x" size={18} /></button></div>
         <div style={{ padding: "20px 22px", maxHeight: "70vh", overflowY: "auto" }}>{children}</div>
         {footer && <div style={{ borderTop: "1px solid var(--border)", padding: "14px 22px", display: "flex", gap: 10, justifyContent: "flex-end" }}>{footer}</div>}
       </div>

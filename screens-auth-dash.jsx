@@ -357,6 +357,13 @@ function Dashboard({ ctx }) {
         </div>
       </div>
 
+      {SUM.done === 0 && (
+        <div className="row" style={{ gap: 10, background: "var(--accent-soft)", color: "var(--accent-700)", borderRadius: 12, padding: "12px 16px", fontSize: 13.5, lineHeight: 1.6 }}>
+          <Icon name="alert" size={18} />
+          <span>ยังไม่มีผลการประเมินในรอบนี้ — ตัวเลขและกราฟจะแสดงเมื่อเริ่มบันทึกผลประเมิน · ไปที่หน้า <b>พนักงาน</b> เพื่อเริ่มประเมิน</span>
+        </div>
+      )}
+
       {layout === "airy" && (<>
         <StatRow />
         <div className="grid" style={{ gridTemplateColumns: "1.7fr 1fr" }}>

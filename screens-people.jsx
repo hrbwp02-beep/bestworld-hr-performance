@@ -277,7 +277,7 @@ function ImportEmployeesModal({ ctx, onClose }) {
         {errors.length > 0 && <div style={{ padding: "10px 13px", borderRadius: 10, background: "var(--amber-soft)", color: "#b45309", fontSize: 12.5, maxHeight: 110, overflowY: "auto" }}>{errors.slice(0, 12).map((e, i) => <div key={i}>แถว {e.row}: {e.msg}</div>)}</div>}
         {rows.length > 0 && (
           <div className="tbl-wrap" style={{ maxHeight: 240, overflowY: "auto", border: "1px solid var(--border)", borderRadius: 10 }}>
-            <table className="tbl"><thead><tr><th>รหัส</th><th>ชื่อ</th><th>หน่วยงาน</th><th>วันเข้างาน</th></tr></thead>
+            <table className="tbl"><thead><tr><th scope="col">รหัส</th><th scope="col">ชื่อ</th><th scope="col">หน่วยงาน</th><th scope="col">วันเข้างาน</th></tr></thead>
               <tbody>{rows.slice(0, 50).map((r, i) => <tr key={i}><td className="mono" style={{ fontSize: 12 }}>{r.code || "(อัตโนมัติ)"}</td><td>{r.name}</td><td>{deptShort(r.dept)}</td><td className="mono" style={{ color: r.hire_date ? "var(--text)" : "var(--amber)", fontWeight: r.hire_date ? 400 : 600 }}>{r.hire_date || "ไม่มี"}</td></tr>)}</tbody></table>
           </div>
         )}
@@ -409,7 +409,7 @@ function EmployeeList({ ctx }) {
           <div className="tbl-wrap">
             <table className="tbl">
               <thead><tr>
-                <th>พนักงาน</th><th>หน่วยงาน</th><th>อายุงาน</th><th>สถานะ</th><th>KPI</th><th>Competency</th><th>คะแนนรวม</th><th></th>
+                <th scope="col">พนักงาน</th><th scope="col">หน่วยงาน</th><th scope="col">อายุงาน</th><th scope="col">สถานะ</th><th scope="col">KPI</th><th scope="col">Competency</th><th scope="col">คะแนนรวม</th><th scope="col"></th>
               </tr></thead>
               <tbody>
                 {rows.map((e) => {
@@ -979,7 +979,7 @@ function DepartmentKPI({ ctx }) {
           right={<button className="btn btn-ghost btn-sm" onClick={() => ctx.go("employee")}>ดูทั้งหมด</button>} />
         <div className="tbl-wrap">
           <table className="tbl">
-            <thead><tr><th>พนักงาน</th><th>ตำแหน่ง</th><th>สถานะ</th><th>KPI</th><th>Comp.</th><th>รวม</th></tr></thead>
+            <thead><tr><th scope="col">พนักงาน</th><th scope="col">ตำแหน่ง</th><th scope="col">สถานะ</th><th scope="col">KPI</th><th scope="col">Comp.</th><th scope="col">รวม</th></tr></thead>
             <tbody>
               {members.map((e) => {
                 const m = statusMeta(e.status);
@@ -1270,7 +1270,7 @@ function HRDataDashboard({ ctx }) {
           {incomplete.length > 0 && (
             <div className="tbl-wrap" style={{ maxHeight: 360, overflowY: "auto" }}>
               <table className="tbl" style={{ fontSize: 12.5 }}>
-                <thead><tr><th>พนักงาน</th><th>หน่วยงาน</th><th>ข้อมูลที่ยังขาด</th><th></th></tr></thead>
+                <thead><tr><th scope="col">พนักงาน</th><th scope="col">หน่วยงาน</th><th scope="col">ข้อมูลที่ยังขาด</th><th scope="col"></th></tr></thead>
                 <tbody>{incomplete.map(({ e, missing }) => (
                   <tr key={e.id} style={{ cursor: "pointer" }} title="คลิกเพื่อดู/แก้ไขข้อมูลพนักงาน" onClick={() => ctx.openEmp(e.id)}>
                     <td><div className="row" style={{ gap: 9 }}><Avatar name={e.name} initials={e.initials} color={e.color} size={28} /><div><div style={{ fontWeight: 600 }}>{e.name}</div><div className="muted" style={{ fontSize: 11 }}>รหัส {e.id}</div></div></div></td>

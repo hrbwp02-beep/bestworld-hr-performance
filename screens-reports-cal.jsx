@@ -163,7 +163,7 @@ function Reports({ ctx }) {
               ))}
             </div>
             <div className="tbl-wrap"><table className="tbl" style={{ fontSize: 12.5 }}>
-              <thead><tr><th>#</th><th>พนักงาน</th><th>ผลงาน/KPI (70%)</th><th>สมรรถนะ (30%)</th><th>คะแนนรวม</th><th>เกรด</th><th>โบนัส</th><th>ปรับเงิน</th><th style={{ minWidth: 150 }}>คำแนะนำ (Year-End)</th></tr></thead>
+              <thead><tr><th scope="col">#</th><th scope="col">พนักงาน</th><th scope="col">ผลงาน/KPI (70%)</th><th scope="col">สมรรถนะ (30%)</th><th scope="col">คะแนนรวม</th><th scope="col">เกรด</th><th scope="col">โบนัส</th><th scope="col">ปรับเงิน</th><th scope="col" style={{ minWidth: 150 }}>คำแนะนำ (Year-End)</th></tr></thead>
               <tbody>{ranked.map((e, i) => { const o = window.evalOutcome(e.overall, e.warnings); const pr = promoteRec(e); return (
                 <tr key={e.id} style={{ cursor: "pointer" }} onClick={() => ctx.openEmp(e.id)}>
                   <td className="num muted">{i + 1}</td>
@@ -541,7 +541,7 @@ function Settings({ ctx }) {
     if (!/^image\//.test(file.type)) { toast("กรุณาเลือกไฟล์รูปภาพ", "x"); return; }
     setLogoBusy(true);
     const path = "org-logo"; // path คงที่ → หน้าล็อกอินอ้างถึงได้โดยไม่ต้องอ่าน DB
-    const up = await window.sb.storage.from("branding").upload(path, file, { upsert: true, contentType: file.type });
+    const up = await window.sb.storage.from("branding").upload(path, file, { upsert: true, contentType: file.type, cacheControl: "60" });
     if (up.error) { setLogoBusy(false); toast("อัปโหลดไม่สำเร็จ: " + up.error.message, "x"); return; }
     const pub = window.sb.storage.from("branding").getPublicUrl(path).data.publicUrl + "?v=" + Date.now();
     const { error } = await window.sb.from("app_settings").update({ logo_url: pub }).eq("id", 1);
@@ -793,7 +793,7 @@ function Settings({ ctx }) {
           <CardHead title="เกณฑ์โบนัส & ปรับเงินเดือน" sub="กำหนดตามเกรดผลประเมิน (มีใบเตือน = ไม่ปรับเงิน)" />
           <div className="tbl-wrap">
             <table className="tbl">
-              <thead><tr><th>เกรด</th><th>เกณฑ์</th><th style={{ width: 130 }}>โบนัส (เท่า)</th><th style={{ width: 130 }}>ปรับเงิน (%)</th></tr></thead>
+              <thead><tr><th scope="col">เกรด</th><th scope="col">เกณฑ์</th><th scope="col" style={{ width: 130 }}>โบนัส (เท่า)</th><th scope="col" style={{ width: 130 }}>ปรับเงิน (%)</th></tr></thead>
               <tbody>
                 {[["A+", "ดีเยี่ยม (95-100)", "#15803d"], ["A", "ดีมาก (90-94)", "#16a34a"], ["B+", "ดี (85-89)", "#0d9488"], ["B", "ค่อนข้างดี (80-84)", "#0891b2"], ["C", "ตามเป้า (70-79)", "#2563eb"], ["D", "ต้องพัฒนา (<70)", "#e11d48"]].map(([g, lab, c]) => (
                   <tr key={g}>

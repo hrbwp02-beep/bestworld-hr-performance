@@ -223,8 +223,8 @@ function Heatmap({ rows, cols, values, min = 60, max = 95 }) {
       <table style={{ borderCollapse: "separate", borderSpacing: 4, width: "100%" }}>
         <thead>
           <tr>
-            <th style={{ background: "transparent" }} />
-            {cols.map((c) => <th key={c} style={{ background: "transparent", textTransform: "none", letterSpacing: 0, padding: "4px 6px", fontSize: 11.5, color: "var(--text-2)", fontWeight: 600 }}>{c}</th>)}
+            <th scope="col" style={{ background: "transparent" }} />
+            {cols.map((c) => <th scope="col" key={c} style={{ background: "transparent", textTransform: "none", letterSpacing: 0, padding: "4px 6px", fontSize: 11.5, color: "var(--text-2)", fontWeight: 600 }}>{c}</th>)}
           </tr>
         </thead>
         <tbody>

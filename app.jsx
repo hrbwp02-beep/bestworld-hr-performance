@@ -216,8 +216,8 @@ function App() {
 
       <div className="main">
         <header className="topbar">
-          <button className="icon-btn mobile-only" onClick={() => setMobileOpen(true)}><Icon name="menu" size={20} /></button>
-          <button className="icon-btn desktop-only" onClick={() => setCollapsed(!collapsed)}><Icon name="menu" size={20} /></button>
+          <button className="icon-btn mobile-only" aria-label="เปิดเมนู" onClick={() => setMobileOpen(true)}><Icon name="menu" size={20} /></button>
+          <button className="icon-btn desktop-only" aria-label="ย่อ/ขยายเมนู" onClick={() => setCollapsed(!collapsed)}><Icon name="menu" size={20} /></button>
           <div>
             <div className="top-title">{tTitle}</div>
             <div className="top-sub">{tSub}</div>
@@ -225,7 +225,7 @@ function App() {
           <div className="top-spacer" />
           <div className="search hide-xs" style={{ position: "relative" }}>
             <Icon name="search" size={18} />
-            <input placeholder="ค้นหาพนักงาน, ตำแหน่ง…" value={searchQ} onChange={(e) => setSearchQ(e.target.value)} />
+            <input aria-label="ค้นหาพนักงาน" placeholder="ค้นหาพนักงาน, ตำแหน่ง…" value={searchQ} onChange={(e) => setSearchQ(e.target.value)} />
             {!searchQ && <kbd className="hide-sm">⌘K</kbd>}
             {searchQ.trim().length >= 2 && (() => {
               const ql = searchQ.trim().toLowerCase();
@@ -246,7 +246,7 @@ function App() {
           </div>
 
           <div style={{ position: "relative" }}>
-            <button className="icon-btn" onClick={() => { setNotifOpen(!notifOpen); setMenuOpen(false); }}><Icon name="bell" size={19} /><span className="dot" /></button>
+            <button className="icon-btn" aria-label="การแจ้งเตือน" onClick={() => { setNotifOpen(!notifOpen); setMenuOpen(false); }}><Icon name="bell" size={19} /><span className="dot" /></button>
             {notifOpen && (
               <>
                 <div style={{ position: "fixed", inset: 0, zIndex: 49 }} onClick={() => setNotifOpen(false)} />

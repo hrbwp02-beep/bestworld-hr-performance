@@ -49,12 +49,13 @@ HRC.loadCurrentUser = async () => {
 
 /* ---------- โหลดข้อมูลหลัก ---------- */
 HRC.load = async () => {
-  const [emps, depts, poss, etypes, users] = await Promise.all([
+  const [emps, depts, poss, etypes, users, settings] = await Promise.all([
     window.sb.from("employees").select("*").order("employee_code"),
     window.sb.from("departments").select("*").order("sort"),
     window.sb.from("positions").select("*").order("position_name"),
     window.sb.from("employment_types").select("*").order("sort"),
     window.sb.from("app_users").select("*"),
+    window.sb.from("app_settings").select("*").eq("id", 1).maybeSingle(),
   ]);
   const err = [emps, depts, poss, etypes, users].find((r) => r.error);
   if (err) throw new Error(err.error.message);
@@ -63,6 +64,7 @@ HRC.load = async () => {
   HRC.positions = poss.data || [];
   HRC.employmentTypes = etypes.data || [];
   HRC.users = users.data || [];
+  HRC.settings = settings.data || {};
 
   const dMap = {}; HRC.departments.forEach((d) => { dMap[d.id] = d; });
   const pMap = {}; HRC.positions.forEach((p) => { pMap[p.id] = p; });

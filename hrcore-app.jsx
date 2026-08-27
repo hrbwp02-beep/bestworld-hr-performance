@@ -120,6 +120,11 @@ function HRCoreApp() {
           <a className="nav-item" href="../index.html" style={{ textDecoration: "none" }}>
             <Icon name="eval" size={20} stroke={1.9} /><span className="lbl">ระบบประเมินผล</span>
           </a>
+          {(HRC.settings && HRC.settings.recruit_app_url) && (
+            <a className="nav-item" href={HRC.settings.recruit_app_url} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>
+              <Icon name="briefcase" size={20} stroke={1.9} /><span className="lbl">ระบบสรรหา</span>
+            </a>
+          )}
         </nav>
         <div className="side-foot">
           <div className="side-user">

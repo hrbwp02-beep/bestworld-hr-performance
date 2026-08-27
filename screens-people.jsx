@@ -523,8 +523,9 @@ function EmployeeProfile({ ctx, empId }) {
     await ctx.refresh(); toast("ลบพนักงานแล้ว", "check"); ctx.go("employee");
   };
   const yrs = ["2565","2566","2567","2568","2569"];
-  const hist = e.history.map((v, i) => ({ m: yrs[yrs.length - e.history.length + i], v }));
-  const radar = COMPETENCIES.map((c, i) => ({ id: c.id, name: c.name, v: Math.max(55, Math.min(98, e.comp + [4,-3,2,-5,6][i % 5])) }));
+  const _hist = e.history || [];
+  const hist = _hist.map((v, i) => ({ m: yrs[yrs.length - _hist.length + i], v }));
+  const radar = COMPETENCIES.map((c, i) => ({ id: c.id, name: c.name, v: Math.max(55, Math.min(98, (Number(e.comp) || 0) + [4,-3,2,-5,6][i % 5])) }));
   const sm = statusMeta(e.status);
   const notRated = (e.kpi === 0 && e.comp === 0); // imported but not evaluated yet
   const dash = (v) => (v == null || v === "" ? "—" : v);

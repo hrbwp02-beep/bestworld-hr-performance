@@ -124,7 +124,7 @@ async function loadHRData() {
     const ev = evalByEmp[e.id];
     const overall = ev && ev.overall != null
       ? Math.round(Number(ev.overall) * 10) / 10
-      : Math.round((e.kpi * 0.6 + e.comp * 0.4) * 10) / 10;
+      : Math.round(((Number(e.kpi) || 0) * 0.6 + (Number(e.comp) || 0) * 0.4) * 10) / 10;
     const parts = (e.name || "").split(" ");
     const initials = (parts[0] ? parts[0][0] : "") + (parts[1] ? parts[1][0] : "");
     // อายุงาน is computed live from hire_date when available

@@ -29,6 +29,7 @@ const NAV = [
   { id: "jd", label: "จัดการ JD", icon: "jd" },
   { id: "reports", label: "รายงาน", icon: "reports" },
   { id: "calibration", label: "Calibration", icon: "calibration" },
+  { id: "manage", label: "จัดการข้อมูล", icon: "settings" },
 ];
 // สิทธิ์เข้าถึงหน้าตามบทบาท ("*" = ทุกหน้า)
 const ROLE_PAGES = {
@@ -55,6 +56,7 @@ const TITLES = {
   jd: ["จัดการ JD", "Job Description"],
   reports: ["รายงาน", "Reports & Analytics"],
   calibration: ["Calibration", "Talent Calibration"],
+  manage: ["จัดการข้อมูล", "Data Management"],
   settings: ["ตั้งค่า", "Settings"],
 };
 
@@ -310,6 +312,7 @@ function App() {
           {effRoute === "jd" && <JDManagement ctx={ctx} />}
           {effRoute === "reports" && <Reports ctx={ctx} />}
           {effRoute === "calibration" && <Calibration ctx={ctx} />}
+          {effRoute === "manage" && <DataManagement ctx={ctx} />}
           {effRoute === "settings" && <Settings ctx={ctx} />}
         </main>
       </div>

@@ -120,7 +120,7 @@ async function loadHRData() {
   (evalRes.data || []).forEach((r) => { evalByEmp[r.employee_id] = r; });
 
   // employees → re-attach computed fields the screens expect
-  const EMPLOYEES = empRows.map((e) => {
+  const ALL_EMPLOYEES = empRows.map((e) => {
     const ev = evalByEmp[e.id];
     const overall = ev && ev.overall != null
       ? Math.round(Number(ev.overall) * 10) / 10
@@ -134,6 +134,9 @@ async function loadHRData() {
       eval: ev || null, jd_score: ev ? _num(ev.jd_score) : null,
     };
   });
+  // พนักงานที่ยังทำงานอยู่เท่านั้นเข้าสู่ทุกหน้าจอ/สถิติ · ผู้ที่ลาออกจัดการได้ที่หน้า "จัดการข้อมูล"
+  const EMPLOYEES = ALL_EMPLOYEES.filter((e) => (e.employment_status || "active") === "active");
+  window.EMPLOYEES_ALL = ALL_EMPLOYEES;
 
   // department aggregates (head / done / avg score) computed LIVE from employees — never stale
   departments.forEach((d) => {

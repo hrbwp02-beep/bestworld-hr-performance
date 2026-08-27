@@ -235,6 +235,16 @@ function App() {
             <Icon name="settings" size={20} stroke={1.9} /><span className="lbl">ตั้งค่า</span>
           </button>
           </>}
+          <div className="side-section">ระบบอื่น</div>
+          <a className="nav-item" href="https://hrbwp02-beep.github.io/bwp-hr-core/" target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>
+            <Icon name="users" size={20} stroke={1.9} /><span className="lbl">HR Core</span>
+          </a>
+          <a className="nav-item" href="https://bwp-recruitment.vercel.app/admin" target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>
+            <Icon name="briefcase" size={20} stroke={1.9} /><span className="lbl">ระบบสรรหา</span>
+          </a>
+          <a className="nav-item" href="https://hrbwp02-beep.github.io/bwp-hr-connect/" target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>
+            <Icon name="dashboard" size={20} stroke={1.9} /><span className="lbl">หน้าหลักรวมระบบ</span>
+          </a>
         </nav>
         <div className="side-foot">
           <div className="side-user" onClick={openMyProfile} style={{ cursor: "pointer" }}>

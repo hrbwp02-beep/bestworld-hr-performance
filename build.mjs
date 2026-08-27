@@ -1,7 +1,7 @@
 // build.mjs — รวม/แปลง JSX เป็น bundle เดียวต่อแอป (ตัด Babel-in-browser ออกจาก production)
 // สร้าง dist/ สำหรับ GitHub Pages :
 //   dist/index.html + dist/bundle.js            → ระบบประเมินผล
-//   dist/hr-core/index.html + .../bundle.js     → HR Core (คนละ URL)
+//   dist/hr-core/index.html                     → หน้า redirect ไป repo bwp-hr-core
 import { transform } from "esbuild";
 import { readFile, writeFile, mkdir, copyFile } from "node:fs/promises";
 import path from "node:path";
@@ -9,7 +9,7 @@ import path from "node:path";
 // แอปที่ต้อง build : { html ต้นทาง, โฟลเดอร์ปลายทางใน dist }
 const APPS = [
   { html: "index.html", out: "." },
-  { html: "hr-core/index.html", out: "hr-core" },
+
 ];
 
 async function buildApp(app) {
@@ -52,6 +52,12 @@ console.log("กำลัง build:");
 for (const app of APPS) await buildApp(app);
 
 // ไฟล์ static ที่ใช้ร่วมกัน (อยู่ราก dist — hr-core อ้างด้วย ../)
+// หน้า redirect ของที่อยู่เดิม (HR Core ย้ายไป repo แยกแล้ว)
+try {
+  await mkdir("dist/hr-core", { recursive: true });
+  await copyFile("hr-core/index.html", "dist/hr-core/index.html");
+} catch (e) { console.warn("  ข้ามหน้า redirect:", e.message); }
+
 for (const a of ["styles.css", "logo.svg"]) {
   try { await copyFile(a, path.join("dist", a)); } catch (e) { console.warn("  ข้ามไฟล์", a, e.message); }
 }

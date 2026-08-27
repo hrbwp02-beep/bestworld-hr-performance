@@ -149,6 +149,27 @@ button, input, select, textarea { font-family: inherit; }
 .collapsed .nav-item { justify-content: center; padding: 11px; }
 .collapsed .nav-item span.lbl, .collapsed .nav-badge, .collapsed .side-brand-txt { display: none; }
 
+/* ตัวสลับโมดูล (BWP HR Connect) */
+.mod-switch { display: grid; gap: 6px; padding: 2px 0 6px; }
+.mod-btn {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px; border-radius: var(--r-sm);
+  border: 1px solid rgba(255,255,255,.10); background: rgba(255,255,255,.04);
+  color: var(--side-fg); cursor: pointer; width: 100%; text-align: left;
+  transition: background .14s, border-color .14s, color .14s;
+}
+.mod-btn:hover { background: rgba(255,255,255,.09); color: #fff; }
+.mod-btn .mod-txt { display: flex; flex-direction: column; line-height: 1.25; min-width: 0; }
+.mod-btn .mod-txt b { font-size: 13.5px; font-weight: 600; }
+.mod-btn .mod-txt span { font-size: 10.5px; color: var(--side-fg-dim); letter-spacing: .04em; }
+.mod-btn.on { background: var(--side-active-bg); border-color: transparent; color: var(--side-active-fg); }
+.mod-btn.on .mod-txt span { color: inherit; opacity: .72; }
+.mod-btn svg { flex: 0 0 18px; }
+.sidebar.light .mod-btn { border-color: var(--border); background: var(--surface-2); }
+.sidebar.light .mod-btn:hover { background: var(--surface-3); color: var(--text); }
+.collapsed .mod-btn { justify-content: center; padding: 11px; }
+.collapsed .mod-btn .mod-txt { display: none; }
+
 .side-foot { padding: 12px; border-top: 1px solid rgba(255,255,255,.08); }
 .side-user { display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: var(--r-sm); cursor: pointer; }
 .side-user:hover { background: rgba(255,255,255,.06); }

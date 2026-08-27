@@ -17,20 +17,30 @@ const ACCENTS = {
   "#4f46e5": { c600: "#4338ca", c700: "#3730a3", soft: "#eef0fe", soft2: "#dcdffb" },
 };
 
-const NAV = [
-  { id: "dashboard", label: "ภาพรวม", icon: "dashboard" },
-  { id: "exec", label: "มุมมองผู้บริหาร", icon: "trend" },
-  { id: "employee", label: "พนักงาน", icon: "employee" },
-  { id: "hrdata", label: "ข้อมูลพนักงาน (HR)", icon: "users" },
-  { id: "analytics", label: "สถิติหน่วยงาน", icon: "trend" },
-  { id: "evaltrack", label: "ติดตามการประเมิน", icon: "checkCircle" },
-  { id: "kpi", label: "KPI หน่วยงาน", icon: "deptkpi" },
-  { id: "eval", label: "ฟอร์มประเมิน", icon: "eval" },
-  { id: "jd", label: "จัดการ JD", icon: "jd" },
-  { id: "reports", label: "รายงาน", icon: "reports" },
-  { id: "calibration", label: "Calibration", icon: "calibration" },
-  { id: "manage", label: "จัดการข้อมูล", icon: "settings" },
+// ===== BWP HR Connect — แบ่งเป็นโมดูล (แต่ละโมดูลมีเมนูของตัวเอง) =====
+const MODULES = [
+  { id: "people", label: "บุคลากร", en: "People & Data", icon: "users" },
+  { id: "perf", label: "ประเมินผล", en: "Performance", icon: "eval" },
 ];
+const NAV = [
+  // โมดูล: บุคลากร
+  { id: "employee", label: "พนักงาน", icon: "employee", mod: "people" },
+  { id: "hrdata", label: "ข้อมูลพนักงาน (HR)", icon: "users", mod: "people" },
+  { id: "analytics", label: "สถิติหน่วยงาน", icon: "trend", mod: "people" },
+  { id: "manage", label: "จัดการข้อมูล", icon: "settings", mod: "people" },
+  // โมดูล: ประเมินผล
+  { id: "dashboard", label: "ภาพรวมการประเมิน", icon: "dashboard", mod: "perf" },
+  { id: "evaltrack", label: "ติดตามการประเมิน", icon: "checkCircle", mod: "perf" },
+  { id: "eval", label: "ฟอร์มประเมิน", icon: "eval", mod: "perf" },
+  { id: "kpi", label: "KPI หน่วยงาน", icon: "deptkpi", mod: "perf" },
+  { id: "jd", label: "จัดการ JD", icon: "jd", mod: "perf" },
+  { id: "exec", label: "มุมมองผู้บริหาร", icon: "trend", mod: "perf" },
+  { id: "reports", label: "รายงาน", icon: "reports", mod: "perf" },
+  { id: "calibration", label: "Calibration", icon: "calibration", mod: "perf" },
+];
+// หน้าที่ไม่อยู่ในเมนู แต่สังกัดโมดูล (ใช้ไฮไลต์โมดูลให้ถูกตอนเปิดหน้านั้น)
+const PAGE_MODULE = { profile: "people", settings: "people" };
+const moduleOfPage = (id) => PAGE_MODULE[id] || (NAV.find((n) => n.id === id) || {}).mod || "perf";
 // สิทธิ์เข้าถึงหน้าตามบทบาท ("*" = ทุกหน้า)
 const ROLE_PAGES = {
   admin: "*",
@@ -185,6 +195,13 @@ function App() {
     || (window.EMPLOYEES || []).find((e) => _normName(e.name) === _normName(cuName)) || null;
   const openMyProfile = () => { if (myEmp) openEmp(myEmp.id); else toast("ไม่พบข้อมูลพนักงานที่ตรงกับบัญชีนี้ในระบบ", "info"); };
   const visibleNav = NAV.filter((n) => canSeePage(cu.role, n.id));
+  // โมดูลปัจจุบันดูจากหน้าที่เปิดอยู่ · แถบเมนูแสดงเฉพาะเมนูของโมดูลนั้น
+  const curMod = moduleOfPage(effRoute);
+  const visibleMods = MODULES.filter((m) => visibleNav.some((n) => n.mod === m.id));
+  const modNav = visibleNav.filter((n) => n.mod === curMod);
+  const goModule = (mid) => { const first = visibleNav.find((n) => n.mod === mid); if (first) go(first.id); };
+  const modHighlight = effRoute === "settings" ? null : curMod;   // อยู่หน้าตั้งค่า = ไม่ไฮไลต์โมดูลใด
+  const curModLabel = (MODULES.find((m) => m.id === curMod) || {}).label || "";
 
   return (
     <div className="app" data-density={t.density}>
@@ -192,11 +209,20 @@ function App() {
       <aside className={"sidebar " + (t.sidebarStyle === "light" ? "light " : "") + (collapsed ? "collapsed " : "") + (mobileOpen ? "mobile-open" : "")}>
         <div className="side-brand">
           <div className="side-logo"><LogoMark fontSize={16} /></div>
-          <div className="side-brand-txt"><b>{COMPANY.name}</b><span>Performance System</span></div>
+          <div className="side-brand-txt"><b>{COMPANY.name}</b><span>BWP HR Connect</span></div>
         </div>
         <nav className="side-nav">
-          <div className="side-section">เมนูหลัก</div>
-          {visibleNav.map((n) => (
+          <div className="side-section">โมดูล</div>
+          <div className="mod-switch">
+            {visibleMods.map((m) => (
+              <button key={m.id} className={"mod-btn" + (modHighlight === m.id ? " on" : "")} onClick={() => goModule(m.id)} title={m.label + " · " + m.en}>
+                <Icon name={m.icon} size={18} stroke={1.9} />
+                <span className="mod-txt"><b>{m.label}</b><span>{m.en}</span></span>
+              </button>
+            ))}
+          </div>
+          <div className="side-section">{curModLabel || "เมนู"}</div>
+          {modNav.map((n) => (
             <button key={n.id} className={"nav-item" + (effRoute === n.id || (effRoute === "profile" && n.id === "employee") ? " active" : "")} onClick={() => go(n.id)}>
               <Icon name={n.icon} size={20} stroke={1.9} />
               <span className="lbl">{n.label}</span>
@@ -224,7 +250,7 @@ function App() {
           <button className="icon-btn desktop-only" aria-label="ย่อ/ขยายเมนู" onClick={() => setCollapsed(!collapsed)}><Icon name="menu" size={20} /></button>
           <div>
             <div className="top-title">{tTitle}</div>
-            <div className="top-sub">{tSub}</div>
+            <div className="top-sub">{effRoute === "settings" ? tSub : (curModLabel ? curModLabel + " · " : "") + tSub}</div>
           </div>
           <div className="top-spacer" />
           <div className="search hide-xs" style={{ position: "relative" }}>

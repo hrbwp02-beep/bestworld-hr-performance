@@ -92,7 +92,7 @@ function HRCoreApp() {
       case "positions": return <HRCPositions />;
       case "org": return <HRCOrgChart nav={nav} />;
       case "master": return <HRCMasterData />;
-      case "recruit": return <HRCRecruitIntake />;
+      case "recruit": return <HRCRecruitIntake nav={nav} />;
       case "users": return <HRCUsers />;
       case "roles": return <HRCRoles />;
       case "audit": return <HRCAudit />;

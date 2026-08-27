@@ -22,6 +22,7 @@ const NAV = [
   { id: "exec", label: "มุมมองผู้บริหาร", icon: "trend" },
   { id: "employee", label: "พนักงาน", icon: "employee" },
   { id: "hrdata", label: "ข้อมูลพนักงาน (HR)", icon: "users" },
+  { id: "analytics", label: "สถิติหน่วยงาน", icon: "trend" },
   { id: "evaltrack", label: "ติดตามการประเมิน", icon: "checkCircle" },
   { id: "kpi", label: "KPI หน่วยงาน", icon: "deptkpi" },
   { id: "eval", label: "ฟอร์มประเมิน", icon: "eval" },
@@ -33,8 +34,8 @@ const NAV = [
 const ROLE_PAGES = {
   admin: "*",
   hr: "*",
-  manager: ["dashboard", "employee", "hrdata", "evaltrack", "eval", "kpi", "profile"],
-  supervisor: ["dashboard", "employee", "hrdata", "evaltrack", "eval", "profile"],
+  manager: ["dashboard", "employee", "hrdata", "analytics", "evaltrack", "eval", "kpi", "profile"],
+  supervisor: ["dashboard", "employee", "hrdata", "analytics", "evaltrack", "eval", "profile"],
   viewer: ["dashboard", "hrdata", "profile"],
 };
 const pagesFor = (role) => ROLE_PAGES[role] || ROLE_PAGES.viewer;
@@ -46,6 +47,7 @@ const TITLES = {
   exec: ["มุมมองผู้บริหาร", "Executive Drill-down"],
   employee: ["พนักงาน", "Employee Directory"],
   hrdata: ["แดชบอร์ดข้อมูลพนักงาน", "HR Workforce Dashboard"],
+  analytics: ["สถิติหน่วยงาน", "HR Analytics"],
   evaltrack: ["ติดตามการประเมิน", "Evaluation Tracking"],
   profile: ["ข้อมูลพนักงาน", "Employee Profile"],
   kpi: ["KPI หน่วยงาน", "Department KPI"],
@@ -300,6 +302,7 @@ function App() {
           {effRoute === "exec" && <ExecDashboard ctx={ctx} />}
           {effRoute === "employee" && <EmployeeList ctx={ctx} />}
           {effRoute === "hrdata" && <HRDataDashboard ctx={ctx} />}
+          {effRoute === "analytics" && <HRAnalytics ctx={ctx} />}
           {effRoute === "evaltrack" && <EvalTracking ctx={ctx} />}
           {effRoute === "profile" && <EmployeeProfile ctx={ctx} empId={empId} />}
           {effRoute === "kpi" && <KPIModule ctx={ctx} />}

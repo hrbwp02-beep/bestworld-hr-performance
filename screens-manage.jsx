@@ -3,12 +3,17 @@
 const { useState: useS6, useMemo: useM6 } = React;
 
 const EMP_STATUS = {
-  active: { label: "ทำงานอยู่", cls: "b-green" },
-  resigned: { label: "ลาออก", cls: "b-gray" },
-  terminated: { label: "พ้นสภาพ", cls: "b-red" },
-  retired: { label: "เกษียณ", cls: "b-blue" },
+  ACTIVE: { label: "ทำงานอยู่", cls: "b-green" },
+  PROBATION: { label: "ทดลองงาน", cls: "b-amber" },
+  ON_LEAVE: { label: "ลาพักงาน", cls: "b-blue" },
+  SUSPENDED: { label: "พักงาน", cls: "b-amber" },
+  RESIGNED: { label: "ลาออก", cls: "b-gray" },
+  TERMINATED: { label: "เลิกจ้าง", cls: "b-red" },
+  RETIRED: { label: "เกษียณ", cls: "b-blue" },
 };
-const empStatusOf = (e) => EMP_STATUS[(e && e.employment_status) || "active"] || EMP_STATUS.active;
+const _stOf = (e) => String((e && e.employment_status) || "ACTIVE").toUpperCase();
+const _WORKING_ST = ["ACTIVE","PROBATION","ON_LEAVE","SUSPENDED"];
+const empStatusOf = (e) => EMP_STATUS[_stOf(e)] || EMP_STATUS.ACTIVE;
 
 function DataManagement({ ctx }) {
   const role = (window.CURRENT_USER || {}).role;
@@ -16,7 +21,7 @@ function DataManagement({ ctx }) {
   const [tab, setTab] = useS6("employees");
   const [q, setQ] = useS6("");
   const [fDept, setFDept] = useS6("all");
-  const [fStatus, setFStatus] = useS6("active");
+  const [fStatus, setFStatus] = useS6("ACTIVE");
   const [sel, setSel] = useS6({});          // { [empId]: true }
   const [bulk, setBulk] = useS6(null);      // ชนิดของ modal งานกลุ่ม
   const [editEmp, setEditEmp] = useS6(null);
@@ -39,7 +44,7 @@ function DataManagement({ ctx }) {
   }
 
   const rows = useM6(() => ALL.filter((e) => {
-    const st = (e.employment_status || "active");
+    const st = _stOf(e);
     if (fStatus !== "all" && st !== fStatus) return false;
     if (fDept !== "all" && e.dept !== fDept) return false;
     if (q) { const s = q.toLowerCase(); return (e.name || "").toLowerCase().includes(s) || String(e.id).includes(s) || (e.position || "").toLowerCase().includes(s); }
@@ -54,8 +59,8 @@ function DataManagement({ ctx }) {
   const clearSel = () => setSel({});
 
   const counts = {
-    active: ALL.filter((e) => (e.employment_status || "active") === "active").length,
-    left: ALL.filter((e) => (e.employment_status || "active") !== "active").length,
+    active: ALL.filter((e) => _WORKING_ST.indexOf(_stOf(e)) > -1).length,
+    left: ALL.filter((e) => _WORKING_ST.indexOf(_stOf(e)) === -1).length,
   };
 
   // ---- ตรวจความครบถ้วน (เฉพาะพนักงานที่ทำงานอยู่) ----
@@ -67,7 +72,7 @@ function DataManagement({ ctx }) {
     { k: "email", label: "อีเมล", why: "ใช้แจ้งเตือนและบัญชีล็อกอิน" },
     { k: "phone", label: "เบอร์โทร", why: "ใช้ติดต่อ" },
   ];
-  const activeEmps = ALL.filter((e) => (e.employment_status || "active") === "active");
+  const activeEmps = ALL.filter((e) => _WORKING_ST.indexOf(_stOf(e)) > -1);
   const missing = activeEmps.map((e) => ({ e, miss: CHECKS.filter((c) => !e[c.k]) })).filter((x) => x.miss.length);
   const missByField = CHECKS.map((c) => ({ ...c, n: activeEmps.filter((e) => !e[c.k]).length })).filter((x) => x.n > 0);
 
@@ -137,10 +142,10 @@ function DataManagement({ ctx }) {
                   {DEPTS.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
                 </select>
                 <select className="select" style={{ flex: "0 1 170px" }} value={fStatus} onChange={(e) => setFStatus(e.target.value)} aria-label="กรองสถานะการจ้าง">
-                  <option value="active">ทำงานอยู่</option>
-                  <option value="resigned">ลาออก</option>
-                  <option value="terminated">พ้นสภาพ</option>
-                  <option value="retired">เกษียณ</option>
+                  <option value="ACTIVE">ทำงานอยู่</option><option value="PROBATION">ทดลองงาน</option>
+                  <option value="RESIGNED">ลาออก</option>
+                  <option value="TERMINATED">เลิกจ้าง</option>
+                  <option value="RETIRED">เกษียณ</option>
                   <option value="all">ทุกสถานะ</option>
                 </select>
               </div>
@@ -151,9 +156,9 @@ function DataManagement({ ctx }) {
                   <div className="spacer" style={{ flex: 1 }} />
                   <button className="btn btn-ghost btn-sm" onClick={() => setBulk("dept")}><Icon name="briefcase" size={14} />ย้ายหน่วยงาน</button>
                   <button className="btn btn-ghost btn-sm" onClick={() => setBulk("sup")}><Icon name="employee" size={14} />ตั้งผู้ประเมิน</button>
-                  {fStatus === "active" || fStatus === "all"
+                  {fStatus === "ACTIVE" || fStatus === "all"
                     ? <button className="btn btn-ghost btn-sm" style={{ color: "var(--red)" }} onClick={() => setBulk("resign")}><Icon name="logout" size={14} />บันทึกพ้นสภาพ</button>
-                    : <button className="btn btn-ghost btn-sm" style={{ color: "#16a34a" }} onClick={() => runBulk({ employment_status: "active", resign_date: null, resign_reason: null }, "คืนสถานะทำงานให้")}><Icon name="refresh" size={14} />คืนสถานะทำงาน</button>}
+                    : <button className="btn btn-ghost btn-sm" style={{ color: "#16a34a" }} onClick={() => runBulk({ employment_status: "ACTIVE", resign_date: null, resign_reason: null }, "คืนสถานะทำงานให้")}><Icon name="refresh" size={14} />คืนสถานะทำงาน</button>}
                   <button className="btn btn-ghost btn-sm" onClick={clearSel}>ล้างการเลือก</button>
                 </div>
               )}
@@ -273,7 +278,7 @@ function DataManagement({ ctx }) {
 function BulkModal({ kind, count, busy, onRun, onClose }) {
   const [dept, setDept] = useS6("");
   const [sup, setSup] = useS6("");
-  const [status, setStatus] = useS6("resigned");
+  const [status, setStatus] = useS6("RESIGNED");
   const [date, setDate] = useS6(new Date().toISOString().slice(0, 10));
   const [reason, setReason] = useS6("");
   const emps = (window.EMPLOYEES || []).slice().sort((a, b) => (a.name || "").localeCompare(b.name || "", "th"));
@@ -322,7 +327,7 @@ function BulkModal({ kind, count, busy, onRun, onClose }) {
           <div className="grid" style={{ gridTemplateColumns: "1fr 1fr" }}>
             <div className="field"><label>ประเภท</label>
               <select className="select" value={status} onChange={(e) => setStatus(e.target.value)}>
-                <option value="resigned">ลาออก</option><option value="terminated">พ้นสภาพ/เลิกจ้าง</option><option value="retired">เกษียณ</option>
+                <option value="RESIGNED">ลาออก</option><option value="TERMINATED">พ้นสภาพ/เลิกจ้าง</option><option value="RETIRED">เกษียณ</option>
               </select>
             </div>
             <div className="field"><label>วันที่มีผล *</label><input className="input" type="date" value={date} onChange={(e) => setDate(e.target.value)} /></div>

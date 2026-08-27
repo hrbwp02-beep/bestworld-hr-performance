@@ -135,7 +135,8 @@ async function loadHRData() {
     };
   });
   // พนักงานที่ยังทำงานอยู่เท่านั้นเข้าสู่ทุกหน้าจอ/สถิติ · ผู้ที่ลาออกจัดการได้ที่หน้า "จัดการข้อมูล"
-  const EMPLOYEES = ALL_EMPLOYEES.filter((e) => (e.employment_status || "active") === "active");
+  const _WORKING = ["ACTIVE", "PROBATION", "ON_LEAVE", "SUSPENDED"];
+  const EMPLOYEES = ALL_EMPLOYEES.filter((e) => _WORKING.indexOf(String(e.employment_status || "ACTIVE").toUpperCase()) > -1);
   window.EMPLOYEES_ALL = ALL_EMPLOYEES;
 
   // department aggregates (head / done / avg score) computed LIVE from employees — never stale

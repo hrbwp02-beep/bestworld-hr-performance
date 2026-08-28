@@ -306,8 +306,8 @@ function DepartmentModal({ dep, ctx, onClose }) {
     setErr(""); setBusy(true);
     const row = { name: f.name.trim(), short: f.short.trim() || f.name.trim(), color: f.color };
     let error;
-    if (isEdit) { ({ error } = await window.sb.from("departments").update(row).eq("id", dep.id)); }
-    else { row.id = id; row.head = 0; row.done = 0; row.score = 0; row.trend = 0; row.sort = (window.DEPARTMENTS || []).length; ({ error } = await window.sb.from("departments").insert(row)); }
+    if (isEdit) { ({ error } = await window.sb.from("hr_departments").update(row).eq("id", dep.id)); }
+    else { row.id = id; row.head = 0; row.done = 0; row.score = 0; row.trend = 0; row.sort = (window.DEPARTMENTS || []).length; ({ error } = await window.sb.from("hr_departments").insert(row)); }
     if (error) { setBusy(false); setErr("บันทึกไม่สำเร็จ: " + error.message); return; }
     await ctx.refresh();
     toast(isEdit ? "บันทึกหน่วยงานแล้ว" : "เพิ่มหน่วยงาน “" + f.name.trim() + "” แล้ว", "check");
@@ -485,7 +485,7 @@ function EmployeeProfile({ ctx, empId }) {
   const myDisc = (window.DISCIPLINARY || []).filter((d) => d.employee_id === e.id);
   const myTrain = (window.TRAININGS || []).filter((t) => t.employee_id === e.id);
   const delDisc = async (d) => { if (!window.confirm("ลบรายการนี้?")) return; await window.sb.from("disciplinary").delete().eq("id", d.id); await window.sb.from("employees").update({ warnings: Math.max(0, myDisc.length - 1) }).eq("id", e.id); await window.audit("ลบใบเตือน", "disciplinary", { employee_id: e.id }); await ctx.refresh(); toast("ลบแล้ว", "check"); };
-  const delTrain = async (t) => { if (!window.confirm("ลบรายการนี้?")) return; await window.sb.from("trainings").delete().eq("id", t.id); await ctx.refresh(); toast("ลบแล้ว", "check"); };
+  const delTrain = async (t) => { if (!window.confirm("ลบรายการนี้?")) return; await window.sb.from("hr_trainings").delete().eq("id", t.id); await ctx.refresh(); toast("ลบแล้ว", "check"); };
   // พิมพ์ผลประเมินรายบุคคลเป็น PDF (เปิดหน้าพิมพ์)
   const printResult = () => {
     const ev2 = e.eval || {};
@@ -805,7 +805,7 @@ function TrainingModal({ emp, ctx, onClose }) {
   const save = async () => {
     if (!f.name.trim()) { toast("กรุณากรอกชื่อหลักสูตร", "x"); return; }
     setBusy(true);
-    const { error } = await window.sb.from("trainings").insert({ employee_id: emp.id, name: f.name.trim(), provider: f.provider.trim() || null, date: f.date || null, hours: f.hours ? Number(f.hours) : null, result: f.result, created_by: (window.CURRENT_USER || {}).email });
+    const { error } = await window.sb.from("hr_trainings").insert({ employee_id: emp.id, name: f.name.trim(), provider: f.provider.trim() || null, date: f.date || null, hours: f.hours ? Number(f.hours) : null, result: f.result, created_by: (window.CURRENT_USER || {}).email });
     if (error) { setBusy(false); toast("บันทึกไม่สำเร็จ: " + error.message, "x"); return; }
     await window.audit("เพิ่มประวัติอบรม", "trainings", { employee_id: emp.id, name: f.name.trim() });
     await ctx.refresh(); toast("บันทึกประวัติอบรมแล้ว", "check"); onClose();

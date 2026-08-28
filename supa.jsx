@@ -3,9 +3,9 @@
 // screens (which read DEPARTMENTS, EMPLOYEES, KPI_DEFS, …) keep working.
 // --------------------------------------------------------------------
 
-const SUPABASE_URL = "https://mxubzxygthueoaunhiwq.supabase.co";
+const SUPABASE_URL = "https://actkvftfcikegodvyebn.supabase.co";
 // Publishable key — safe to expose in client code; access is gated by RLS.
-const SUPABASE_KEY = "sb_publishable_4C-xYuDcE0AZWvLZ5ZPEeQ_czQ29jQu";
+const SUPABASE_KEY = "sb_publishable_4dkNVOZYH2975pJd32gwig_IAOzMLtm";
 
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 window.sb = sb;
@@ -54,7 +54,7 @@ window.notify = async (recipientEmail, type, title, body) => {
 window.audit = async (action, entity, detail) => {
   try {
     const email = (window.CURRENT_USER || {}).email || (await window.sb.auth.getUser()).data?.user?.email || null;
-    await window.sb.from("audit_log").insert({ actor_email: email, action, entity: entity || null, detail: detail || null });
+    await window.sb.from("hr_audit_log").insert({ actor_email: email, action, entity: entity || null, detail: detail || null });
   } catch (e) { /* ignore */ }
 };
 window.markNotifsRead = async () => {
@@ -84,9 +84,9 @@ async function loadHRData() {
   // ตารางใหม่ (ไม่มีคอลัมน์ sort) — โหลดแยก ไม่ให้ error ทำให้ทั้งระบบล่ม
   const [disc, trains, cycArc, audit] = await Promise.all([
     sb.from("disciplinary").select("*").order("date", { ascending: false }),
-    sb.from("trainings").select("*").order("date", { ascending: false }),
+    sb.from("hr_trainings").select("*").order("date", { ascending: false }),
     sb.from("cycle_archive").select("*").order("cycle_year", { ascending: true }),
-    sb.from("audit_log").select("*").order("at", { ascending: false }).limit(50),
+    sb.from("hr_audit_log").select("*").order("at", { ascending: false }).limit(50),
   ]);
   window.DISCIPLINARY = disc.data || [];
   window.TRAININGS = trains.data || [];

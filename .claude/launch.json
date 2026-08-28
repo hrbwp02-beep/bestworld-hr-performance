@@ -4,8 +4,8 @@
     {
       "name": "hr-prototype",
       "runtimeExecutable": "powershell",
-      "runtimeArgs": ["-ExecutionPolicy", "Bypass", "-NoProfile", "-File", "server.ps1", "-Port", "5173"],
-      "port": 5173
+      "runtimeArgs": ["-ExecutionPolicy", "Bypass", "-NoProfile", "-File", "server.ps1"],
+      "autoPort": true
     }
   ]
 }

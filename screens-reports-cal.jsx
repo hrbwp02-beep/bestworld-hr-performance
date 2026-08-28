@@ -514,7 +514,7 @@ function Settings({ ctx }) {
   const setDeptRole = async (deptId, role, empId) => {
     const dp = (window.DEPARTMENTS || []).find((d) => d.id === deptId) || {};
     const col = role === "supervisor" ? "supervisor_id" : "manager_id";
-    const r1 = await window.sb.from("departments").update({ [col]: empId || null }).eq("id", deptId);
+    const r1 = await window.sb.from("hr_departments").update({ [col]: empId || null }).eq("id", deptId);
     if (r1.error) { toast("อัปเดตไม่สำเร็จ: " + r1.error.message, "x"); return; }
     const supId = role === "supervisor" ? (empId || null) : (dp.supervisor_id || null);
     const mgrId = role === "manager" ? (empId || null) : (dp.manager_id || null);
@@ -618,7 +618,7 @@ function Settings({ ctx }) {
     const nJd = (window.JD_LIBRARY || []).filter((j) => j.dept === d.id || j.kpi_dept === d.id).length;
     if (nEmp || nKpi || nJd) { toast(`ลบไม่ได้: หน่วยงานนี้มีพนักงาน ${nEmp} คน · KPI ${nKpi} · JD ${nJd} — ย้าย/ลบข้อมูลที่เกี่ยวข้องก่อน`, "x"); return; }
     if (!window.confirm("ลบหน่วยงาน “" + d.name + "” ออกจากระบบ?")) return;
-    const { error } = await window.sb.from("departments").delete().eq("id", d.id);
+    const { error } = await window.sb.from("hr_departments").delete().eq("id", d.id);
     if (error) { toast("ลบไม่สำเร็จ: " + error.message, "x"); return; }
     await ctx.refresh(); toast("ลบหน่วยงานแล้ว", "check");
   };

@@ -1,4 +1,7 @@
-param([int]$Port = 5173)
+param([int]$Port = 0)
+if ($Port -eq 0) {
+  if ($env:PORT) { $Port = [int]$env:PORT } else { $Port = 5173 }
+}
 
 # Minimal dependency-free static file server for the HR prototype.
 # Serves the project directory so Babel-standalone can fetch the .jsx files over HTTP.

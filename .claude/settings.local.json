@@ -3,7 +3,25 @@
     "allow": [
       "PowerShell($node = \\(Get-Command node -ErrorAction SilentlyContinue\\); if\\($node\\){\"node: $\\($node.Source\\)\"} else {\"node: none\"}; $py = \\(Get-Command python -ErrorAction SilentlyContinue\\); if\\($py\\){\"python: $\\($py.Source\\)\"} else {\"python: none\"}; $npx = \\(Get-Command npx -ErrorAction SilentlyContinue\\); if\\($npx\\){\"npx: $\\($npx.Source\\)\"} else {\"npx: none\"})",
       "PowerShell(python --version)",
-      "mcp__Claude_Preview__preview_start"
+      "mcp__Claude_Preview__preview_start",
+      "mcp__21aeb10e-e513-4385-81b3-66b3d3d5ab85__execute_sql",
+      "Bash(gh api *)",
+      "Bash(git remote *)",
+      "Bash(git add *)",
+      "Bash(git commit -m 'ล้างข้อมูลม็อคอัพเตรียมใช้จริง: ผู้สืบทอด/แนวโน้ม/heatmap คำนวณจากข้อมูลจริง + empty state, แก้ตัวเลขหน้าล็อกอิน, gitignore ไฟล์ลับ *)",
+      "Bash(git push *)",
+      "mcp__21aeb10e-e513-4385-81b3-66b3d3d5ab85__deploy_edge_function",
+      "Bash(git commit -m 'เพิ่มวงจรประเมินครบ + งาน HR สมบูรณ์: เป้าหมาย/ประเมินตนเอง/รับทราบผล/IDP, ใบเตือน, อบรม, PDF, เก็บประวัติรอบ, เตือนค้าง, audit log *)",
+      "mcp__21aeb10e-e513-4385-81b3-66b3d3d5ab85__list_edge_functions",
+      "Bash(git commit -m 'เพิ่มอัปโหลดโลโก้องค์กรในหน้าตั้งค่า — เก็บใน Supabase Storage ใช้รูปจริงทั่วระบบ \\(fallback SVG/ตัวอักษร\\) *)",
+      "Bash(git commit -m 'โลโก้ที่อัปโหลดขึ้นหน้าล็อกอินด้วย — ใช้ path สาธารณะคงที่ branding/org-logo \\(fallback SVG\\) *)",
+      "Bash(git commit -m 'Audit fixes #3-#6: a11y + UX *)",
+      "Bash(gh auth *)",
+      "Bash(GH_PROMPT_DISABLED=1 gh auth refresh -s workflow -h github.com)",
+      "Bash(gh workflow *)",
+      "Bash(gh run *)",
+      "Bash(curl -s __TRACKED_VAR__/bundle.js?x=__CMDSUB_OUTPUT__)",
+      "PowerShell(Start-Process powershell -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-File','server.ps1','-Port','5173' -WorkingDirectory 'C:\\\\Users\\\\User\\\\Desktop\\\\ทดสอบ' -WindowStyle Hidden; Start-Sleep -Seconds 2; try { \\(Invoke-WebRequest -Uri 'http://localhost:5173/' -UseBasicParsing -TimeoutSec 5\\).StatusCode } catch { $_.Exception.Message })"
     ]
   }
 }

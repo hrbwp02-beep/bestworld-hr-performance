@@ -70,7 +70,7 @@ async function loadHRData() {
   try { const { data } = await sb.auth.getUser(); authEmail = (data?.user?.email || "").toLowerCase(); } catch { /* not logged in */ }
 
   const tables = [
-    "departments", "competencies", "employees", "jd_library", "notifications",
+    "hr_departments", "competencies", "employees", "jd_library", "notifications",
     "kpi_items", "jd_items", "kpi_defs", "submissions", "teams", "app_users", "performance_trend",
   ];
   const results = await Promise.all(

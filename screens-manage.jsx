@@ -90,10 +90,10 @@ function DataManagement({ ctx }) {
 
   // ---- สำรองข้อมูล ----
   const TABLES = [
-    { t: "employees", label: "พนักงาน" }, { t: "departments", label: "หน่วยงาน" },
+    { t: "employees", label: "พนักงาน" }, { t: "hr_departments", label: "หน่วยงาน" },
     { t: "evaluations", label: "ผลการประเมิน" }, { t: "kpi_defs", label: "นิยาม KPI" },
     { t: "kpi_monthly", label: "ผล KPI รายเดือน" }, { t: "jd_library", label: "Job Description" },
-    { t: "competencies", label: "สมรรถนะ" }, { t: "trainings", label: "ประวัติอบรม" },
+    { t: "competencies", label: "สมรรถนะ" }, { t: "hr_trainings", label: "ประวัติอบรม" },
     { t: "disciplinary", label: "ใบเตือน/วินัย" }, { t: "app_users", label: "ผู้ใช้ระบบ" },
   ];
   const [dumping, setDumping] = useS6("");

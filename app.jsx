@@ -236,7 +236,7 @@ function App() {
           </button>
           </>}
           <div className="side-section">BWP HR Connect</div>
-          <a className="nav-item" href="https://hrbwp02-beep.github.io/bwp-hr-connect/" style={{ textDecoration: "none" }}>
+          <a className="nav-item" href="https://bwp-hr-connect.vercel.app/" style={{ textDecoration: "none" }}>
             <Icon name="chevLeft" size={20} stroke={1.9} /><span className="lbl">กลับหน้าหลัก</span>
           </a>
         </nav>

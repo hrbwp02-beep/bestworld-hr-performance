@@ -1,12 +1,7 @@
 {
-  "name": "bwp-hr-performance",
-  "version": "1.0.0",
+  "name": "bestworld-hr-performance",
   "private": true,
-  "type": "module",
-  "scripts": {
-    "build": "node build.mjs"
-  },
-  "devDependencies": {
-    "esbuild": "^0.23.1"
-  }
+  "version": "1.0.0",
+  "scripts": { "build": "node build.mjs" },
+  "devDependencies": { "esbuild": "0.23.1" }
 }

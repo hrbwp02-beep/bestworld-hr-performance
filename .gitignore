@@ -18,3 +18,5 @@ build/
 # ไฟล์ที่มีรหัสผ่าน/บันทึกภายใน (ห้าม commit)
 *.xlsx
 *-NOTES.md
+
+.vercel

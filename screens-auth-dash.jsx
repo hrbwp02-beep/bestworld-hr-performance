@@ -91,7 +91,8 @@ function LoginScreen({ onLogin, logo }) {
             ติดตาม KPI และ Competency รายบุคคล หน่วยงาน และทั้งองค์กร เชื่อมโยงกับ Job Description พร้อมรายงานเชิงลึกสำหรับฝ่าย HR และผู้บริหาร
           </p>
           <div className="row" style={{ gap: 30, marginTop: 32 }}>
-            {[["พนักงานในระบบ", "157 คน"], ["รอบประเมิน", "ปี 2569"], ["หน่วยงาน", "12 หน่วยงาน"]].map(([k, v]) => (
+            {/* หน้าล็อกอินยังอ่านฐานไม่ได้ (RLS) จึงไม่ใส่ตัวเลขจำนวนคนตายตัว — เดิมเขียน 157 คน ซึ่งไม่ตรงความจริง */}
+            {[["ผลงาน", "KPI"], ["พฤติกรรม", "สมรรถนะ"], ["สายอนุมัติ", "3 ขั้น"]].map(([k, v]) => (
               <div key={k}><div style={{ fontSize: 22, fontWeight: 700, fontFamily: "var(--mono)" }}>{v}</div><div style={{ fontSize: 12.5, color: "rgba(255,255,255,.55)" }}>{k}</div></div>
             ))}
           </div>
@@ -144,8 +145,11 @@ function LoginScreen({ onLogin, logo }) {
         </form>}
 
         {selfMode && (() => {
-          const r = res; const ev = r && r.result; const b = ev ? window.bandOf(ev.overall) : null;
-          const o = ev ? window.evalOutcome(ev.overall, ev.has_warning ? 1 : 0) : null;
+          const r = res; const ev = r && r.result;
+          // เซิร์ฟเวอร์ส่งคะแนนมาเฉพาะใบที่อนุมัติครบแล้ว (status = done)
+          const shown = !!(ev && ev.status === "done" && ev.overall != null);
+          const b = shown ? window.bandOf(ev.overall) : null;
+          const o = shown ? window.evalOutcome(ev.overall, ev.has_warning ? 1 : 0) : null;
           return (
           <div style={{ width: "min(440px, 100%)", background: "rgba(255,255,255,.09)", backdropFilter: "blur(22px)", border: "1px solid rgba(255,255,255,.18)", borderRadius: 22, padding: "30px 28px", boxShadow: "0 28px 70px rgba(0,0,0,.4)", color: "#fff", maxHeight: "88vh", overflowY: "auto" }}>
             <div className="row" style={{ gap: 8, marginBottom: 6 }}>
@@ -163,7 +167,7 @@ function LoginScreen({ onLogin, logo }) {
               <div style={{ background: "rgba(255,255,255,.07)", borderRadius: 14, padding: 16 }}>
                 <div style={{ fontWeight: 700, fontSize: 16 }}>{r.employee.name}</div>
                 <div style={{ color: "rgba(255,255,255,.7)", fontSize: 13, marginBottom: 12 }}>{r.employee.position} · {r.employee.dept} · รหัส {r.employee.id}</div>
-                {!ev ? <div style={{ color: "rgba(255,255,255,.7)", fontSize: 13.5, padding: "14px 0", textAlign: "center" }}>ยังไม่มีผลการประเมินรอบ {r.cycleYear}</div> : (<>
+                {!shown ? <div style={{ color: "rgba(255,255,255,.7)", fontSize: 13.5, padding: "14px 0", textAlign: "center" }}>{ev && ev.status === "review" ? ("ผลประเมินรอบ " + r.cycleYear + " อยู่ระหว่างอนุมัติ — จะแสดงเมื่ออนุมัติครบทุกขั้น") : ("ยังไม่มีผลการประเมินรอบ " + r.cycleYear)}</div> : (<>
                   <div className="row" style={{ gap: 14, alignItems: "center", marginBottom: 12 }}>
                     <div style={{ width: 76, height: 76, borderRadius: "50%", display: "grid", placeItems: "center", background: b.color + "33", border: "3px solid " + b.color }}>
                       <div style={{ textAlign: "center" }}><div style={{ fontSize: 22, fontWeight: 800 }}>{ev.overall}</div></div>
@@ -201,7 +205,8 @@ function LoginScreen({ onLogin, logo }) {
                 )}
 
                 {/* ประเมินตนเอง (ก่อนหัวหน้าประเมิน) */}
-                {(!ev || ev.status !== "done") && (
+                {/* ประเมินตนเองได้เมื่อรอบเปิด และหัวหน้ายังไม่ส่งใบเข้าสายอนุมัติ */}
+                {r.cycleOpen && (!ev || (ev.status !== "review" && ev.status !== "done")) && (
                   ev && ev.self_at ? <div style={{ marginTop: 12 }}><span className="badge" style={{ background: "#2563eb", color: "#fff", fontWeight: 700 }}>✓ ส่งผลประเมินตนเองแล้ว</span></div>
                   : <div style={{ marginTop: 14, borderTop: "1px solid rgba(255,255,255,.14)", paddingTop: 12 }}>
                       <div style={{ fontWeight: 700, fontSize: 13.5, marginBottom: 8 }}>ประเมินตนเอง</div>

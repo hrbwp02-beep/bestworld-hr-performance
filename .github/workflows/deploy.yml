@@ -1,4 +1,8 @@
-name: Build & Deploy to GitHub Pages
+name: GitHub Pages → redirect ไป Vercel
+
+# 14/10/2569: ระบบย้ายไปเสิร์ฟที่ https://bwp-hr-eval.vercel.app แล้ว
+# เดิม workflow นี้ deploy แอปตัวเต็มขึ้น GitHub Pages ทุกครั้งที่ push → มีระบบ 2 ชุดใช้ฐานเดียวกัน
+# แต่เวอร์ชันไม่ตรงกัน (Vercel ต้อง deploy เอง) · ตอนนี้ Pages เหลือแค่หน้าส่งต่อไป Vercel
 
 on:
   push:
@@ -18,15 +22,24 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-      - run: npm install --no-save esbuild@0.23.1
-      - run: node build.mjs
+      - name: สร้างหน้า redirect
+        run: |
+          mkdir -p site
+          cat > site/index.html <<'HTML'
+          <!DOCTYPE html>
+          <html lang="th"><head><meta charset="UTF-8">
+          <meta http-equiv="refresh" content="0; url=https://bwp-hr-eval.vercel.app/">
+          <link rel="canonical" href="https://bwp-hr-eval.vercel.app/">
+          <title>ย้ายไปที่อยู่ใหม่</title></head>
+          <body style="font-family:sans-serif;padding:40px">
+          ระบบประเมินผลย้ายไปที่ <a href="https://bwp-hr-eval.vercel.app/">bwp-hr-eval.vercel.app</a> แล้ว
+          <script>location.replace("https://bwp-hr-eval.vercel.app/" + location.hash);</script>
+          </body></html>
+          HTML
+          cp site/index.html site/404.html
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: dist
+          path: site
 
   deploy:
     needs: build

@@ -499,17 +499,19 @@ function Settings({ ctx }) {
   const evaluatorOptions = (window.EMPLOYEES || []).slice().sort((a, b) => (deptName(a.dept) + a.name).localeCompare(deptName(b.dept) + b.name, "th"));
   const _empName = (id) => { const x = (window.EMPLOYEES || []).find((e) => e.id === id); return x ? x.name : null; };
   const _empDept = (id) => { const x = (window.EMPLOYEES || []).find((e) => e.id === id); return x ? x.dept : null; };
-  // ตั้งผู้ประเมินจริงให้พนักงานในหน่วยงาน ตามสาย หัวหน้า→ผู้จัดการ→HR (ข้ามขั้นที่ว่าง, ไม่ประเมินตัวเอง)
+  // อัปเดตชื่อผู้ประเมินขั้นแรก (ช่อง reviewer ใช้แสดงผลในระบบประเมินเท่านั้น) ตามสาย หัวหน้า→ผู้จัดการ→HR
+  // 14/10/2569: เลิกเขียนทับ employees.supervisor_id — ช่องนั้นคือสายบังคับบัญชาจริงที่ HR Core ใช้ทำผังองค์กร
+  // (เดิมกดตั้งค่าครั้งเดียว หัวหน้าของพนักงานทั้งหน่วยงานถูกเปลี่ยนหมด) · สายอนุมัติจริงอ่านจาก hr_departments อยู่แล้ว
   const applyDeptEvaluators = async (deptId, supId, mgrId, hrId) => {
     const ev1 = supId || mgrId || hrId || null; // ผู้ประเมินขั้นแรกของพนักงานทั่วไป
-    let qA = window.sb.from("employees").update({ supervisor_id: ev1, reviewer: _empName(ev1) }).eq("dept", deptId);
+    let qA = window.sb.from("employees").update({ reviewer: _empName(ev1) }).eq("dept", deptId);
     if (supId) qA = qA.neq("id", supId);
     if (mgrId) qA = qA.neq("id", mgrId);
     await qA;
     // หัวหน้างาน ถูกประเมินโดย ผู้จัดการ→HR
-    if (supId && _empDept(supId) === deptId) { const ev = mgrId || hrId || null; await window.sb.from("employees").update({ supervisor_id: ev, reviewer: _empName(ev) }).eq("id", supId); }
+    if (supId && _empDept(supId) === deptId) { const ev = mgrId || hrId || null; await window.sb.from("employees").update({ reviewer: _empName(ev) }).eq("id", supId); }
     // ผู้จัดการ ถูกประเมินโดย HR
-    if (mgrId && _empDept(mgrId) === deptId) { const ev = hrId || null; await window.sb.from("employees").update({ supervisor_id: ev, reviewer: _empName(ev) }).eq("id", mgrId); }
+    if (mgrId && _empDept(mgrId) === deptId) { const ev = hrId || null; await window.sb.from("employees").update({ reviewer: _empName(ev) }).eq("id", mgrId); }
   };
   const setDeptRole = async (deptId, role, empId) => {
     const dp = (window.DEPARTMENTS || []).find((d) => d.id === deptId) || {};

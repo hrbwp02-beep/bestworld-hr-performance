@@ -71,29 +71,44 @@ function Evaluation({ ctx }) {
     }
     const a1HasW = a1src.some((x) => x.weight);
     const a1w = a1src.length ? 70 / a1src.length : 0;
-    const A1 = a1src.map((x, i) => ({ id: "a1_" + i, name: x.name, weight: a1HasW ? (Number(x.weight) || 0) : Math.round(a1w * 10) / 10, grp: "a1", target: x.target || null, score: 3, note: "" }));
+    const A1 = a1src.map((x, i) => ({ id: "a1_" + i, name: x.name, weight: a1HasW ? (Number(x.weight) || 0) : Math.round(a1w * 10) / 10, grp: "a1", target: x.target || null, score: 0, note: "" }));
     // A2 · KPI ร่วมของหน่วยงาน — ดึงจาก KPI หน่วยงานจริง (กรองตามส่วนงาน) ทุก JD · กลุ่ม 30%
     const kd = (empJD && (empJD.kpi_dept || empJD.dept)) || e.dept;
     let dk = (window.KPI_DEFS || []).filter((k) => k.dept === kd && k.status === "approved");
     if (dk.some((k) => k.section)) { const isPrint = /พิมพ์|สลิท/.test(empSection); dk = dk.filter((k) => !k.section || (isPrint ? k.section === "พิมพ์" : k.section === "เป่า")); }
     const a2w = dk.length ? 30 / dk.length : 0;
-    const A2 = dk.map((k, i) => ({ id: "a2_" + i, name: k.en || k.name, weight: Math.round(a2w * 10) / 10, grp: "a2", target: k.formula || ((k.target && k.target.y != null ? k.target.y : "") + (k.unit || "")), score: 3, note: "" }));
+    const A2 = dk.map((k, i) => ({ id: "a2_" + i, name: k.en || k.name, weight: Math.round(a2w * 10) / 10, grp: "a2", target: k.formula || ((k.target && k.target.y != null ? k.target.y : "") + (k.unit || "")), score: 0, note: "" }));
     return [...A1, ...A2];
   };
   const buildB = () => {
-    if (empJD && empJD.eval_b && empJD.eval_b.length) return empJD.eval_b.map((it, i) => ({ id: "b" + i, name: it.name, weight: Number(it.weight) || 0, grp: it.grp || "specific", score: 3, note: "" }));
+    if (empJD && empJD.eval_b && empJD.eval_b.length) return empJD.eval_b.map((it, i) => ({ id: "b" + i, name: it.name, weight: Number(it.weight) || 0, grp: it.grp || "specific", score: 0, note: "" }));
     const comps = (empJD && empJD.competencies && empJD.competencies.length) ? empJD.competencies : (COMPETENCIES || []).map((c) => c.name);
-    return comps.map((name, i) => ({ id: "b" + i, name, weight: Math.round(100 / (comps.length || 1)), grp: i < 3 ? "core" : "specific", score: 3, note: "" }));
+    return comps.map((name, i) => ({ id: "b" + i, name, weight: Math.round(100 / (comps.length || 1)), grp: i < 3 ? "core" : "specific", score: 0, note: "" }));
   };
+  // ดึงคะแนนที่บันทึกไว้แล้วกลับเข้าฟอร์ม (จับคู่ตามชื่อหัวข้อ) — เดิมเปิดร่างเดิมแล้วคะแนนรีเซ็ต
+  // score ในฐานเก็บเป็น 0–100 · ในฟอร์มเป็นดาว 1–5 (0 = ยังไม่ให้คะแนน)
+  const restoreSaved = (built, saved) => {
+    if (!Array.isArray(saved) || !saved.length) return built;
+    const used = new Set();
+    return built.map((x) => {
+      const i = saved.findIndex((s, j) => !used.has(j) && s && s.name === x.name);
+      if (i < 0) return x;
+      used.add(i);
+      return { ...x, score: Math.round((Number(saved[i].score) || 0) / 20), note: saved[i].note || x.note };
+    });
+  };
+  const _savedItems = (e.eval && e.eval.items) || {};
+  const _evLocked = !!(e.eval && (e.eval.status === "review" || e.eval.status === "done"));
   const [tab, setTab] = useS3("a");
-  const [secA, setSecA] = useS3(buildA);
-  const [secB, setSecB] = useS3(buildB);
+  const [secA, setSecA] = useS3(() => restoreSaved(buildA(), _savedItems.a));
+  const [secB, setSecB] = useS3(() => restoreSaved(buildB(), _savedItems.b));
   const [submitted, setSubmitted] = useS3(false);
-  const [comment, setComment] = useS3("");
+  // ช่องความเห็น: ตอนร่างใช้เป็นความเห็นผู้ประเมิน · ตอนอยู่ในสายอนุมัติใช้เป็นความเห็นผู้อนุมัติ (เริ่มว่าง)
+  const [comment, setComment] = useS3((!_evLocked && e.eval && e.eval.comment) || "");
   const [saving, setSaving] = useS3(false);
   const _firstEvaluator = (APPROVAL_STAGES[0] && APPROVAL_STAGES[0].evaluator_id) || e.supervisor_id || "";
   const evalSup = (EMPLOYEES || []).find((x) => x.id === _firstEvaluator) || null; // ผู้ประเมินขั้นแรก
-  const [evalCode, setEvalCode] = useS3(_firstEvaluator);
+  const [evalCode, setEvalCode] = useS3((e.eval && e.eval.evaluator_code) || _firstEvaluator);
   const evalCodeName = ((EMPLOYEES || []).find((x) => x.id === evalCode) || {}).name || e.reviewer || "";
   const [goals, setGoals] = useS3(() => (e.eval && Array.isArray(e.eval.goals)) ? e.eval.goals : []);
   const [idp, setIdp] = useS3(() => (e.eval && Array.isArray(e.eval.idp)) ? e.eval.idp : []);
@@ -125,9 +140,12 @@ function Evaluation({ ctx }) {
   const aTotal = useM3(() => { if (!secA.length) return 0; const w = wsum(secA) || secA.length; return Math.round(secA.reduce((s, x) => s + x.score * 20 * (x.weight || 1), 0) / w * 10) / 10; }, [secA]);
   const bTotal = useM3(() => { if (!secB.length) return 0; const w = wsum(secB) || secB.length; return Math.round(secB.reduce((s, x) => s + x.score * 20 * (x.weight || 1), 0) / w * 10) / 10; }, [secB]);
   const kpiTotal = aTotal, compTotal = bTotal, jdTotal = 0;
-  const overall = Math.round((aTotal * wK + bTotal * wC) / ((wK + wC) || 100) * 10) / 10;
+  // คะแนนรวมปัดเป็นจำนวนเต็มตั้งแต่ตรงนี้ — ให้เลขที่เห็น เลขที่บันทึก และเกรด ตรงกันเสมอ
+  // (เดิมคิดเกรดจาก 79.6 แต่บันทึกเป็น 80 → เกรดในใบกับคะแนนในฐานไม่ตรงกัน)
+  const overall = Math.round((aTotal * wK + bTotal * wC) / ((wK + wC) || 100));
   const band = window.bandOf(overall);
   const outcome = window.evalOutcome(overall, e.warnings);
+  const unratedCount = [...secA, ...secB].filter((x) => !x.score).length;
   // approval workflow state (Phase 7)
   const evRec = e.eval || null;
   const curStage = evRec ? (evRec.stage || "draft") : "draft";
@@ -144,6 +162,18 @@ function Evaluation({ ctx }) {
   const dBand = window.bandOf(dOverall);
   const dOutcome = showSaved ? window.evalOutcome(dOverall, e.warnings) : outcome;
 
+  // ===== สิทธิ์ในฟอร์ม (ฐานข้อมูลตรวจซ้ำอีกชั้นด้วย trigger perf_eval_guard) =====
+  const _cu = window.CURRENT_USER || {};
+  const isHR = _cu.role === "admin" || _cu.role === "hr";
+  const curStageObj = curIdx > -1 ? APPROVAL_STAGES[curIdx] : null;
+  // อนุมัติ/ตีกลับได้เฉพาะเจ้าของขั้นปัจจุบัน (หรือ HR/admin)
+  const canApprove = isHR || !!(curStageObj && curStageObj.evaluator_id && curStageObj.evaluator_id === _cu.employee_id);
+  // รอบเปิดอยู่ไหม: สวิตช์เปิดรอบ + อยู่ในช่วงวันที่ (เวลาไทย)
+  const _todayTH = new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10);
+  const cycleOpen = W.eval_open !== false && (!W.start_date || _todayTH >= W.start_date) && (!W.end_date || _todayTH <= W.end_date);
+  // แก้คะแนนได้เมื่อ: ยังไม่ส่งเข้าสาย และรอบเปิดอยู่ (HR แก้ได้แม้รอบปิด)
+  const canEdit = !inReview && !isApproved && (isHR || cycleOpen);
+
   // save the evaluation to Supabase: record it + write scores back to the employee
   const saveEval = async (finalStatus) => {
     if (saving) return;
@@ -152,29 +182,31 @@ function Evaluation({ ctx }) {
       // ตรวจสอบ session ก่อน — ถ้าหลุด login จะบันทึกไม่ได้
       const sess = (await window.sb.auth.getSession()).data.session;
       if (!sess) { toast("เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่", "x"); return; }
-      const kScore = Math.round(kpiTotal), cScore = Math.round(compTotal), jScore = Math.round(jdTotal);
+      const isSubmit = finalStatus === "review";
+      if (!canEdit) { toast(cycleOpen ? "ใบประเมินนี้ส่งเข้าสายอนุมัติแล้ว แก้ไขไม่ได้" : "รอบประเมินปิดอยู่ — ติดต่อฝ่ายบุคคล", "x"); return; }
+      if (isSubmit && unratedCount) { toast("ยังให้คะแนนไม่ครบ " + unratedCount + " ข้อ — ให้คะแนนทุกข้อก่อนส่ง", "x"); return; }
+      if (isSubmit && !(APPROVAL_STAGES[0] && APPROVAL_STAGES[0].evaluator_id)) { toast("หน่วยงานนี้ยังไม่ได้กำหนดสายผู้ประเมิน — ตั้งค่าที่หน้าตั้งค่าก่อน", "x"); return; }
+      const kScore = Math.round(kpiTotal), cScore = Math.round(compTotal);
       const cy = +(window.CYCLE_YEAR || 2569);
-      const histVal = Math.round(kScore * 0.6 + cScore * 0.4);
-      // keep exactly one evaluation record per (employee, cycle_year): clear prior then insert
-      const { error: delErr } = await window.sb.from("evaluations").delete().eq("employee_id", e.id).eq("cycle_year", cy);
-      if (delErr) { toast("บันทึกไม่สำเร็จ (ลบรอบเดิม): " + delErr.message, "x"); return; }
       const items = {
-        a: secA.map((x) => ({ name: x.name, weight: x.weight, score: x.score * 20 })),
-        b: secB.map((x) => ({ name: x.name, weight: x.weight, grp: x.grp, score: x.score * 20 })),
+        a: secA.map((x) => ({ name: x.name, weight: x.weight, grp: x.grp, score: x.score * 20, note: x.note || undefined })),
+        b: secB.map((x) => ({ name: x.name, weight: x.weight, grp: x.grp, score: x.score * 20, note: x.note || undefined })),
         kpi: secA.map((x) => ({ name: x.name, score: x.score * 20 })),
         comp: secB.map((x) => ({ name: x.name, score: x.score * 20 })),
       };
       const who = await currentApprover();
-      const isSubmit = finalStatus === "review";
       const stage = isSubmit ? APPROVAL_STAGES[0].key : "draft";
-      const approvals = isSubmit ? [{ stage: "submit", act: "ส่งเข้าสายอนุมัติ", by: who.name, at: new Date().toISOString() }] : [];
-      const { error: evErr } = await window.sb.from("evaluations").insert({
+      const approvals = isSubmit ? [...((e.eval && e.eval.approvals) || []), { stage: "submit", act: "ส่งเข้าสายอนุมัติ", by: who.name, at: new Date().toISOString() }] : ((e.eval && e.eval.approvals) || []);
+      // 1 ใบต่อคนต่อรอบ: upsert ทับใบเดิม (ฐานมี unique index employee_id+cycle_year)
+      // ส่งเฉพาะช่องของผู้ประเมิน → ผลประเมินตนเอง เป้าหมาย IDP และการรับทราบผลของพนักงานไม่หาย
+      // (เดิมใช้ ลบแล้วสร้างใหม่ ซึ่งหัวหน้าลบไม่ได้ → เกิดใบซ้ำ และถ้า HR บันทึก ข้อมูลพนักงานหาย)
+      const { error: evErr } = await window.sb.from("evaluations").upsert({
         employee_id: e.id, cycle_year: cy, kpi_score: kScore, comp_score: cScore, jd_score: 0,
         a_score: kScore, b_score: cScore,
-        overall: Math.round(overall), comment: comment.trim() || null, evaluator: evalCodeName || who.name, evaluator_code: evalCode || null, status: finalStatus === "review" ? "review" : "progress",
+        overall, comment: comment.trim() || null, evaluator: evalCodeName || who.name, evaluator_code: evalCode || null, status: isSubmit ? "review" : "progress",
         grade: outcome.grade, bonus_months: outcome.bonusMonths, raise_pct: outcome.raisePct, has_warning: outcome.hasWarning,
         items, stage, approvals,
-      });
+      }, { onConflict: "employee_id,cycle_year" });
       if (evErr) { toast("บันทึกไม่สำเร็จ: " + evErr.message, "x"); return; }
       const { error: upErr } = await window.sb.from("employees").update({
         kpi: kScore, comp: cScore, status: finalStatus === "review" ? "review" : "progress", history: e.history || [],
@@ -201,6 +233,7 @@ function Evaluation({ ctx }) {
     try {
       const cy = +(window.CYCLE_YEAR || 2569);
       const rec = e.eval; if (!rec) { toast("ยังไม่มีใบประเมินให้อนุมัติ", "x"); return; }
+      if (!canApprove) { toast("คุณไม่ใช่ผู้อนุมัติของขั้นนี้", "x"); return; }
       const who = await currentApprover();
       const cur = rec.stage || APPROVAL_STAGES[0].key;
       const idx = APPROVAL_STAGES.findIndex((s) => s.key === cur);
@@ -211,7 +244,8 @@ function Evaluation({ ctx }) {
       const { error } = await window.sb.from("evaluations").update(patch).eq("employee_id", e.id).eq("cycle_year", cy);
       if (error) { toast("อนุมัติไม่สำเร็จ: " + error.message, "x"); return; }
       if (!next) {
-        const histVal = Math.round((rec.kpi_score || 0) * 0.6 + (rec.comp_score || 0) * 0.4);
+        // ประวัติคะแนน = คะแนนรวมจริงของใบประเมิน (เดิมคิด 60/40 ตายตัว ไม่ตรงกับน้ำหนักที่ตั้งไว้)
+        const histVal = Math.round(Number(rec.overall) || 0);
         await window.sb.from("employees").update({ status: "done", history: [...(e.history || []), histVal] }).eq("id", e.id);
       } else {
         await window.notify(window.empEmail(next.evaluator_id), "info", "มีผลประเมินรออนุมัติ", e.name + " (" + deptShort(e.dept) + ") รอการอนุมัติขั้น " + next.label);
@@ -227,9 +261,11 @@ function Evaluation({ ctx }) {
     try {
       const cy = +(window.CYCLE_YEAR || 2569);
       const rec = e.eval; if (!rec) return;
+      if (!canApprove) { toast("คุณไม่ใช่ผู้อนุมัติของขั้นนี้", "x"); return; }
       const who = await currentApprover();
       const log = [...(rec.approvals || []), { stage: rec.stage || "", act: "ตีกลับให้แก้ไข", by: who.name, at: new Date().toISOString(), note: comment.trim() || null }];
-      await window.sb.from("evaluations").update({ stage: "draft", status: "progress", approvals: log }).eq("employee_id", e.id).eq("cycle_year", cy);
+      const { error: rjErr } = await window.sb.from("evaluations").update({ stage: "draft", status: "progress", approvals: log }).eq("employee_id", e.id).eq("cycle_year", cy);
+      if (rjErr) { toast("ตีกลับไม่สำเร็จ: " + rjErr.message, "x"); return; }
       await window.sb.from("employees").update({ status: "progress" }).eq("id", e.id);
       const s0 = APPROVAL_STAGES[0];
       await window.notify(window.empEmail(s0 && s0.evaluator_id), "warn", "ผลประเมินถูกตีกลับ", e.name + " (" + deptShort(e.dept) + ") ถูกตีกลับให้แก้ไข" + (comment.trim() ? " · " + comment.trim() : ""));
@@ -277,7 +313,7 @@ function Evaluation({ ctx }) {
           <div className="row" style={{ gap: 14 }}>
             <Avatar name={e.name} initials={e.initials} color={e.color} size={52} />
             <div>
-              <div className="row" style={{ gap: 9 }}><span style={{ fontWeight: 700, fontSize: 17 }}>{e.name}</span><Badge cls="b-blue" dot>กำลังประเมิน</Badge></div>
+              <div className="row" style={{ gap: 9 }}><span style={{ fontWeight: 700, fontSize: 17 }}>{e.name}</span>{(() => { const sm = window.statusMeta(e.status) || window.statusMeta("pending"); return <Badge cls={sm.cls} dot>{sm.label}</Badge>; })()}</div>
               <div className="muted" style={{ fontSize: 13.5 }}>{e.position} · {deptName(e.dept)} · {COMPANY.cycle}</div>
               <div className="muted" style={{ fontSize: 12.5, marginTop: 2 }}>ผู้ประเมิน: {evalCodeName || "—"}{evalCode ? " · รหัส " + evalCode : ""}</div>
             </div>
@@ -301,10 +337,20 @@ function Evaluation({ ctx }) {
                 <option key={emp.id} value={emp.id}>{emp.name} {emp.status === "done" ? "✓" : ""}</option>
               ))}
             </select>
-            <button className="btn btn-ghost" onClick={() => saveEval("progress")} disabled={saving}>{saving ? "กำลังบันทึก…" : "บันทึกร่าง"}</button>
+            {canEdit && <button className="btn btn-ghost" onClick={() => saveEval("progress")} disabled={saving}>{saving ? "กำลังบันทึก…" : "บันทึกร่าง"}</button>}
             <button className="btn btn-pri" onClick={() => { setTab("approve"); }}>ไปขั้นอนุมัติ <Icon name="chevRight" size={15} /></button>
           </div>
         </div>
+        {!cycleOpen && !inReview && !isApproved && (
+          <div style={{ marginTop: 14, background: "var(--red-soft)", color: "#be123c", borderRadius: 10, padding: "10px 14px", fontSize: 13 }}>
+            <Icon name="alert" size={14} /> รอบประเมินปิดอยู่ หรือเลยช่วงวันที่ประเมินแล้ว ({W.start_date || "—"} ถึง {W.end_date || "—"}){isHR ? " — คุณเป็น HR จึงยังแก้ได้ ให้ตั้งช่วงวันที่ใหม่ที่หน้าตั้งค่า" : " — บันทึกคะแนนไม่ได้ ติดต่อฝ่ายบุคคล"}
+          </div>
+        )}
+        {(inReview || isApproved) && (
+          <div style={{ marginTop: 14, background: "var(--surface-2)", borderRadius: 10, padding: "10px 14px", fontSize: 13 }} className="muted">
+            {isApproved ? "ใบประเมินนี้อนุมัติครบแล้ว — ดูได้อย่างเดียว" : "ใบประเมินนี้อยู่ในสายอนุมัติ — คะแนนล็อกไว้ ถ้าต้องแก้ให้ผู้อนุมัติกด \"ตีกลับแก้ไข\""}
+          </div>
+        )}
         <hr className="divider" style={{ margin: "18px 0" }} />
         <Stepper />
       </Card>
@@ -381,8 +427,8 @@ function Evaluation({ ctx }) {
                             <div><span style={{ fontWeight: 600, fontSize: 13.5, lineHeight: 1.4 }}>{k.name}</span><div className="muted" style={{ fontSize: 11.5, marginTop: 2 }}>น้ำหนัก {k.weight}%{k.target ? " · เป้า " + k.target : ""}</div></div>
                           </div>
                           <div className="row" style={{ gap: 12 }}>
-                            <Stars value={k.score} onChange={(v) => { const a = [...secA]; a[k._i] = { ...a[k._i], score: v }; setSecA(a); }} />
-                            <span className="num" style={{ fontWeight: 700, color: window.bandOf(k.score * 20).color, minWidth: 34 }}>{k.score * 20}</span>
+                            <Stars value={k.score} readOnly={!canEdit} onChange={(v) => { const a = [...secA]; a[k._i] = { ...a[k._i], score: v }; setSecA(a); }} />
+                            <span className="num" style={{ fontWeight: 700, color: k.score ? window.bandOf(k.score * 20).color : "var(--text-3)", minWidth: 34 }}>{k.score ? k.score * 20 : "—"}</span>
                           </div>
                         </div>
                       </div>
@@ -414,12 +460,12 @@ function Evaluation({ ctx }) {
                         <div className="between wrap" style={{ gap: 12 }}>
                           <div style={{ flex: 1, minWidth: 200 }}><div style={{ fontWeight: 600, fontSize: 13.5 }}>{c.name}</div><div className="muted" style={{ fontSize: 11.5, marginTop: 2 }}>น้ำหนัก {c.weight}%</div></div>
                           <div className="row" style={{ gap: 12 }}>
-                            <Stars value={c.score} onChange={(v) => { const a = [...secB]; a[c._i] = { ...a[c._i], score: v }; setSecB(a); }} />
-                            <span className="num" style={{ fontWeight: 700, color: window.bandOf(c.score * 20).color, minWidth: 34 }}>{c.score * 20}</span>
+                            <Stars value={c.score} readOnly={!canEdit} onChange={(v) => { const a = [...secB]; a[c._i] = { ...a[c._i], score: v }; setSecB(a); }} />
+                            <span className="num" style={{ fontWeight: 700, color: c.score ? window.bandOf(c.score * 20).color : "var(--text-3)", minWidth: 34 }}>{c.score ? c.score * 20 : "—"}</span>
                           </div>
                         </div>
                         <input className="input" placeholder="ความคิดเห็น / ตัวอย่างพฤติกรรม…" style={{ marginTop: 10, fontSize: 13.5 }}
-                          value={c.note} onChange={(ev) => { const a = [...secB]; a[c._i] = { ...a[c._i], note: ev.target.value }; setSecB(a); }} />
+                          value={c.note} disabled={!canEdit} onChange={(ev) => { const a = [...secB]; a[c._i] = { ...a[c._i], note: ev.target.value }; setSecB(a); }} />
                       </div>
                     ))}
                   </div>
@@ -484,7 +530,7 @@ function Evaluation({ ctx }) {
                   })}
                 </div>
                 <div className="field" style={{ marginTop: 8 }}><label style={{ fontSize: 12.5 }}>ผู้ประเมิน (หัวหน้างาน) · รหัส</label>
-                  <select className="select" value={evalCode} onChange={(ev) => setEvalCode(ev.target.value)} disabled={isApproved}>
+                  <select className="select" value={evalCode} onChange={(ev) => setEvalCode(ev.target.value)} disabled={!canEdit}>
                     <option value="">— ไม่ระบุ —</option>
                     {window.scopeEmployees(EMPLOYEES || []).slice().sort((a, b) => (a.dept || "").localeCompare(b.dept || "")).map((x) => <option key={x.id} value={x.id}>{x.id} · {x.name} ({deptShort(x.dept)})</option>)}
                   </select>
@@ -494,17 +540,21 @@ function Evaluation({ ctx }) {
                 <div className="row wrap" style={{ gap: 10, marginTop: 16 }}>
                   {isApproved ? (
                     <button className="btn btn-pri" style={{ flex: 1 }} disabled><Icon name="checkCircle" size={16} />อนุมัติครบทุกขั้นแล้ว ✓</button>
-                  ) : inReview ? (<>
+                  ) : inReview ? (canApprove ? (<>
                     <button className="btn btn-ghost" onClick={rejectApproval} disabled={saving} style={{ color: "var(--red)" }}><Icon name="x" size={15} />ตีกลับแก้ไข</button>
                     <button className="btn btn-pri" style={{ flex: 1 }} onClick={advanceApproval} disabled={saving}>
                       <Icon name="check" size={16} />{saving ? "กำลังดำเนินการ…" : ("อนุมัติขั้น: " + ((APPROVAL_STAGES[curIdx] || {}).label || ""))}
                     </button>
-                  </>) : (<>
+                  </>) : (
+                    <div className="muted" style={{ fontSize: 13 }}>รอ {(curStageObj && curStageObj.label) || "ผู้อนุมัติขั้นถัดไป"} ดำเนินการ — คุณไม่ใช่ผู้อนุมัติของขั้นนี้</div>
+                  )) : canEdit ? (<>
                     <button className="btn btn-ghost" onClick={() => saveEval("progress")} disabled={saving}><Icon name="refresh" size={15} />บันทึกร่าง</button>
-                    <button className="btn btn-pri" style={{ flex: 1 }} onClick={() => saveEval("review")} disabled={saving}>
-                      <Icon name="check" size={16} />{saving ? "กำลังบันทึก…" : "ส่งเข้าสายอนุมัติ"}
+                    <button className="btn btn-pri" style={{ flex: 1 }} onClick={() => saveEval("review")} disabled={saving || unratedCount > 0} title={unratedCount ? "ยังให้คะแนนไม่ครบ " + unratedCount + " ข้อ" : ""}>
+                      <Icon name="check" size={16} />{saving ? "กำลังบันทึก…" : unratedCount ? ("ยังไม่ได้ให้คะแนน " + unratedCount + " ข้อ") : "ส่งเข้าสายอนุมัติ"}
                     </button>
-                  </>)}
+                  </>) : (
+                    <div className="muted" style={{ fontSize: 13 }}>รอบประเมินปิดอยู่ — บันทึก/ส่งผลไม่ได้</div>
+                  )}
                 </div>
               </div>
             </div>

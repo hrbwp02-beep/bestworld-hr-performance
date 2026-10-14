@@ -4,11 +4,12 @@ HR Performance Management System (KPI · Competency · JD · Calibration) สำ
 UI ภาษาไทย · โทนน้ำเงิน/ขาว/เทา · IBM Plex Sans Thai · responsive
 
 > Prototype นี้พัฒนาจากดีไซน์ Claude Design แล้วต่อยอดให้ใช้งานจริงด้วย **Supabase**
-> (ฐานข้อมูล Postgres + Auth จริง) และ deploy เป็น static site บน **GitHub Pages**
+> (ฐานข้อมูล Postgres + Auth จริง) และ deploy เป็น static site บน **Vercel** (https://bwp-hr-eval.vercel.app — ต้องสั่ง deploy เอง ไม่ผูกกับ GitHub)
+> ฐานข้อมูล Supabase `actkvftfcikegodvyebn` ใช้ร่วมกับ HR Core / Dashboard / ระบบสรรหา
 
 ## สถาปัตยกรรม
 
-- **Frontend** — React 18 (UMD) + Babel-standalone, ไม่มีขั้นตอน build เป็น static ล้วน
+- **Frontend** — React 18 (UMD) + Babel-standalone ตอน dev · ตอน build ใช้ esbuild รวมเป็น `dist/bundle.js` (`node build.mjs`)
 - **Backend** — Supabase (Postgres + Row Level Security + Auth อีเมล/รหัสผ่าน)
 - ข้อมูลทั้งหมด (พนักงาน, แผนก, KPI, JD, การส่งรายงาน ฯลฯ) อยู่ในตาราง `public.*`
   และโหลดเข้าหน้าเว็บผ่าน `loadHRData()` ใน [`supa.jsx`](supa.jsx)

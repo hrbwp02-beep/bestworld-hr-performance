@@ -1,15 +1,19 @@
-// Supabase Edge Function: admin-users
-// Provisions real login accounts for the HR system. Uses the service-role key
-// (available only inside the function, never in client code). Only an active
-// admin in public.app_users may call it.
-//
-// Deployed via the Supabase MCP (verify_jwt = true). Actions:
-//   create         { name, email, password, role, dept, active }
-//   delete         { app_user_id }
-//   provision      { app_user_id, password }   (give an existing row a real login)
-//   reset_password { app_user_id, password }
+// admin-users — จัดการบัญชีผู้ใช้ของ HR Core
+// เฉพาะ admin ที่ active ใน public.app_users เท่านั้นที่เรียกได้
+// actions: create | delete | provision | reset_password
+// (14/10/2569: คัดลอกจากเวอร์ชันที่ deploy อยู่ v2 ให้ไฟล์ในเครื่องตรงกับของจริง)
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
+
+// อ่าน API key ระบบใหม่ก่อน ถ้าไม่มีค่อยถอยกลับไปใช้ legacy
+function secretKey(): string {
+  try {
+    const m = JSON.parse(Deno.env.get("SUPABASE_SECRET_KEYS") ?? "");
+    const k = m?.default ?? Object.values(m ?? {})[0];
+    if (typeof k === "string" && k) return k;
+  } catch { /* ตกไปใช้ legacy */ }
+  return Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+}
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -19,7 +23,6 @@ const cors = {
 function reply(obj: Record<string, unknown>) {
   return new Response(JSON.stringify(obj), { status: 200, headers: { ...cors, "Content-Type": "application/json" } });
 }
-// decode a base64url JWT segment to JSON (signature already verified by the platform)
 function decodeClaims(token: string): any {
   try {
     let s = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
@@ -34,12 +37,11 @@ Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   try {
     const url = Deno.env.get("SUPABASE_URL")!;
-    const service = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
 
     const claims = decodeClaims(token);
     let callerEmail: string | null = claims?.email ?? null;
-    const admin = createClient(url, service);
+    const admin = createClient(url, secretKey());
     if (!callerEmail) {
       const { data } = await admin.auth.getUser(token);
       callerEmail = data?.user?.email ?? null;
@@ -95,7 +97,6 @@ Deno.serve(async (req: Request) => {
     }
 
     if (action === "provision") {
-      // create a real login account for an EXISTING app_users row that has none yet
       const id = body.app_user_id;
       const password = String(body.password ?? "");
       if (!id || password.length < 6) return reply({ ok: false, error: "รหัสผ่านต้องยาวอย่างน้อย 6 ตัวอักษร" });

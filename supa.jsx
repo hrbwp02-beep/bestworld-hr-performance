@@ -120,11 +120,14 @@ async function loadHRData() {
   (evalRes.data || []).forEach((r) => { evalByEmp[r.employee_id] = r; });
 
   // employees → re-attach computed fields the screens expect
+  // น้ำหนักจากหน้าตั้งค่า (เดิม fallback ใช้ 60/40 ตายตัว ไม่ตรงกับ 70/30 ที่ตั้งไว้)
+  const _wK = appSettings && appSettings.w_kpi != null ? Number(appSettings.w_kpi) : 70;
+  const _wC = appSettings && appSettings.w_comp != null ? Number(appSettings.w_comp) : 30;
   const ALL_EMPLOYEES = empRows.map((e) => {
     const ev = evalByEmp[e.id];
     const overall = ev && ev.overall != null
       ? Math.round(Number(ev.overall) * 10) / 10
-      : Math.round(((Number(e.kpi) || 0) * 0.6 + (Number(e.comp) || 0) * 0.4) * 10) / 10;
+      : Math.round(((Number(e.kpi) || 0) * _wK + (Number(e.comp) || 0) * _wC) / ((_wK + _wC) || 100) * 10) / 10;
     const parts = (e.name || "").split(" ");
     const initials = (parts[0] ? parts[0][0] : "") + (parts[1] ? parts[1][0] : "");
     // อายุงาน is computed live from hire_date when available

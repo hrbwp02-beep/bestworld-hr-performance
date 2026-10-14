@@ -20,3 +20,4 @@ build/
 *-NOTES.md
 
 .vercel
+.env*

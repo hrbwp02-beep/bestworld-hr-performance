@@ -29,15 +29,16 @@ const NAV = [
   { id: "analytics", label: "สถิติหน่วยงาน", icon: "trend", mod: "people" },
   { id: "manage", label: "จัดการข้อมูล", icon: "settings", mod: "people" },
   // โมดูล: ประเมินผล
+  // ประเมินประจำปีแบบใหม่ (ตาม JD) — แทนฟอร์มประเมิน/ติดตามการประเมิน/Calibration แบบเดิม
+  { id: "annual", label: "ประเมินประจำปี", icon: "eval", mod: "perf" },
   { id: "dashboard", label: "ภาพรวมการประเมิน", icon: "dashboard", mod: "perf" },
-  { id: "evaltrack", label: "ติดตามการประเมิน", icon: "checkCircle", mod: "perf" },
-  { id: "eval", label: "ฟอร์มประเมิน", icon: "eval", mod: "perf" },
   { id: "kpi", label: "KPI หน่วยงาน", icon: "deptkpi", mod: "perf" },
   { id: "jd", label: "จัดการ JD", icon: "jd", mod: "perf" },
   { id: "exec", label: "มุมมองผู้บริหาร", icon: "trend", mod: "perf" },
   { id: "reports", label: "รายงาน", icon: "reports", mod: "perf" },
-  { id: "calibration", label: "Calibration", icon: "calibration", mod: "perf" },
 ];
+// หน้าระบบประเมินแบบเดิม — ซ่อนจากเมนู (ยังเปิดตรงได้ถ้าจำเป็น) ไม่ลบ
+const LEGACY_PAGES = ["eval", "evaltrack", "calibration"];
 // หน้าที่ไม่อยู่ในเมนู แต่สังกัดโมดูล (ใช้ไฮไลต์โมดูลให้ถูกตอนเปิดหน้านั้น)
 const PAGE_MODULE = { profile: "people", settings: "people" };
 const moduleOfPage = (id) => PAGE_MODULE[id] || (NAV.find((n) => n.id === id) || {}).mod || "perf";
@@ -45,8 +46,8 @@ const moduleOfPage = (id) => PAGE_MODULE[id] || (NAV.find((n) => n.id === id) ||
 const ROLE_PAGES = {
   admin: "*",
   hr: "*",
-  manager: ["dashboard", "employee", "hrdata", "analytics", "evaltrack", "eval", "kpi", "profile"],
-  supervisor: ["dashboard", "employee", "hrdata", "analytics", "evaltrack", "eval", "profile"],
+  manager: ["annual", "dashboard", "employee", "hrdata", "analytics", "kpi", "profile"],
+  supervisor: ["annual", "dashboard", "employee", "hrdata", "analytics", "profile"],
   viewer: ["dashboard", "hrdata", "profile"],
 };
 const pagesFor = (role) => ROLE_PAGES[role] || ROLE_PAGES.viewer;
@@ -54,6 +55,7 @@ const canSeePage = (role, id) => { const p = pagesFor(role); return p === "*" ||
 const canSeeSettings = (role) => role === "admin" || role === "hr";
 
 const TITLES = {
+  annual: ["ประเมินผลประจำปี", "Annual Evaluation"],
   dashboard: ["ภาพรวมการประเมิน", "Performance Dashboard"],
   exec: ["มุมมองผู้บริหาร", "Executive Drill-down"],
   employee: ["พนักงาน", "Employee Directory"],
@@ -98,7 +100,7 @@ function App() {
   const [checking, setChecking] = useA(true);
   const [dataReady, setDataReady] = useA(false);
   const [loadErr, setLoadErr] = useA(null);
-  const [route, setRoute] = useA("dashboard");
+  const [route, setRoute] = useA("annual");
   const [empId, setEmpId] = useA("E1000");
   const [evalEmp, setEvalEmp] = useA("");
   const [year, setYear] = useA(String(window.CYCLE_YEAR || "2569"));
@@ -187,7 +189,7 @@ function App() {
   const cuInitials = (cuName.trim()[0] || "U");
   // จำกัดสิทธิ์เข้าหน้า: ถ้าหน้าปัจจุบันไม่ได้รับอนุญาต ให้ตกกลับไปหน้าภาพรวม
   const routeAllowed = (r) => r === "settings" ? canSeeSettings(cu.role) : canSeePage(cu.role, r);
-  const effRoute = routeAllowed(route) ? route : "dashboard";
+  const effRoute = routeAllowed(route) ? route : (routeAllowed("annual") ? "annual" : "dashboard");
   const [tTitle, tSub] = TITLES[effRoute] || TITLES.dashboard;
   // หาพนักงานที่ตรงกับบัญชีผู้ใช้: ใช้ employee_id ที่ผูกไว้ก่อน แล้วค่อย fallback เทียบชื่อ
   const _normName = (s) => (s || "").replace(/^(นาย|นางสาว|นาง|คุณ|น\.ส\.)\s*/, "").replace(/\s+/g, "").toLowerCase();
@@ -226,7 +228,7 @@ function App() {
             <button key={n.id} className={"nav-item" + (effRoute === n.id || (effRoute === "profile" && n.id === "employee") ? " active" : "")} onClick={() => go(n.id)}>
               <Icon name={n.icon} size={20} stroke={1.9} />
               <span className="lbl">{n.label}</span>
-              {n.id === "eval" && <span className="nav-badge">{SUMMARY.pending}</span>}
+              
             </button>
           ))}
           {canSeeSettings(cu.role) && <>
@@ -330,6 +332,7 @@ function App() {
         </header>
 
         <main className="content">
+          {effRoute === "annual" && <AnnualEval ctx={ctx} />}
           {effRoute === "dashboard" && <Dashboard ctx={ctx} />}
           {effRoute === "exec" && <ExecDashboard ctx={ctx} />}
           {effRoute === "employee" && <EmployeeList ctx={ctx} />}

@@ -161,10 +161,35 @@ function AnnualEval({ ctx, page }) {
   );
 }
 
+// โหมดทดลอง (perf_cycles.config.trial): หน่วยงานในรายชื่อให้คะแนน/ส่งใบได้ก่อนเปิดจริง ถึงวัน until
+// mine = บัญชีนี้อยู่ในหน่วยงานที่เปิดทดลอง (HR ถือว่าเห็นทุกหน่วยงาน)
+function annTrial(cycle) {
+  const t = (cycle && cycle.config && cycle.config.trial) || {};
+  const today = new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10);
+  const depts = t.depts || [];
+  const on = !!t.until && today <= t.until && depts.length > 0;
+  const cu = window.CURRENT_USER || {};
+  const my = Array.isArray(cu.dept_scope) && cu.dept_scope.length ? cu.dept_scope : (cu.dept ? [cu.dept] : []);
+  const names = depts.map((d) => (window.deptName ? window.deptName(d) : d)).join(", ");
+  return { on, depts, until: t.until, names, mine: on && (annIsHR() || depts.some((d) => my.includes(d))) };
+}
+function AnnTrialNote({ cycle }) {
+  const tr = annTrial(cycle);
+  if (!tr.mine) return null;
+  return (
+    <div style={{ padding: "10px 14px", borderRadius: 8, background: "#fff7e6", border: "1px solid #f5c26b", color: "#8a5a00", fontSize: 13.5 }}>
+      <b>โหมดทดลองประเมิน</b> — {annIsHR() ? "เปิดให้ " + tr.names + " ทดลอง" : "หน่วยงานของคุณทดลองให้คะแนนและส่งใบได้"} ถึง {annDate(tr.until)} ·
+      คะแนนที่กรอกช่วงนี้เป็นการทดลอง HR จะล้างทิ้งก่อนเปิดรับประเมินจริง {annDate(cycle.open_from)}
+    </div>
+  );
+}
+
 function AnnualCycleBanner({ cycle }) {
   const today = new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10);
   const open = cycle.status === "open" && today >= cycle.open_from && today <= cycle.open_to;
+  const tr = annTrial(cycle);
   const msg = open ? "เปิดรับประเมินอยู่ ถึง " + annDate(cycle.open_to)
+    : tr.mine ? "ทดลองประเมิน ถึง " + annDate(tr.until)
     : cycle.status === "draft" ? "ยังไม่เปิดรับประเมิน (เปิด " + annDate(cycle.open_from) + " – " + annDate(cycle.open_to) + ")"
     : today < cycle.open_from ? "เปิดรับประเมิน " + annDate(cycle.open_from) + " – " + annDate(cycle.open_to)
     : "ปิดรับประเมินแล้ว";
@@ -175,8 +200,9 @@ function AnnualCycleBanner({ cycle }) {
           <div style={{ fontWeight: 700, fontSize: 17 }}>{cycle.name}</div>
           <div className="muted" style={{ fontSize: 13 }}>ผลงาน {annDate(cycle.period_start)} – {annDate(cycle.period_end)} · จ่ายโบนัส {annDate(cycle.bonus_pay)} · เงินเดือนใหม่มีผล {annDate(cycle.raise_effective)}</div>
         </div>
-        <Badge cls={open ? "b-green" : "b-gray"} dot>{msg}</Badge>
+        <Badge cls={open ? "b-green" : tr.mine ? "b-amber" : "b-gray"} dot>{msg}</Badge>
       </div>
+      {tr.mine && <div style={{ marginTop: 12 }}><AnnTrialNote cycle={cycle} /></div>}
     </Card>
   );
 }
@@ -1109,6 +1135,7 @@ function AnnualHome({ rows, cycle, onOpen, go }) {
         <span>“ ประเมินอย่างเป็นธรรม โปร่งใส ตรวจสอบได้ — เพื่อการเติบโตไปด้วยกัน ”</span>
         <AnnualCycleBadge cycle={cycle} />
       </div>
+      <AnnTrialNote cycle={cycle} />
       <div className="hcm-home-grid">
         <AnnPanel title="สรุปผลการประเมิน" sub={cycle.name + " · " + scope}>
           <div className="hcm-sum">
@@ -1166,6 +1193,8 @@ function AnnualHome({ rows, cycle, onOpen, go }) {
 function AnnualCycleBadge({ cycle }) {
   const today = new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10);
   const open = cycle.status === "open" && today >= cycle.open_from && today <= cycle.open_to;
+  const tr = annTrial(cycle);
+  if (!open && tr.mine) return <Badge cls="b-amber" dot>ทดลองประเมิน ถึง {annDate(tr.until)}</Badge>;
   return <Badge cls={open ? "b-green" : "b-gray"} dot>{open ? "เปิดรับประเมินถึง " + annDate(cycle.open_to) : cycle.status === "draft" ? "ยังไม่เปิดรับ (เปิด " + annDate(cycle.open_from) + ")" : today < cycle.open_from ? "เปิดรับ " + annDate(cycle.open_from) : "ปิดรับประเมินแล้ว"}</Badge>;
 }
 
@@ -1287,6 +1316,66 @@ function AnnualCalib({ rows, cycle, onOpen }) {
   );
 }
 
+/* ---------- HR: โหมดทดลองประเมินรายหน่วยงาน (ก่อนเปิดรอบจริง) ---------- */
+function AnnTrialSettings({ cycle, reload }) {
+  const t = (cycle.config && cycle.config.trial) || {};
+  const [depts, setDepts] = useAnnS(t.depts || []);
+  const [until, setUntil] = useAnnS(t.until || "");
+  const [busy, setBusy] = useAnnS(false);
+  const all = (window.DEPARTMENTS || []).filter((d) => d.id !== "mgmt");
+  const tr = annTrial(cycle);
+  const saveCfg = async (trial) => {
+    setBusy(true);
+    // อ่าน config ล่าสุดก่อน แล้วแก้เฉพาะ trial — ไม่ทับเกณฑ์อื่นในรอบ
+    const { data, error } = await window.sb.from("perf_cycles").select("config").eq("id", cycle.id).single();
+    if (error) { setBusy(false); toast(error.message, "x"); return; }
+    const cfg = { ...(data.config || {}) };
+    if (trial) cfg.trial = trial; else delete cfg.trial;
+    const { error: e2 } = await window.sb.from("perf_cycles").update({ config: cfg, updated_at: new Date().toISOString() }).eq("id", cycle.id);
+    setBusy(false);
+    if (e2) { toast(e2.message, "x"); return; }
+    toast(trial ? "เปิดทดลองแล้ว" : "ปิดโหมดทดลองแล้ว", "check"); reload();
+  };
+  const start = () => {
+    if (!depts.length || !until) { toast("เลือกหน่วยงานและวันสิ้นสุดก่อน", "x"); return; }
+    if (until >= cycle.open_from) { toast("วันสิ้นสุดทดลองต้องก่อนวันเปิดจริง " + annDate(cycle.open_from), "x"); return; }
+    saveCfg({ depts, until });
+  };
+  const reset = async (d) => {
+    if (!window.confirm("ล้างข้อมูลทดลองของ " + (window.deptName ? window.deptName(d) : d) + "?\nคะแนน ความเห็น การส่ง/อนุมัติ และประวัติของทุกใบในหน่วยงานนี้จะถูกลบ ใบกลับเป็น \"ยังไม่เริ่ม\" (ย้อนกลับไม่ได้)")) return;
+    setBusy(true);
+    try { const r = await annRpc("perf_trial_reset", { p_cycle: cycle.id, p_dept: d }); toast("ล้างแล้ว " + r.forms + " ใบ", "check"); reload(); }
+    catch (e) { toast(e.message, "x"); } finally { setBusy(false); }
+  };
+  return (
+    <Card>
+      <CardHead title="ทดลองประเมิน (ก่อนเปิดรอบจริง)" sub={tr.on ? "เปิดทดลองอยู่: " + tr.names + " ถึง " + annDate(tr.until) : "ปิดอยู่ — เลือกหน่วยงานที่จะให้ลองใช้ระบบจริง"} />
+      <div className="card-pad">
+        <div className="row wrap" style={{ gap: 14 }}>
+          {all.map((d) => (
+            <label key={d.id} className="row" style={{ gap: 6, fontSize: 13.5 }}>
+              <input type="checkbox" checked={depts.includes(d.id)} onChange={(e) => setDepts(e.target.checked ? [...depts, d.id] : depts.filter((x) => x !== d.id))} />{d.name}
+            </label>
+          ))}
+        </div>
+        <div className="row wrap" style={{ gap: 10, marginTop: 14, alignItems: "flex-end" }}>
+          <div className="field" style={{ width: 190 }}><label>ทดลองได้ถึงวันที่</label><input className="input" type="date" value={until} onChange={(e) => setUntil(e.target.value)} /></div>
+          <button className="btn btn-pri" disabled={busy} onClick={start}><Icon name="check" size={15} />{tr.on ? "บันทึก" : "เปิดทดลอง"}</button>
+          {(t.depts || []).length > 0 && <button className="btn btn-ghost" disabled={busy} onClick={() => saveCfg(null)}>ปิดโหมดทดลอง</button>}
+        </div>
+        {(t.depts || []).length > 0 && (
+          <div className="row wrap" style={{ gap: 8, marginTop: 14 }}>
+            <span className="muted" style={{ fontSize: 13 }}>ล้างข้อมูลทดลอง:</span>
+            {(t.depts || []).map((d) => <button key={d} className="btn btn-ghost btn-sm" style={{ color: "var(--red)" }} disabled={busy} onClick={() => reset(d)}>{window.deptName ? window.deptName(d) : d}</button>)}
+          </div>
+        )}
+        <div className="muted" style={{ fontSize: 12.5, marginTop: 10 }}>บัญชีของหน่วยงานที่เลือกให้คะแนน/ส่งใบได้ทันทีจนถึงวันที่กำหนด หน่วยงานอื่นยังปิดอยู่ ·
+          ใบที่ส่งแล้วจะล็อกหัวข้อ JD นั้น (เพิ่ม/ลบหัวข้อไม่ได้) จนกว่าจะล้างข้อมูลทดลอง · <b>ก่อนเปิดรอบจริงต้องกด "ล้างข้อมูลทดลอง" ทุกหน่วยงาน</b></div>
+      </div>
+    </Card>
+  );
+}
+
 /* ---------- HR: ตั้งค่ารอบ ---------- */
 function AnnualCycleSettings({ cycle, reload }) {
   const [c, setC] = useAnnS({ ...cycle });
@@ -1320,6 +1409,7 @@ function AnnualCycleSettings({ cycle, reload }) {
         <div className="row" style={{ justifyContent: "flex-end", marginTop: 14 }}><button className="btn btn-pri" disabled={busy} onClick={save}><Icon name="check" size={15} />บันทึก</button></div>
         <div className="muted" style={{ fontSize: 12.5, marginTop: 8 }}>หน่วยงานให้คะแนนได้เมื่อสถานะ "เปิดรับประเมิน" และวันนี้อยู่ในช่วงวันที่ · HR แก้คะแนนได้ตลอด</div>
       </Card>
+      <AnnTrialSettings cycle={cycle} reload={reload} />
       <Card>
         <CardHead title="เกณฑ์ของรอบนี้" sub="ตามเอกสารแบบระบบใหม่และเกณฑ์บริษัทปี 2568 · ถ้าจะเปลี่ยนเกณฑ์ แจ้งผู้ดูแลระบบ" />
         <div className="tbl-wrap"><table className="tbl">

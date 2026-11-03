@@ -68,7 +68,7 @@ const SIDE_MENU = [
   { id: "ann:todo", label: "งานของฉัน", icon: "list", badge: "todo" },
   { id: "g_rep", label: "รายงาน", icon: "reports", hr: true, children: [
     ["ann:reports", "รายงานทั้งหมด"], ["ann:reports-annual", "ผลประเมินประจำปี"], ["ann:reports-approval", "สถานะการอนุมัติ"], ["ann:reports-adjust", "การปรับเกรด/คะแนน"],
-    ["ann:reports-deduct", "คะแนนหักการมาทำงาน"], ["ann:reports-dept", "สรุปผลรายหน่วยงาน"]] },
+    ["ann:reports-deduct", "คะแนนหักการมาทำงาน"], ["ann:reports-gap", "วิเคราะห์ Gap (หัวข้อที่ต้องพัฒนา)"], ["ann:reports-dept", "สรุปผลรายหน่วยงาน"]] },
   { id: "g_people", label: "ข้อมูลพนักงาน", icon: "users", children: [["employee", "รายชื่อพนักงาน"], ["hrdata", "แดชบอร์ดกำลังคน"], ["analytics", "สถิติหน่วยงาน"]] },
   { id: "g_more", label: "วิเคราะห์เพิ่มเติม", icon: "trend", children: [["dashboard", "แดชบอร์ดผลประเมิน"], ["exec", "มุมมองผู้บริหาร"], ["reports", "รายงานวิเคราะห์"], ["kpi", "KPI หน่วยงาน (ยังไม่นับคะแนน)"]] },
 ];
@@ -77,7 +77,7 @@ const ANN_TITLES = {
   approve: "ศูนย์อนุมัติ", overview: "สรุปผลการประเมิน", calib: "ปรับผล (Calibration)", setup: "รายชื่อ & ผู้ประเมิน", exclude: "ผู้ที่ไม่ต้องประเมิน",
   deduct: "คะแนนหัก (ตอกบัตร/ใบเตือน)", items: "หัวข้อประเมิน (JD)", reports: "รายงาน", cycle: "รอบประเมิน & เกณฑ์",
   "reports-annual": "รายงานผลประเมินประจำปี", "reports-approval": "รายงานตรวจสอบสถานะการอนุมัติ", "reports-adjust": "รายงานการปรับเกรด/คะแนน",
-  "reports-deduct": "รายงานคะแนนหักการมาทำงานและใบเตือน", "reports-dept": "สรุปผลรายหน่วยงาน", "reports-inform": "แจ้งผลการประเมิน",
+  "reports-deduct": "รายงานคะแนนหักการมาทำงานและใบเตือน", "reports-gap": "วิเคราะห์ Gap (หัวข้อที่ต้องพัฒนา)", "reports-dept": "สรุปผลรายหน่วยงาน", "reports-inform": "แจ้งผลการประเมิน",
 };
 const routeTitle = (r) => String(r).startsWith("ann:") ? ANN_TITLES[r.slice(4)] || "ประเมินผลประจำปี" : (TITLES[r] || [""])[0];
 const canSeeSettings = (role) => role === "admin" || role === "hr";

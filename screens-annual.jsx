@@ -72,10 +72,24 @@ function annPrint(title, body, landscape) {
     <body><div class="noprint" style="text-align:right;margin-bottom:8px"><button onclick="window.print()" style="padding:8px 16px;background:#1d4ed8;color:#fff;border:none;border-radius:8px;cursor:pointer">พิมพ์ / บันทึก PDF</button></div>${body}</body></html>`);
   w.document.close();
 }
+// แถบกราฟสำหรับหน้าพิมพ์ (แสดงคะแนนเป็นภาพ)
+function annBar(label, v, max, strong) {
+  const p = max ? Math.max(0, Math.min(100, v / max * 100)) : 0;
+  const c = p >= 90 ? "#16a34a" : p >= 70 ? "#2f6db5" : p >= 60 ? "#e08a00" : "#e11d48";
+  return `<div style="display:flex;align-items:center;gap:8px;margin:4px 0;font-size:12.5px"><span style="width:170px${strong ? ";font-weight:700" : ""}">${annEsc(label)}</span>
+    <span style="flex:1;height:14px;background:#eef2f6;border-radius:7px;overflow:hidden;-webkit-print-color-adjust:exact;print-color-adjust:exact"><span style="display:block;height:100%;width:${p.toFixed(1)}%;background:${c};-webkit-print-color-adjust:exact;print-color-adjust:exact"></span></span>
+    <span style="width:90px;text-align:right">${(Math.round(v * 10) / 10)} / ${max}</span></div>`;
+}
 function annPrintHead(title, sub) {
   return `<div class="bar"><div><h1>${annEsc(title)}</h1><div class="sub">บริษัท เบสท์เวิลด์ อินเตอร์พลาส จำกัด${sub ? " · " + annEsc(sub) : ""}</div></div><div class="sub">พิมพ์เมื่อ ${annEsc(annDateTime(new Date().toISOString()))}</div></div>`;
 }
 
+// Gap = ระดับที่ได้ − ระดับที่คาดหวัง (3 = ตามมาตรฐาน) · ติดลบ = ต้องพัฒนา
+function annGapTxt(g) { if (g == null || isNaN(g)) return "—"; const v = Math.round(g * 100) / 100; return (v > 0 ? "+" : "") + v.toFixed(Number.isInteger(v) ? 0 : 2); }
+function AnnGap({ g }) {
+  const c = g < 0 ? ["#be123c", "#fde4ea", "ต่ำกว่าคาดหวัง"] : g > 0 ? ["#15803d", "#e7f6ec", "เกินคาดหวัง"] : ["#475569", "#eef2f6", "ตามคาดหวัง"];
+  return <span className="badge" style={{ background: c[1], color: c[0], marginLeft: 6 }}>Gap {annGapTxt(g)} · {c[2]}</span>;
+}
 function AnnStatus({ s }) { const m = ANN_STATUS[s] || [s, "b-gray"]; return <Badge cls={m[1]} dot>{m[0]}</Badge>; }
 function AnnGrade({ g }) {
   if (!g) return <span className="muted">—</span>;
@@ -103,11 +117,17 @@ function AnnualEval({ ctx, page }) {
   const hr = annIsHR();
   const pg = !hr && ANN_HR_PAGES.includes(page) ? "home" : (page || "home");
 
-  const load = async () => {
+  const [cycles, setCycles] = useAnnS([]);
+  const [cycleId, setCycleId] = useAnnS(null);   // null = รอบล่าสุด
+  const load = async (pick) => {
     setErr("");
     try {
-      const { data: cy, error } = await window.sb.from("perf_cycles").select("*").order("id", { ascending: false }).limit(1).maybeSingle();
+      // หลายรอบต่อปีได้ (เช่น ครึ่งปี/ทั้งปี) · ค่าเริ่มต้นคือรอบล่าสุด
+      const { data: cs, error } = await window.sb.from("perf_cycles").select("*").order("id", { ascending: false });
       if (error) throw new Error(error.message);
+      setCycles(cs || []);
+      const want = pick !== undefined ? pick : cycleId;
+      const cy = (cs || []).find((c) => c.id === want) || (cs || [])[0];
       if (!cy) { setCycle(null); setRows([]); return; }
       setCycle(cy);
       const rs = await annRpc("perf_list", { p_cycle: cy.id }) || [];
@@ -134,11 +154,13 @@ function AnnualEval({ ctx, page }) {
   const rows = rowsAll.filter((r) => !r.excluded);
   const go = (p) => ctx.go("ann:" + p);
   const banner = !["home", "flow", "hub"].includes(pg);
+  const pickCycle = (id) => { setCycleId(id); setRows(null); load(id); };
+  const cyc = { cycles, pick: pickCycle };
 
   return (
     <div className="grid">
-      {banner && <AnnualCycleBanner cycle={cycle} />}
-      {pg === "home" && <AnnualHome rows={rows} cycle={cycle} onOpen={setFormId} go={go} />}
+      {banner && <AnnualCycleBanner cycle={cycle} cyc={cyc} />}
+      {pg === "home" && <AnnualHome rows={rows} cycle={cycle} onOpen={setFormId} go={go} cyc={cyc} />}
       {pg === "flow" && <AnnualFlow rows={rows} go={go} />}
       {pg === "hub" && <AnnualSetupHub rowsAll={rowsAll} go={go} goRoute={ctx.go} />}
       {pg === "mine" && <AnnualMine rows={rows} onOpen={setFormId} preset="all" />}
@@ -156,7 +178,7 @@ function AnnualEval({ ctx, page }) {
       {pg === "deduct" && <AnnualDeductions rows={rows} cycle={cycle} reload={load} />}
       {pg === "items" && <AnnualItems rows={rows} />}
       {pg.startsWith("reports") && <AnnualReports key={pg} rows={rows} cycle={cycle} only={pg.split("-")[1]} />}
-      {pg === "cycle" && <AnnualCycleSettings cycle={cycle} reload={load} />}
+      {pg === "cycle" && <AnnualCycleSettings key={cycle.id} cycle={cycle} reload={() => load()} cyc={cyc} rows={rows} />}
     </div>
   );
 }
@@ -184,7 +206,14 @@ function AnnTrialNote({ cycle }) {
   );
 }
 
-function AnnualCycleBanner({ cycle }) {
+/* เลือกรอบประเมิน (มีหลายรอบได้) */
+function AnnCyclePick({ cycle, cyc }) {
+  if (!cyc || !cyc.cycles || cyc.cycles.length < 2) return null;
+  return <select className="select" style={{ width: "auto", minWidth: 200, padding: "6px 34px 6px 10px", fontSize: 13 }} value={cycle.id} onChange={(e) => cyc.pick(e.target.value)}>
+    {cyc.cycles.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>;
+}
+
+function AnnualCycleBanner({ cycle, cyc }) {
   const today = new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10);
   const open = cycle.status === "open" && today >= cycle.open_from && today <= cycle.open_to;
   const tr = annTrial(cycle);
@@ -200,7 +229,7 @@ function AnnualCycleBanner({ cycle }) {
           <div style={{ fontWeight: 700, fontSize: 17 }}>{cycle.name}</div>
           <div className="muted" style={{ fontSize: 13 }}>ผลงาน {annDate(cycle.period_start)} – {annDate(cycle.period_end)} · จ่ายโบนัส {annDate(cycle.bonus_pay)} · เงินเดือนใหม่มีผล {annDate(cycle.raise_effective)}</div>
         </div>
-        <Badge cls={open ? "b-green" : tr.mine ? "b-amber" : "b-gray"} dot>{msg}</Badge>
+        <div className="row wrap" style={{ gap: 8 }}><AnnCyclePick cycle={cycle} cyc={cyc} /><Badge cls={open ? "b-green" : tr.mine ? "b-amber" : "b-gray"} dot>{msg}</Badge></div>
       </div>
       {tr.mine && <div style={{ marginTop: 12 }}><AnnTrialNote cycle={cycle} /></div>}
     </Card>
@@ -320,6 +349,12 @@ function AnnualForm({ id, onBack }) {
     if (!(await save(true))) return;
     setBusy(true);
     try { await annRpc("perf_submit", { p_assignment: id }); toast("ส่งใบประเมินแล้ว", "checkCircle"); await load(); }
+    catch (e) { setErr(e.message); } finally { setBusy(false); }
+  };
+  const recall = async () => {
+    if (!window.confirm("ดึงใบของ " + r.name + " กลับมาแก้ไข?\nใบจะกลับเป็น \"กำลังประเมิน\" ต้องกดส่งใหม่อีกครั้ง")) return;
+    setBusy(true); setErr("");
+    try { await annRpc("perf_recall", { p_assignment: id }); toast("ดึงกลับมาแก้ไขแล้ว", "check"); await load(); }
     catch (e) { setErr(e.message); } finally { setBusy(false); }
   };
   const review = async (action) => {
@@ -468,7 +503,7 @@ function AnnualForm({ id, onBack }) {
 
       {groups.map(([k, label, xs]) => (
         <Card key={k}>
-          <CardHead title={label} sub={"น้ำหนัก " + (w[k] || 0) + "% · ระดับเฉลี่ย " + (live.av[k] == null ? "—" : live.av[k].toFixed(2))} />
+          <CardHead title={label} sub={"น้ำหนัก " + (w[k] || 0) + "% · ระดับเฉลี่ย " + (live.av[k] == null ? "—" : live.av[k].toFixed(2) + " · Gap เทียบระดับที่คาดหวัง (3) " + annGapTxt(live.av[k] - 3))} />
           <div style={{ padding: "0 20px 16px", display: "flex", flexDirection: "column", gap: 12 }}>
             {xs.map((x, i) => {
               const needNote = (x.rating === 1 || x.rating === 5) && !(x.note || "").trim();
@@ -482,6 +517,7 @@ function AnnualForm({ id, onBack }) {
                         className={"btn btn-sm " + (x.rating === n ? "btn-pri" : "btn-ghost")} style={{ minWidth: 44, fontWeight: 700 }}>{n}</button>
                     ))}
                     <span className="muted" style={{ fontSize: 12.5, marginLeft: 6 }}>{x.rating ? ANN_RATING[x.rating - 1][1] : "ยังไม่ให้คะแนน"}</span>
+                    {x.rating && <AnnGap g={x.rating - 3} />}
                   </div>
                   {(can || x.note) && <input className="input" disabled={!can} placeholder={needNote ? "ต้องเขียนเหตุผล / ตัวอย่างผลงาน" : "เหตุผล / ตัวอย่างผลงาน (ไม่บังคับ)"} value={x.note || ""}
                     onChange={(e) => setItem(x.item_id, { note: e.target.value })} style={{ marginTop: 10, fontSize: 13.5, borderColor: needNote ? "var(--red)" : undefined }} />}
@@ -501,6 +537,8 @@ function AnnualForm({ id, onBack }) {
         <div className="row wrap" style={{ gap: 10, marginTop: 14, justifyContent: "flex-end" }}>
           {can && <button className="btn btn-ghost" disabled={busy} onClick={() => save(false)}><Icon name="check" size={15} />บันทึก</button>}
           {can && <button className="btn btn-pri" disabled={busy} onClick={submit}><Icon name="checkCircle" size={15} />ส่งใบประเมิน</button>}
+          {/* ผู้ประเมินดึงใบที่ส่งแล้ว (ยังไม่อนุมัติ) กลับมาแก้เองได้ — HR ใช้ปุ่มตีกลับแทน */}
+          {!f.is_hr && r.can_eval && ["submitted", "reviewed"].includes(r.status) && <button className="btn btn-ghost" disabled={busy} onClick={recall}><Icon name="refresh" size={15} />ดึงกลับมาแก้ไข</button>}
         </div>
         {(f.can_review || hrCanDecide || (f.is_hr && r.status === "approved")) && (
           <div style={{ marginTop: 16, borderTop: "1px solid var(--border)", paddingTop: 14 }}>
@@ -609,7 +647,10 @@ function AnnualOverview({ rows, rowsAll, cycle }) {
         </div>
       </Card>
       <Card>
-        <CardHead title="ความคืบหน้ารายหน่วยงาน" />
+        <CardHead title="ความคืบหน้ารายหน่วยงาน" right={annIsHR() ? <button className="btn btn-soft btn-sm" onClick={async () => {
+          if (!window.confirm("ส่งแจ้งเตือนในระบบ (รูปกระดิ่ง) ถึงบัญชีหน่วยงานที่ยังมีใบรอให้คะแนน?")) return;
+          try { const d = await annRpc("perf_notify_pending", { p_cycle: cycle.id }); toast("ส่งแจ้งเตือนแล้ว " + d.accounts + " บัญชี", "check"); }
+          catch (e) { toast(e.message, "x"); } }}><Icon name="bell" size={14} />แจ้งเตือนหน่วยงานที่ยังไม่ส่ง</button> : null} />
         <div className="tbl-wrap"><table className="tbl">
           <thead><tr><th>หน่วยงาน</th><th>ต้องประเมิน</th><th>ส่งแล้ว</th><th>อนุมัติแล้ว</th>{bands.map((b) => <th key={b[1]}>{b[1]}</th>)}</tr></thead>
           <tbody>{Object.entries(byDept).map(([d, v]) => (
@@ -937,6 +978,7 @@ const ANN_REPORTS = [
   ["approval", "รายงานตรวจสอบสถานะการอนุมัติ", "เลขที่ใบ วันที่ส่ง/ทบทวน/อนุมัติ ผู้อนุมัติ ค้างกี่วัน และขั้นถัดไป"],
   ["adjust", "รายงานการปรับเกรด/คะแนน", "ทุกครั้งที่ HR ปรับผล: ค่าที่ระบบคิด → ค่าที่ปรับ เหตุผล ผู้ปรับ เวลา"],
   ["deduct", "รายงานคะแนนหักการมาทำงานและใบเตือน", "สรุปรายคนจากตอกบัตร ใบเตือน และรายการที่ HR กรอก"],
+  ["gap", "วิเคราะห์ Gap (หัวข้อที่ต้องพัฒนา)", "ระดับเฉลี่ยรายหัวข้อ × หน่วยงาน เทียบระดับที่คาดหวัง (3) — ใช้วางแผนฝึกอบรม/พัฒนา"],
   ["dept", "สรุปผลรายหน่วยงาน", "ความคืบหน้า คะแนนเฉลี่ย การกระจายเกรด และโบนัสรวมของแต่ละหน่วยงาน"],
   ["inform", "ใบแจ้งผลการประเมินรายบุคคล", "พิมพ์ใบแจ้งผลให้พนักงานลงนามรับทราบ ทีละหน่วยงาน (1 คน / 1 หน้า)"],
 ];
@@ -969,6 +1011,10 @@ function AnnualReports({ rows, cycle, only }) {
           const { data, error } = await window.sb.from("perf_events").select("*").in("action", ["adjust", "unadjust"]).order("at", { ascending: false });
           if (error) throw new Error(error.message);
           if (!off) setExtra((x) => ({ ...x, events: data || [] }));
+        }
+        if (rep === "gap" && !extra.gap) {
+          const g = await annRpc("perf_gap", { p_cycle: cycle.id }) || [];
+          if (!off) setExtra((x) => ({ ...x, gap: g }));
         }
         if (rep === "deduct" && !extra.deds) {
           const { data, error } = await window.sb.from("perf_deductions").select("*").eq("cycle_id", cycle.id);
@@ -1017,6 +1063,14 @@ function AnnualReports({ rows, cycle, only }) {
     H = ["รหัส", "ชื่อ-สกุล", "หน่วยงาน", ...kinds.map((k) => "#" + annDeductLabel(k)), "#คะแนนมาทำงาน (เต็ม 10)", "#หักใบเตือน"];
     R = el.filter((r) => by[r.employee_id]).map((r) => [r.employee_id, r.name, r.dept_name, ...kinds.map((k) => by[r.employee_id][k] ? annFmt(by[r.employee_id][k]) : ""), annFmt(r.attendance_points), Number(r.warning_points) ? "−" + annFmt(r.warning_points) : "0"]);
     note = "ตัวเลขในช่องประเภท = จำนวนครั้ง/วัน (ไม่รวมรายการที่ตั้ง \"ไม่นับ\") · คนที่ไม่อยู่ในตารางได้คะแนนมาทำงานเต็ม 10";
+  } else if (rep === "gap") {
+    if (!extra.gap) loading = true;
+    const SEC = { A: "A งานตาม JD", B: "B ทักษะ/ภาวะผู้นำ", C: "C พฤติกรรมหลัก" };
+    H = ["ส่วน", "หัวข้อ", "หน่วยงาน", "#จำนวนคน", "#ระดับเฉลี่ย", "#Gap", "#ต่ำกว่าคาดหวัง (คน)", "#เกินคาดหวัง (คน)"];
+    R = (extra.gap || []).filter((g) => dept === "all" || g.dept_name === dept)
+      .sort((a, b) => Number(a.gap) - Number(b.gap) || b.n_below - a.n_below)
+      .map((g) => [SEC[g.section] || g.section, g.title, g.dept_name, g.n_rated, Number(g.avg_rating).toFixed(2), annGapTxt(Number(g.gap)), g.n_below || "", g.n_above || ""]);
+    note = "Gap = ระดับเฉลี่ย − 3 (ระดับที่คาดหวัง) · เรียงจากติดลบมากสุด = หัวข้อที่ควรพัฒนาก่อน · นับเฉพาะหัวข้อที่ให้คะแนนแล้ว";
   } else if (rep === "dept") {
     const g = {}; el.forEach((r) => { const k = r.dept_name || r.dept; const o = g[k] = g[k] || { n: 0, sent: 0, appr: 0, sum: 0, cnt: 0, gr: {}, bonus: 0 };
       o.n++; if (!["pending", "draft", "returned"].includes(r.status)) o.sent++; if (r.status === "approved") o.appr++;
@@ -1052,6 +1106,7 @@ function AnnualReports({ rows, cycle, only }) {
         <tr><td>การมาทำงาน (ลา / มาสาย / ขาดงาน)</td><td class="n">${annFmt(r.attendance_points)}</td><td class="n">10</td></tr>
         <tr><td>หักจากหนังสือเตือน</td><td class="n">${Number(r.warning_points) ? "−" + annFmt(r.warning_points) : "0"}</td><td class="n"></td></tr>
         <tr><td><b>คะแนนรวม</b></td><td class="n"><b>${annFmt(r.total)}</b></td><td class="n">100</td></tr></table>
+        <div style="margin-top:12px">${ps.map(([k, v, mx]) => annBar(SEC[k], v, mx)).join("")}${annBar("การมาทำงาน", Math.max(0, Number(r.attendance_points)), 10)}${annBar("คะแนนรวม", Math.max(0, Number(r.total)), 100, true)}</div>
         <div style="margin-top:12px;font-size:16px">ผลการประเมิน: เกรด <b>${annEsc(r.grade)}</b> — ${annEsc(band ? band[3] : "")}</div>
         ${showMoney ? `<div class="sub" style="margin-top:4px">โบนัส ${annFmt(r.bonus_months, 2)} เดือน${Number(r.bonus_factor) < 1 ? " × สัดส่วนอายุงาน " + r.bonus_factor : ""} · ปรับเงินเดือน ${r.raise_pct == null ? "—" : r.raise_pct + "%"} (มีผล ${annEsc(annDate(cycle.raise_effective))})</div>` : ""}
         <h2>ความเห็นของผู้ประเมิน / สิ่งที่ควรพัฒนา</h2><div style="border:1px solid #cbd5e1;min-height:60px;padding:6px">${annEsc(r.evaluator_comment || "")}</div>
@@ -1111,7 +1166,7 @@ function AnnPanel({ title, sub, right, children, pad }) {
 }
 
 /* ---------- หน้าแรก (Home): สรุปผล + เอกสารรอดำเนินการ ---------- */
-function AnnualHome({ rows, cycle, onOpen, go }) {
+function AnnualHome({ rows, cycle, onOpen, go, cyc }) {
   const hr = annIsHR();
   const el = rows.filter((r) => r.eligible);
   const graded = el.filter((r) => r.grade);
@@ -1133,7 +1188,7 @@ function AnnualHome({ rows, cycle, onOpen, go }) {
     <>
       <div className="hcm-quote">
         <span>“ ประเมินอย่างเป็นธรรม โปร่งใส ตรวจสอบได้ — เพื่อการเติบโตไปด้วยกัน ”</span>
-        <AnnualCycleBadge cycle={cycle} />
+        <div className="row wrap" style={{ gap: 8 }}><AnnCyclePick cycle={cycle} cyc={cyc} /><AnnualCycleBadge cycle={cycle} /></div>
       </div>
       <AnnTrialNote cycle={cycle} />
       <div className="hcm-home-grid">
@@ -1376,8 +1431,111 @@ function AnnTrialSettings({ cycle, reload }) {
   );
 }
 
+/* ---------- HR: เกณฑ์ของรอบ (น้ำหนักตามระดับตำแหน่ง · ช่วงเกรด/โบนัส · ขึ้นเงินเดือน) แก้ได้ ---------- */
+function AnnCriteria({ cycle, rows, reload }) {
+  const cfg = cycle.config || {};
+  const [w, setW] = useAnnS(JSON.parse(JSON.stringify(cfg.weights || {})));
+  const [bands, setBands] = useAnnS(JSON.parse(JSON.stringify(cfg.bands || [])));
+  const [raise, setRaise] = useAnnS(cfg.raise_pct ?? 0);
+  const [busy, setBusy] = useAnnS(false);
+  const sent = (rows || []).filter((r) => !annTodoStatus(r.status)).length;
+  const setWv = (lv, k, v) => setW({ ...w, [lv]: { ...w[lv], [k]: Number(v) } });
+  const setB = (i, j, v) => setBands(bands.map((b, x) => x === i ? b.map((y, z) => z === j ? (j === 1 || j === 3 ? v : Number(v)) : y) : b));
+  const save = async () => {
+    const badW = Object.entries(w).filter(([, v]) => ["A", "B", "C"].some((k) => !(v[k] >= 0)) || (v.A || 0) + (v.B || 0) + (v.C || 0) !== 100).map(([k]) => ANN_LEVEL[k] || k);
+    if (badW.length) { toast("น้ำหนักต้องรวมได้ 100 และไม่ติดลบ: " + badW.join(", "), "x"); return; }
+    const badB = bands.some((b, i) => !(b[2] >= 0) || (i > 0 && !(b[0] < bands[i - 1][0]))) || (bands.length && bands[bands.length - 1][0] !== 0);
+    if (badB) { toast("ช่วงเกรด: คะแนนขั้นต่ำต้องเรียงจากมากไปน้อย เกรดสุดท้ายต้องเป็น 0 และโบนัสไม่ติดลบ", "x"); return; }
+    if (!window.confirm((sent ? "มีใบที่ส่งแล้ว " + sent + " ใบ — คะแนน/เกรด/โบนัสของทุกใบจะคิดใหม่ตามเกณฑ์นี้ทันที\n" : "") + "บันทึกเกณฑ์ของ " + cycle.name + "?")) return;
+    setBusy(true);
+    // อ่าน config ล่าสุดก่อน แก้เฉพาะ 3 ค่านี้ ไม่ทับค่าอื่น (เช่น โหมดทดลอง คะแนนหัก)
+    const { data, error } = await window.sb.from("perf_cycles").select("config").eq("id", cycle.id).single();
+    if (error) { setBusy(false); toast(error.message, "x"); return; }
+    const { error: e2 } = await window.sb.from("perf_cycles").update({ config: { ...data.config, weights: w, bands, raise_pct: Number(raise) }, updated_at: new Date().toISOString() }).eq("id", cycle.id);
+    setBusy(false);
+    if (e2) { toast(e2.message, "x"); return; }
+    toast("บันทึกเกณฑ์แล้ว — หน้าอื่นจะใช้เกณฑ์ใหม่หลังรีเฟรชหน้าเว็บ", "check"); reload();
+  };
+  const N = (v, on, wd) => <input className="input" type="number" style={{ width: wd || 80, padding: "5px 8px" }} value={v} onChange={(e) => on(e.target.value)} />;
+  return (
+    <Card>
+      <CardHead title="เกณฑ์ของรอบนี้" sub="แก้ได้ · น้ำหนักแต่ละระดับต้องรวม 100 · ใส่ 0 = ไม่ประเมินส่วนนั้น (หัวข้อส่วนนั้นจะหายจากใบ)" />
+      <div className="tbl-wrap"><table className="tbl">
+        <thead><tr><th>ระดับตำแหน่ง</th><th>A งานตาม JD (%)</th><th>B ทักษะ/ภาวะผู้นำ (%)</th><th>C พฤติกรรมหลัก (%)</th><th>รวม</th></tr></thead>
+        <tbody>{Object.entries(w).map(([k, v]) => { const t = (v.A || 0) + (v.B || 0) + (v.C || 0); return (
+          <tr key={k}><td>{ANN_LEVEL[k] || k}</td>{["A", "B", "C"].map((s) => <td key={s}>{N(v[s], (x) => setWv(k, s, x))}</td>)}
+            <td className="num" style={{ color: t === 100 ? "var(--green)" : "var(--red)", fontWeight: 700 }}>{t}</td></tr>); })}</tbody>
+      </table></div>
+      <div className="tbl-wrap" style={{ marginTop: 8 }}><table className="tbl">
+        <thead><tr><th>คะแนนรวมขั้นต่ำ</th><th>เกรด</th><th>ความหมาย</th><th>โบนัส (เดือน)</th></tr></thead>
+        <tbody>{bands.map((b, i) => (
+          <tr key={i}><td>{N(b[0], (x) => setB(i, 0, x))}</td><td><AnnGrade g={b[1]} /></td>
+            <td><input className="input" style={{ padding: "5px 8px" }} value={b[3]} onChange={(e) => setB(i, 3, e.target.value)} /></td><td>{N(b[2], (x) => setB(i, 2, x))}</td></tr>))}</tbody>
+      </table></div>
+      <div className="row wrap" style={{ gap: 12, padding: "12px 20px 16px", alignItems: "center" }}>
+        <span style={{ fontSize: 13.5 }}>ขึ้นเงินเดือน (%) ทุกเกรด ยกเว้น F และอายุงานไม่ถึง 1 ปี</span>{N(raise, setRaise)}
+        <div style={{ flex: 1 }} />
+        <button className="btn btn-pri" disabled={busy} onClick={save}><Icon name="check" size={15} />บันทึกเกณฑ์</button>
+      </div>
+      <div className="muted" style={{ fontSize: 12.5, padding: "0 20px 16px" }}>คะแนนรวม = ผลงาน 90 + การมาทำงาน 10 − ใบเตือน · ผลงานคิดจากระดับ 1–5 (ระดับ 3 = 70%) ถ่วงตามน้ำหนักข้างบน · คะแนนหักการมาทำงาน/ใบเตือนแก้ได้ที่ ตั้งค่าระบบ › คะแนนหัก</div>
+    </Card>
+  );
+}
+
+/* ---------- HR: สร้างรอบประเมินใหม่ (กี่รอบต่อปีก็ได้ · ปีปฏิทินหรือปีงบประมาณ) ---------- */
+function AnnNewCycle({ cycle, cyc }) {
+  const [open, setOpen] = useAnnS(false);
+  const [busy, setBusy] = useAnnS(false);
+  const y = (cycle.year_th || 2569) + 1, ce = y - 543;
+  const [f, setF] = useAnnS({ id: String(y), name: "ประเมินผลประจำปี " + y, year_th: y, period_start: ce + "-01-01", period_end: ce + "-11-30",
+    open_from: ce + "-11-24", open_to: ce + "-12-15", eligible_cutoff: ce + "-11-30", bonus_pay: ce + "-12-28", raise_effective: (ce + 1) + "-01-01", new_salary_pay: (ce + 1) + "-01-28" });
+  const set = (k, v) => setF({ ...f, [k]: v });
+  const create = async () => {
+    if (!/^[\w-]+$/.test(f.id)) { toast("รหัสรอบใช้ตัวเลข/อักษรอังกฤษ/ขีด เช่น 2570 หรือ 2570-H1", "x"); return; }
+    if ((cyc.cycles || []).some((c) => c.id === f.id)) { toast("มีรอบรหัส " + f.id + " แล้ว", "x"); return; }
+    if (f.period_start > f.period_end || f.open_from > f.open_to) { toast("วันที่เริ่มต้องไม่หลังวันที่สิ้นสุด", "x"); return; }
+    if (!window.confirm("สร้างรอบ \"" + f.name + "\" แล้วสร้างใบประเมินให้พนักงานทุกคน?\nเกณฑ์คัดลอกจาก " + cycle.name + " (แก้ทีหลังได้) · สถานะเริ่มเป็น \"ร่าง\"")) return;
+    setBusy(true);
+    try {
+      const cfg = { ...(cycle.config || {}) }; delete cfg.trial;
+      const { error } = await window.sb.from("perf_cycles").insert({ ...f, year_th: Number(f.year_th), status: "draft", config: cfg });
+      if (error) throw new Error(error.message);
+      const d = await annRpc("perf_generate", { p_cycle: f.id, p_refresh: false });
+      toast("สร้างรอบแล้ว · ใบประเมิน " + d.created + " ใบ", "check"); setOpen(false); cyc.pick(f.id);
+    } catch (e) { toast(e.message, "x"); } finally { setBusy(false); }
+  };
+  const D = (k, l) => <div className="field"><label>{l}</label><input className="input" type="date" value={f[k]} onChange={(e) => set(k, e.target.value)} /></div>;
+  return (
+    <Card>
+      <CardHead title="รอบประเมินทั้งหมด" sub={(cyc.cycles || []).length + " รอบ · เลือกรอบที่จะดูได้จากกล่องเลือกรอบด้านบน"}
+        right={<button className="btn btn-soft btn-sm" onClick={() => setOpen(!open)}><Icon name="plus" size={14} />สร้างรอบใหม่</button>} />
+      <div className="tbl-wrap"><table className="tbl">
+        <thead><tr><th>รหัส</th><th>ชื่อรอบ</th><th>ช่วงผลงาน</th><th>เปิดรับประเมิน</th><th>สถานะ</th></tr></thead>
+        <tbody>{(cyc.cycles || []).map((c) => (
+          <tr key={c.id} style={{ cursor: "pointer", background: c.id === cycle.id ? "var(--accent-soft)" : undefined }} onClick={() => cyc.pick(c.id)}>
+            <td className="mono">{c.id}</td><td><b>{c.name}</b></td><td style={{ fontSize: 13 }}>{annDate(c.period_start)} – {annDate(c.period_end)}</td>
+            <td style={{ fontSize: 13 }}>{annDate(c.open_from)} – {annDate(c.open_to)}</td>
+            <td>{{ draft: "ร่าง", open: "เปิดรับ", closed: "ปิดรับ", final: "สรุปผลแล้ว" }[c.status] || c.status}</td></tr>))}</tbody>
+      </table></div>
+      {open && (
+        <div className="card-pad" style={{ borderTop: "1px solid var(--border)" }}>
+          <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 12 }}>
+            <div className="field"><label>รหัสรอบ (เช่น 2570, 2570-H1)</label><input className="input" value={f.id} onChange={(e) => set("id", e.target.value.trim())} /></div>
+            <div className="field" style={{ gridColumn: "span 2" }}><label>ชื่อรอบ</label><input className="input" value={f.name} onChange={(e) => set("name", e.target.value)} /></div>
+            <div className="field"><label>ปี (พ.ศ.)</label><input className="input" type="number" value={f.year_th} onChange={(e) => set("year_th", e.target.value)} /></div>
+            {D("period_start", "ผลงานตั้งแต่")}{D("period_end", "ผลงานถึง")}{D("open_from", "เปิดรับประเมิน")}{D("open_to", "ปิดรับประเมิน")}
+            {D("eligible_cutoff", "ต้องพ้นทดลองงาน ณ")}{D("bonus_pay", "จ่ายโบนัส")}{D("raise_effective", "เงินเดือนใหม่มีผล")}{D("new_salary_pay", "จ่ายเงินเดือนใหม่ครั้งแรก")}
+          </div>
+          <div className="row" style={{ justifyContent: "flex-end", marginTop: 12 }}><button className="btn btn-pri" disabled={busy} onClick={create}><Icon name="plus" size={15} />สร้างรอบและใบประเมิน</button></div>
+          <div className="muted" style={{ fontSize: 12.5, marginTop: 6 }}>ช่วงผลงานกำหนดเองได้ — ปีปฏิทิน (ม.ค.–ธ.ค.) ปีงบประมาณ หรือครึ่งปีก็ได้ · ใบประเมินใช้ JD/ผู้ประเมินปัจจุบันของพนักงาน · คนที่ติ๊ก "ไม่ต้องประเมิน" จะไม่อยู่ในรอบ</div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
 /* ---------- HR: ตั้งค่ารอบ ---------- */
-function AnnualCycleSettings({ cycle, reload }) {
+function AnnualCycleSettings({ cycle, reload, cyc, rows }) {
   const [c, setC] = useAnnS({ ...cycle });
   const [busy, setBusy] = useAnnS(false);
   const cfg = cycle.config || {};
@@ -1410,18 +1568,8 @@ function AnnualCycleSettings({ cycle, reload }) {
         <div className="muted" style={{ fontSize: 12.5, marginTop: 8 }}>หน่วยงานให้คะแนนได้เมื่อสถานะ "เปิดรับประเมิน" และวันนี้อยู่ในช่วงวันที่ · HR แก้คะแนนได้ตลอด</div>
       </Card>
       <AnnTrialSettings cycle={cycle} reload={reload} />
-      <Card>
-        <CardHead title="เกณฑ์ของรอบนี้" sub="ตามเอกสารแบบระบบใหม่และเกณฑ์บริษัทปี 2568 · ถ้าจะเปลี่ยนเกณฑ์ แจ้งผู้ดูแลระบบ" />
-        <div className="tbl-wrap"><table className="tbl">
-          <thead><tr><th>ระดับตำแหน่ง</th><th>A งานตาม JD</th><th>B ทักษะ/ภาวะผู้นำ</th><th>C พฤติกรรมหลัก</th></tr></thead>
-          <tbody>{Object.entries(cfg.weights || {}).map(([k, v]) => <tr key={k}><td>{ANN_LEVEL[k] || k}</td><td className="num">{v.A}%</td><td className="num">{v.B}%</td><td className="num">{v.C}%</td></tr>)}</tbody>
-        </table></div>
-        <div className="tbl-wrap" style={{ marginTop: 8 }}><table className="tbl">
-          <thead><tr><th>คะแนนรวมขั้นต่ำ</th><th>เกรด</th><th>ความหมาย</th><th>โบนัส (เดือน)</th></tr></thead>
-          <tbody>{(cfg.bands || []).map((b) => <tr key={b[1]}><td className="num">{b[0]}</td><td><AnnGrade g={b[1]} /></td><td>{b[3]}</td><td className="num">{b[2]}</td></tr>)}</tbody>
-        </table></div>
-        <div className="muted" style={{ fontSize: 12.5, padding: "10px 20px 16px" }}>ขึ้นเงินเดือน {cfg.raise_pct}% ทุกเกรด ยกเว้น F และอายุงานไม่ถึง 1 ปี · คะแนนรวม = ผลงาน 90 + การมาทำงาน 10 − ใบเตือน</div>
-      </Card>
+      <AnnCriteria cycle={cycle} rows={rows} reload={reload} />
+      <AnnNewCycle cycle={cycle} cyc={cyc} />
     </>
   );
 }

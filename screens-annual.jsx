@@ -138,14 +138,16 @@ function AnnualMine({ rows, onOpen }) {
                 <td style={{ fontSize: 13 }}>{r.position}</td>
                 <td className="num">{r.items_rated}/{r.items_total}</td>
                 <td><AnnStatus s={r.status} /></td>
-                <td className="num">{annFmt(r.total)}</td>
-                <td><AnnGrade g={r.grade} /></td>
+                {/* คะแนนระหว่างกรอกยังไม่ครบไม่มีความหมาย แสดงเมื่อให้ครบทุกข้อแล้ว */}
+                <td className="num">{r.complete ? annFmt(r.total) : "—"}</td>
+                <td><AnnGrade g={r.complete ? r.grade : null} /></td>
               </tr>
             ))}
             {!list.length && <tr><td colSpan={6} className="muted" style={{ textAlign: "center", padding: 28 }}>{only === "todo" ? "ส่งครบทุกคนแล้ว" : "ไม่มีรายชื่อ"}</td></tr>}
           </tbody>
         </table>
       </div>
+      <div className="muted" style={{ fontSize: 12, padding: "10px 20px 16px" }}>ใบประเมินของหัวหน้าและผู้จัดการหน่วยงาน HR เป็นผู้กรอก จึงไม่อยู่ในรายชื่อนี้</div>
     </Card>
   );
 }
@@ -244,8 +246,8 @@ function AnnualForm({ id, onBack }) {
           <div style={{ textAlign: "center", minWidth: 150 }}>
             <div className="muted" style={{ fontSize: 12 }}>คะแนนรวม (ประมาณ)</div>
             <div className="mono" style={{ fontSize: 30, fontWeight: 700 }}>{annFmt(live.total)}</div>
-            <AnnGrade g={live.rated === items.length ? live.grade : null} />
-            <div className="muted" style={{ fontSize: 11.5, marginTop: 4 }}>{live.rated}/{items.length} ข้อ{live.rated === items.length && live.meaning ? " · " + live.meaning : ""}</div>
+            <AnnGrade g={r.eligible && live.rated === items.length ? live.grade : null} />
+            <div className="muted" style={{ fontSize: 11.5, marginTop: 4 }}>{r.eligible ? live.rated + "/" + items.length + " ข้อ" + (live.rated === items.length && live.meaning ? " · " + live.meaning : "") : "ไม่อยู่ในรอบประเมิน — ไม่คิดเกรด"}</div>
           </div>
         </div>
         <hr className="divider" style={{ margin: "14px 0" }} />
@@ -463,14 +465,13 @@ function AnnualSetup({ rows, cycle, reload }) {
           const locked = r.status !== "pending";
           return (
             <tr key={r.assignment_id}>
-              <td><b>{r.name}</b><div className="muted" style={{ fontSize: 12 }}>{r.employee_id} · {r.dept_name} · {r.position}</div></td>
+              <td><b>{r.name}</b>{r.employment_status && !["ACTIVE", "PROBATION"].includes(r.employment_status) && <span style={{ marginLeft: 6 }}><Badge cls="b-red">{r.employment_status === "RESIGNED" ? "ลาออกแล้ว" : r.employment_status}</Badge></span>}
+                <div className="muted" style={{ fontSize: 12 }}>{r.employee_id} · {r.dept_name} · {r.position}</div></td>
               <td><select className="select" style={{ minWidth: 150 }} disabled={locked} value={r.level} onChange={(e) => upd(r, { level: e.target.value })}>{Object.entries(ANN_LEVEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></td>
               <td><select className="select" style={{ minWidth: 200, borderColor: r.jd_id ? undefined : "#e08a00" }} disabled={locked} value={r.jd_id || ""} onChange={(e) => upd(r, { jd_id: e.target.value || null })}>
                 <option value="">— ยังไม่ผูก —</option>{jds.map((j) => <option key={j.id} value={j.id}>{j.id} · {j.title}</option>)}</select></td>
-              <td><select className="select" style={{ minWidth: 180 }} value={r.evaluator_id || ""} onChange={(e) => upd(r, { evaluator_id: e.target.value || null })}>
-                <option value="">—</option>{emps.map((x) => <option key={x.id} value={x.id}>{x.name} ({x.id})</option>)}</select></td>
-              <td><select className="select" style={{ minWidth: 180 }} value={r.reviewer_id || ""} onChange={(e) => upd(r, { reviewer_id: e.target.value || null })}>
-                <option value="">— ไม่มี (ส่งตรงถึง HR) —</option>{emps.map((x) => <option key={x.id} value={x.id}>{x.name} ({x.id})</option>)}</select></td>
+              <td><AnnPersonPick emps={emps} id={r.evaluator_id} name={r.evaluator_name} empty="—" onPick={(v) => upd(r, { evaluator_id: v })} /></td>
+              <td><AnnPersonPick emps={emps} id={r.reviewer_id} name={r.reviewer_name} empty="— ไม่มี (ส่งตรงถึง HR) —" onPick={(v) => upd(r, { reviewer_id: v })} /></td>
               <td>
                 <label className="row" style={{ gap: 6, fontSize: 13 }}><input type="checkbox" checked={!!r.eligible} onChange={(e) => upd(r, { eligible: e.target.checked, eligible_note: e.target.checked ? null : (r.eligible_note || "HR ยกเว้น") })} />{r.eligible ? "ประเมิน" : "ไม่ประเมิน"}</label>
                 {!r.eligible && r.eligible_note && <div className="muted" style={{ fontSize: 11.5 }}>{r.eligible_note}</div>}
@@ -481,6 +482,18 @@ function AnnualSetup({ rows, cycle, reload }) {
       </table></div>
       <div className="muted" style={{ fontSize: 12, padding: "10px 20px 16px" }}>ระดับและ JD แก้ได้เฉพาะใบที่ยังไม่เริ่มให้คะแนน เพราะเปลี่ยนหัวข้อประเมิน</div>
     </Card>
+  );
+}
+
+/* เลือกคน: แสดงชื่อก่อน กดแล้วค่อยเปิดรายชื่อ (ถ้าสร้าง select ทุกแถวจะมีตัวเลือกหลายหมื่นอัน หน้าค้าง) */
+function AnnPersonPick({ emps, id, name, empty, onPick }) {
+  const [open, setOpen] = useAnnS(false);
+  if (!open) return <button className="btn btn-ghost btn-sm" style={{ minWidth: 180, justifyContent: "flex-start" }} onClick={() => setOpen(true)}>{id ? (name || id) + " (" + id + ")" : empty}<Icon name="chevDown" size={13} /></button>;
+  return (
+    <select className="select" style={{ minWidth: 180 }} autoFocus value={id || ""} onBlur={() => setOpen(false)}
+      onChange={(e) => { setOpen(false); if ((e.target.value || null) !== (id || null)) onPick(e.target.value || null); }}>
+      <option value="">{empty}</option>{emps.map((x) => <option key={x.id} value={x.id}>{x.name} ({x.id})</option>)}
+    </select>
   );
 }
 
@@ -509,8 +522,17 @@ function AnnualDeductions({ rows, cycle, reload }) {
     if (error) { toast(error.message, "x"); return; }
     toast("เพิ่มแล้ว", "check"); setAdd({ ...add, note: "" }); await load(); reload();
   };
-  const del = async (d) => { if (!window.confirm("ลบรายการนี้?")) return; await window.sb.from("perf_deductions").delete().eq("id", d.id); await load(); reload(); };
-  const waive = async (d) => { await window.sb.from("perf_deductions").update({ waived: !d.waived }).eq("id", d.id); await load(); reload(); };
+  const del = async (d) => {
+    if (!window.confirm("ลบรายการนี้?")) return;
+    const { error } = await window.sb.from("perf_deductions").delete().eq("id", d.id);
+    if (error) { toast("ลบไม่สำเร็จ: " + error.message, "x"); return; }
+    await load(); reload();
+  };
+  const waive = async (d) => {
+    const { error } = await window.sb.from("perf_deductions").update({ waived: !d.waived }).eq("id", d.id);
+    if (error) { toast("บันทึกไม่สำเร็จ: " + error.message, "x"); return; }
+    await load(); reload();
+  };
   if (!data) return <Card pad><div className="muted">กำลังโหลด…</div></Card>;
   const byEmp = {}; data.forEach((d) => { (byEmp[d.employee_id] = byEmp[d.employee_id] || []).push(d); });
   const people = rows.filter((r) => byEmp[r.employee_id]).filter((r) => !q || (r.name + r.employee_id).toLowerCase().includes(q.toLowerCase()));
@@ -557,6 +579,24 @@ function AnnualDeductions({ rows, cycle, reload }) {
   );
 }
 
+/* แถวแก้หัวข้อ 1 ข้อ — ต้องอยู่นอก AnnualItems ไม่งั้นทุกครั้งที่หน้าวาดใหม่ ข้อความที่พิมพ์ค้างไว้จะหาย */
+function AnnItemRow({ it, onSave, onDel, showW }) {
+  const [t, setT] = useAnnS(it.title); const [s, setS] = useAnnS(it.standard || ""); const [w, setW] = useAnnS(it.weight);
+  const ch = t !== it.title || s !== (it.standard || "") || (showW && Number(w) !== Number(it.weight));
+  return (
+    <div style={{ border: "1px solid var(--border)", borderRadius: 10, padding: 12, display: "grid", gap: 8 }}>
+      <input className="input" value={t} onChange={(e) => setT(e.target.value)} />
+      <input className="input" placeholder="มาตรฐานระดับ 3 — ทำได้ตามที่คาดหวังคืออะไร (เห็นได้จริง)" value={s} onChange={(e) => setS(e.target.value)} style={{ fontSize: 13 }} />
+      <div className="row" style={{ gap: 8 }}>
+        {showW && <><span className="muted" style={{ fontSize: 12.5 }}>น้ำหนัก</span><input className="input" type="number" min="0.1" step="0.5" style={{ width: 90 }} value={w} onChange={(e) => setW(e.target.value)} /></>}
+        <div className="spacer" style={{ flex: 1 }} />
+        {onDel && <button className="btn btn-ghost btn-sm" style={{ color: "var(--red)" }} onClick={onDel}>ลบ</button>}
+        <button className="btn btn-soft btn-sm" disabled={!ch} onClick={() => onSave(showW ? { title: t, standard: s || null, weight: Number(w) || 1 } : { title: t, standard: s || null })}>บันทึก</button>
+      </div>
+    </div>
+  );
+}
+
 /* ---------- HR: หัวข้อประเมินตาม JD และหัวข้อกลาง ---------- */
 function AnnualItems({ rows }) {
   const [jd, setJd] = useAnnS("");
@@ -586,24 +626,14 @@ function AnnualItems({ rows }) {
     const { error } = await window.sb.from("perf_jd_items").insert({ jd_id: jd, section, seq, title: "หัวข้อใหม่", weight: 1 });
     if (error) toast(error.message, "x"); else { load(jd); loadCounts(); }
   };
-  const delItem = async (it) => { if (!window.confirm("ลบหัวข้อ \"" + it.title + "\"?\nคะแนนที่ให้ไปแล้วในข้อนี้จะไม่ถูกนับ")) return; await window.sb.from("perf_jd_items").delete().eq("id", it.id); load(jd); loadCounts(); };
-  const saveCommon = async (c, patch) => { const { error } = await window.sb.from("perf_common_items").update(patch).eq("id", c.id); if (error) toast(error.message, "x"); else { toast("บันทึกแล้ว", "check"); loadCounts(); } };
-  const ItemRow = ({ it, onSave, onDel, showW }) => {
-    const [t, setT] = useAnnS(it.title); const [s, setS] = useAnnS(it.standard || ""); const [w, setW] = useAnnS(it.weight);
-    const ch = t !== it.title || s !== (it.standard || "") || (showW && Number(w) !== Number(it.weight));
-    return (
-      <div style={{ border: "1px solid var(--border)", borderRadius: 10, padding: 12, display: "grid", gap: 8 }}>
-        <input className="input" value={t} onChange={(e) => setT(e.target.value)} />
-        <input className="input" placeholder="มาตรฐานระดับ 3 — ทำได้ตามที่คาดหวังคืออะไร (เห็นได้จริง)" value={s} onChange={(e) => setS(e.target.value)} style={{ fontSize: 13 }} />
-        <div className="row" style={{ gap: 8 }}>
-          {showW && <><span className="muted" style={{ fontSize: 12.5 }}>น้ำหนัก</span><input className="input" type="number" min="0.1" step="0.5" style={{ width: 90 }} value={w} onChange={(e) => setW(e.target.value)} /></>}
-          <div className="spacer" style={{ flex: 1 }} />
-          {onDel && <button className="btn btn-ghost btn-sm" style={{ color: "var(--red)" }} onClick={onDel}>ลบ</button>}
-          <button className="btn btn-soft btn-sm" disabled={!ch} onClick={() => onSave(showW ? { title: t, standard: s || null, weight: Number(w) || 1 } : { title: t, standard: s || null })}>บันทึก</button>
-        </div>
-      </div>
-    );
+  const delItem = async (it) => {
+    if (!window.confirm("ลบหัวข้อ \"" + it.title + "\"?\nคะแนนที่ให้ไปแล้วในข้อนี้จะไม่ถูกนับ")) return;
+    const { error } = await window.sb.from("perf_jd_items").delete().eq("id", it.id);
+    if (error) { toast(error.message, "x"); return; }
+    load(jd); loadCounts();
   };
+  const saveCommon = async (c, patch) => { const { error } = await window.sb.from("perf_common_items").update(patch).eq("id", c.id); if (error) toast(error.message, "x"); else { toast("บันทึกแล้ว", "check"); loadCounts(); } };
+  const ItemRow = AnnItemRow;
   return (
     <>
       <Card pad>
@@ -641,6 +671,11 @@ function AnnualCycleSettings({ cycle, reload }) {
   const cfg = cycle.config || {};
   const set = (k, v) => setC({ ...c, [k]: v });
   const save = async () => {
+    // กันวันที่กลับด้าน — ถ้าเปิด/ปิดสลับกัน หน่วยงานจะเข้าประเมินไม่ได้เลยโดยไม่มีใครรู้
+    const bad = [["open_from", "open_to", "ช่วงเปิดรับประเมิน"], ["period_start", "period_end", "ช่วงผลงาน"]]
+      .filter(([a, b]) => !c[a] || !c[b] || c[a] > c[b]).map((x) => x[2]);
+    if (bad.length) { toast("วันที่ไม่ถูกต้อง: " + bad.join(", "), "x"); return; }
+    if (c.status === "open" && !window.confirm("เปิดรับประเมิน " + annDate(c.open_from) + " – " + annDate(c.open_to) + "?\nบัญชีหน่วยงานจะเริ่มให้คะแนนได้ตามช่วงวันที่นี้")) return;
     setBusy(true);
     const patch = { status: c.status, open_from: c.open_from, open_to: c.open_to, period_start: c.period_start, period_end: c.period_end,
       eligible_cutoff: c.eligible_cutoff, bonus_pay: c.bonus_pay, raise_effective: c.raise_effective, new_salary_pay: c.new_salary_pay, updated_at: new Date().toISOString() };

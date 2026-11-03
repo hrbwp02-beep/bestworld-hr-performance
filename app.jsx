@@ -148,7 +148,8 @@ function App() {
 
   const go = (rt) => { setRoute(rt); setMobileOpen(false); setNotifOpen(false); setMenuOpen(false); if (rt !== "exec") setExecDept(null); window.scrollTo(0, 0); };
   const openEmp = (id) => { setEmpId(id); go("profile"); };
-  const startEval = (id) => { setEvalEmp(id); go("eval"); };
+  // ปุ่ม "ประเมิน" ในหน้าพนักงาน/JD ยังเรียกตัวนี้อยู่ — ส่งไปหน้าประเมินประจำปีแบบใหม่ ไม่ให้ไปเขียนตาราง evaluations เดิม
+  const startEval = (id) => { setEvalEmp(id); go("annual"); };
   const openSub = (id) => setSubId(id);
   const goExec = (deptId) => { setExecDept(deptId); setRoute("exec"); setMobileOpen(false); window.scrollTo(0, 0); };
 

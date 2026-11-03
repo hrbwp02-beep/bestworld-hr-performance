@@ -540,7 +540,7 @@ function AnnualDeductions({ rows, cycle, reload }) {
     <>
       <Card pad>
         <div className="row wrap" style={{ gap: 12, justifyContent: "space-between" }}>
-          <div style={{ fontSize: 13.5 }}>การมาทำงานเริ่มที่ 10 คะแนนแล้วหักตามเกณฑ์ปี 2568 (หักเกิน 10 ได้) · ใบเตือนหักจากคะแนนรวม · <b>ขาดงานที่ออกใบเตือนแล้ว</b> ให้เพิ่มรายการ "ปรับคะแนน" ติดลบเพื่อไม่หักซ้อน</div>
+          <div style={{ fontSize: 13.5 }}>การมาทำงานเริ่มที่ 10 คะแนนแล้วหักตามเกณฑ์ปี 2568 (หักเกิน 10 ได้) · ใบเตือนหักจากคะแนนรวม · <b>ขาดงานที่ออกใบเตือนเรื่องขาดงานแล้ว</b> ระบบหักครั้งเดียวโดยใช้ค่าที่มากกว่าให้อัตโนมัติ (ใบเตือนต้องเขียนเหตุผลว่า "ขาดงาน")</div>
           <button className="btn btn-pri btn-sm" disabled={busy} onClick={sync}><Icon name="refresh" size={14} />ดึงจากตอกบัตร + ใบเตือน</button>
         </div>
       </Card>

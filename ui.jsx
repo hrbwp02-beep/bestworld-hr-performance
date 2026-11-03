@@ -16,6 +16,7 @@ function Badge({ children, cls = "b-gray", dot }) {
 }
 
 function ScoreBadge({ score }) {
+  if (!(Number(score) > 0)) return <span className="badge b-gray">ยังไม่มีผล</span>;
   const b = window.bandOf(score);
   return <span className={"badge " + b.cls}><span className="bdot" />{b.key} · {b.label}</span>;
 }

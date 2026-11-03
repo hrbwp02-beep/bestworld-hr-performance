@@ -69,7 +69,7 @@ function Reports({ ctx }) {
     if (e.warnings > 0) return { t: "ระงับ (มีใบเตือน)", c: "#e11d48" };
     if ((g === "A+" || g === "A") && e.potential >= 3) return { t: "แนะนำเลื่อนตำแหน่ง", c: "#16a34a" };
     if (g === "A+" || g === "A") return { t: "ดาวเด่น — พิจารณาเลื่อน", c: "#0d9488" };
-    if (g === "D") return { t: "ต้องพัฒนา (PIP)", c: "#e08a00" };
+    if (g === "C" || g === "D" || g === "F") return { t: "ต้องพัฒนา (PIP)", c: "#e08a00" };
     return { t: "คงตำแหน่ง", c: "#64748b" };
   };
 
@@ -792,19 +792,18 @@ function Settings({ ctx }) {
           </div>
         </Card>
         <Card>
-          <CardHead title="เกณฑ์โบนัส & ปรับเงินเดือน" sub="กำหนดตามเกรดผลประเมิน (มีใบเตือน = ไม่ปรับเงิน)" />
+          {/* เกณฑ์ชุดเดิม (แก้ได้ที่นี่) ไม่ตรงกับรอบประเมินประจำปี จึงแสดงเกณฑ์ของรอบปัจจุบันแบบอ่านอย่างเดียว — แก้ได้ที่ ตั้งค่าระบบ › รอบประเมิน & เกณฑ์ */}
+          <CardHead title="เกณฑ์โบนัส & ปรับเงินเดือน" sub={"ตามรอบ " + ((window.PERF_CYCLE || {}).name || "ประเมินประจำปี") + " · ทุกหน้าในระบบใช้ชุดนี้"} />
           <div className="tbl-wrap">
             <table className="tbl">
-              <thead><tr><th scope="col">เกรด</th><th scope="col">เกณฑ์</th><th scope="col" style={{ width: 130 }}>โบนัส (เท่า)</th><th scope="col" style={{ width: 130 }}>ปรับเงิน (%)</th></tr></thead>
+              <thead><tr><th scope="col">เกรด</th><th scope="col">คะแนนขั้นต่ำ</th><th scope="col">ความหมาย</th><th scope="col">โบนัส (เดือน)</th><th scope="col">ปรับเงิน (%)</th></tr></thead>
               <tbody>
-                {[["A+", "ดีเยี่ยม (95-100)", "#15803d"], ["A", "ดีมาก (90-94)", "#16a34a"], ["B+", "ดี (85-89)", "#0d9488"], ["B", "ค่อนข้างดี (80-84)", "#0891b2"], ["C", "ตามเป้า (70-79)", "#2563eb"], ["D", "ต้องพัฒนา (<70)", "#e11d48"]].map(([g, lab, c]) => (
-                  <tr key={g}>
-                    <td><span className="badge" style={{ background: c + "22", color: c, fontWeight: 700 }}>{g}</span></td>
-                    <td className="muted" style={{ fontSize: 13 }}>{lab}</td>
-                    <td><input className="input" type="number" min="0" step="0.5" value={(tiers[g] || {}).bonus ?? 0} onChange={(e) => setTier(g, "bonus", e.target.value)} style={{ padding: "6px 10px" }} /></td>
-                    <td><input className="input" type="number" min="0" step="1" value={(tiers[g] || {}).raise ?? 0} onChange={(e) => setTier(g, "raise", e.target.value)} style={{ padding: "6px 10px" }} /></td>
-                  </tr>
-                ))}
+                {(window.PERF_BANDS || window.BANDS_DEFAULT).map((b) => { const bb = window.bandOf(0, b[1]); return (
+                  <tr key={b[1]}>
+                    <td><span className={"badge " + bb.cls} style={{ fontWeight: 700 }}>{b[1]}</span></td>
+                    <td className="num">{b[0]}</td><td className="muted" style={{ fontSize: 13 }}>{b[3]}</td><td className="num">{b[2]}</td>
+                    <td className="num">{b[1] === "F" ? 0 : (((window.PERF_CYCLE || {}).config || {}).raise_pct ?? "—")}</td>
+                  </tr>); })}
               </tbody>
             </table>
           </div>

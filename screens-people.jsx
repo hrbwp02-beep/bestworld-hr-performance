@@ -377,8 +377,8 @@ function EmployeeList({ ctx }) {
       <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))" }}>
         <Stat icon="users" label="พนักงานทั้งหมด" value={EMPLOYEES.length} unit="คน" tone="#2563eb" soft="#e8effb" />
         <Stat icon="checkCircle" label="ประเมินแล้ว" value={EMPLOYEES.filter((e) => e.status === "done").length} unit="คน" tone="#16a34a" soft="#e7f6ec" />
-        <Stat icon="target" label="คะแนนเฉลี่ย" value={EMPLOYEES.length ? Math.round(EMPLOYEES.reduce((a, e) => a + e.overall, 0) / EMPLOYEES.length * 10) / 10 : 0} tone="#7c3aed" soft="#f1ebfd" />
-        <Stat icon="trophy" label="ผลงานดีเยี่ยม (A)" value={EMPLOYEES.filter((e) => e.overall >= 90).length} unit="คน" tone="#0d9488" soft="#e2f4f2" />
+        <Stat icon="target" label="คะแนนเฉลี่ย" value={(() => { const s = EMPLOYEES.filter((e) => e.overall > 0); return s.length ? Math.round(s.reduce((a, e) => a + e.overall, 0) / s.length * 10) / 10 : 0; })()} sub="เฉพาะคนที่ประเมินครบแล้ว" tone="#7c3aed" soft="#f1ebfd" />
+        <Stat icon="trophy" label="เกรด A ขึ้นไป" value={EMPLOYEES.filter((e) => e.band && (e.band.key === "A" || e.band.key === "A+")).length} unit="คน" tone="#0d9488" soft="#e2f4f2" />
       </div>
 
       {/* filter bar */}
@@ -429,7 +429,7 @@ function EmployeeList({ ctx }) {
                       <td className="num" style={{ fontWeight: 600 }}>{e.comp}</td>
                       <td>
                         <div className="row" style={{ gap: 8 }}>
-                          <span className="num" style={{ fontWeight: 700, color: e.band.color, fontSize: 14 }}>{e.overall}</span>
+                          <span className="num" style={{ fontWeight: 700, color: e.band.color, fontSize: 14 }}>{e.overall || "—"}</span>
                           <span className={"badge " + e.band.cls} style={{ padding: "2px 7px" }}>{e.band.key}</span>
                         </div>
                       </td>
@@ -460,7 +460,7 @@ function EmployeeList({ ctx }) {
                   </div>
                   <div className="between"><Badge cls="b-gray">{deptShort(e.dept)}</Badge><Badge cls={sm.cls} dot>{sm.label}</Badge></div>
                   <div className="between" style={{ borderTop: "1px solid var(--border-2)", paddingTop: 12 }}>
-                    <div><div className="muted" style={{ fontSize: 11 }}>คะแนนรวม</div><div className="num" style={{ fontWeight: 700, fontSize: 20, color: e.band.color }}>{e.overall}</div></div>
+                    <div><div className="muted" style={{ fontSize: 11 }}>คะแนนรวม</div><div className="num" style={{ fontWeight: 700, fontSize: 20, color: e.band.color }}>{e.overall || "—"}</div></div>
                     <span className={"badge " + e.band.cls}><span className="bdot" />{e.band.label}</span>
                   </div>
                 </div>
@@ -991,7 +991,7 @@ function DepartmentKPI({ ctx }) {
                     <td><Badge cls={m.cls} dot>{m.label}</Badge></td>
                     <td className="num">{e.kpi}</td>
                     <td className="num">{e.comp}</td>
-                    <td><span className="num" style={{ fontWeight: 700, color: e.band.color }}>{e.overall}</span></td>
+                    <td><span className="num" style={{ fontWeight: 700, color: e.band.color }}>{e.overall || "—"}</span></td>
                   </tr>
                 );
               })}

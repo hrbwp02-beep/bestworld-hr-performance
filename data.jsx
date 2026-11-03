@@ -11,13 +11,19 @@ const COMPANY = {
 };
 
 // ---------- helpers ----------
-function bandOf(score) {
-  if (score >= 95) return { key: "A+", label: "ดีเยี่ยม", cls: "b-green", color: "#15803d" };
-  if (score >= 90) return { key: "A", label: "ดีมาก", cls: "b-green", color: "#16a34a" };
-  if (score >= 85) return { key: "B+", label: "ดี", cls: "b-teal", color: "#0d9488" };
-  if (score >= 80) return { key: "B", label: "ค่อนข้างดี", cls: "b-teal", color: "#0891b2" };
-  if (score >= 70) return { key: "C", label: "ตามเป้า", cls: "b-blue", color: "#2563eb" };
-  return { key: "D", label: "ต้องพัฒนา", cls: "b-red", color: "#e11d48" };
+// ช่วงเกรดใช้ชุดเดียวกับระบบประเมินประจำปี (เกณฑ์บริษัทปี 2568 ใน perf_cycles.config.bands)
+// ทุกหน้าจึงตัดเกรดตรงกัน · ส่ง grade มาด้วยได้ (เช่นเกรดที่ HR ปรับผลแล้ว) จะใช้เกรดนั้นแทนการคิดจากคะแนน
+const BAND_STYLE = {
+  "A+": ["b-green", "#15803d"], A: ["b-green", "#16a34a"], "B+": ["b-teal", "#0d9488"], B: ["b-teal", "#0891b2"],
+  C: ["b-amber", "#e08a00"], D: ["b-red", "#e11d48"], F: ["b-red", "#9f1239"],
+};
+const BANDS_DEFAULT = [[96, "A+", 1, "ผลงานโดดเด่นมาก"], [90, "A", 0.9, "เกินเป้าหมาย"], [80, "B+", 0.8, "ดีมาก"], [70, "B", 0.7, "ตามมาตรฐาน"],
+  [60, "C", 0.5, "ต่ำกว่าเป้าเล็กน้อย"], [50, "D", 0.2, "ต้องปรับปรุง"], [0, "F", 0, "ไม่ผ่านเกณฑ์"]];
+function bandOf(score, grade) {
+  const bands = window.PERF_BANDS || BANDS_DEFAULT;
+  const b = (grade && bands.find((x) => x[1] === grade)) || bands.find((x) => Math.round(Number(score) || 0) >= x[0]) || bands[bands.length - 1];
+  const st = BAND_STYLE[b[1]] || ["b-gray", "#64748b"];
+  return { key: b[1], label: b[3], cls: st[0], color: st[1] };
 }
 function statusMeta(s) {
   return ({
@@ -35,14 +41,24 @@ const BONUS_TIERS_DEFAULT = {
 };
 function evalOutcome(overall, warnings) {
   const b = bandOf(overall);
-  const tiers = (window.APP_SETTINGS && window.APP_SETTINGS.bonus_tiers) || BONUS_TIERS_DEFAULT;
-  const t = tiers[b.key] || BONUS_TIERS_DEFAULT[b.key] || { bonus: 0, raise: 0 };
-  const bonus = Number(t.bonus) || 0, raise = Number(t.raise) || 0;
+  // มีรอบประเมินประจำปี → ใช้โบนัสตามเกรด/ขึ้นเงินเดือนของรอบนั้น (ตรงกับหน้าประเมินประจำปีและไฟล์ส่ง Bplus)
+  const pc = window.PERF_CYCLE && window.PERF_CYCLE.config;
+  let bonus, raise;
+  if (pc && pc.bands) {
+    const pb = pc.bands.find((x) => x[1] === b.key);
+    bonus = pb ? Number(pb[2]) || 0 : 0;
+    raise = b.key === "F" ? 0 : Number(pc.raise_pct) || 0;
+  } else {
+    const tiers = (window.APP_SETTINGS && window.APP_SETTINGS.bonus_tiers) || BONUS_TIERS_DEFAULT;
+    const t = tiers[b.key] || BONUS_TIERS_DEFAULT[b.key] || { bonus: 0, raise: 0 };
+    bonus = Number(t.bonus) || 0; raise = Number(t.raise) || 0;
+  }
   const hasWarning = (warnings || 0) > 0;
   return {
     grade: b.key, gradeLabel: b.label, color: b.color, cls: b.cls,
     bonusMonths: bonus, bonusEligible: bonus > 0,
-    raisePct: hasWarning ? 0 : raise, raiseEligible: !hasWarning && raise > 0,
+    // เกณฑ์ปี 2568: ใบเตือนหักคะแนนแล้ว ไม่ตัดสิทธิ์ขึ้นเงินเดือนซ้ำ (ระบบเดิมตัด — ใช้เฉพาะเมื่อไม่มีรอบประเมินประจำปี)
+    raisePct: hasWarning && !pc ? 0 : raise, raiseEligible: !(hasWarning && !pc) && raise > 0,
     hasWarning, warnings: warnings || 0,
   };
 }
@@ -130,7 +146,7 @@ const NINEBOX = {
   ],
 };
 
-Object.assign(window, {
+Object.assign(window, { BANDS_DEFAULT, BAND_STYLE,
   COMPANY, TREND, TREND_PREV, COMP_RADAR, NINEBOX,
   bandOf, statusMeta, deptName, deptShort, tenureFrom, LEVELS, levelFromPosition, evalOutcome, BONUS_TIERS_DEFAULT, sectionOf,
 });

@@ -85,13 +85,23 @@ function AnnGrade({ g }) {
 /* =========================================================
    หน้าหลัก
    ========================================================= */
-function AnnualEval({ ctx }) {
+// หน้าที่เฉพาะ HR เปิดได้ (บัญชีหน่วยงานเปิดแล้วจะกลับไปหน้าแรก)
+const ANN_HR_PAGES = ["forms", "setup", "exclude", "deduct", "items", "reports", "cycle", "calib", "hub"];
+// ใบที่ HR ต้องกรอกเอง = หัวหน้า/ผู้จัดการ (บัญชีหน่วยงานประเมินไม่ได้ กันให้คะแนนตัวเอง)
+const annHrMustFill = (r) => r.level === "supervisor" || r.level === "manager";
+const annTodoStatus = (s) => ["pending", "draft", "returned"].includes(s);
+const annWaitStatus = (s) => s === "submitted" || s === "reviewed";
+
+/* =========================================================
+   หน้าหลัก — ทุกหน้าที่ใช้ข้อมูลรอบประเมินผ่านตัวนี้ (page มาจากเมนูด้านซ้าย/แถบบน)
+   ========================================================= */
+function AnnualEval({ ctx, page }) {
   const [cycle, setCycle] = useAnnS(null);
-  const [rows, setRows] = useAnnS(null);
+  const [rowsAll, setRows] = useAnnS(null);
   const [err, setErr] = useAnnS("");
   const [formId, setFormId] = useAnnS(null);
-  const [tab, setTab] = useAnnS(annIsHR() ? "overview" : "mine");
   const hr = annIsHR();
+  const pg = !hr && ANN_HR_PAGES.includes(page) ? "home" : (page || "home");
 
   const load = async () => {
     setErr("");
@@ -100,33 +110,53 @@ function AnnualEval({ ctx }) {
       if (error) throw new Error(error.message);
       if (!cy) { setCycle(null); setRows([]); return; }
       setCycle(cy);
-      setRows(await annRpc("perf_list", { p_cycle: cy.id }) || []);
+      const rs = await annRpc("perf_list", { p_cycle: cy.id }) || [];
+      setRows(rs);
+      // ตัวเลขบนแถบเมนู (งานของฉัน / ศูนย์อนุมัติ)
+      const live = rs.filter((r) => r.eligible && !r.excluded);
+      if (ctx && ctx.setAnnCounts) ctx.setAnnCounts({
+        todo: live.filter((r) => annTodoStatus(r.status) && (!hr || annHrMustFill(r))).length,
+        approve: live.filter((r) => annWaitStatus(r.status)).length,
+      });
     } catch (e) { setErr(e.message || String(e)); setRows([]); }
   };
   useAnnE(() => { load(); }, []);
+  useAnnE(() => { setFormId(null); }, [page]);
+  // เปิดใบจากที่อื่น (เช่นหน้าแรก) ผ่าน ctx.annOpen
+  useAnnE(() => { if (ctx && ctx.annOpenId) { setFormId(ctx.annOpenId); ctx.setAnnOpenId(null); } }, [ctx && ctx.annOpenId]);
 
   if (formId) return <AnnualForm id={formId} onBack={() => { setFormId(null); load(); }} />;
-  if (rows == null) return <Card pad><div className="muted">กำลังโหลด…</div></Card>;
+  if (rowsAll == null) return <Card pad><div className="muted">กำลังโหลด…</div></Card>;
   if (err) return <Card pad><div style={{ color: "var(--red)" }}>โหลดไม่สำเร็จ: {err}</div></Card>;
   if (!cycle) return <Card pad><div className="muted">ยังไม่มีรอบประเมิน</div></Card>;
 
-  const tabs = hr
-    ? [{ id: "overview", label: "ภาพรวม" }, { id: "forms", label: "ใบประเมินทั้งหมด", count: rows.length }, { id: "setup", label: "รายชื่อ & ผู้ประเมิน" },
-       { id: "deduct", label: "คะแนนหัก" }, { id: "items", label: "หัวข้อประเมิน" }, { id: "reports", label: "รายงาน" }, { id: "cycle", label: "ตั้งค่ารอบ" }]
-    : [{ id: "mine", label: "ใบประเมินของหน่วยงาน", count: rows.filter((r) => r.eligible).length }];
+  // คนที่ติ๊ก "ไม่ต้องประเมิน" ไม่อยู่ในรายการ/สรุปผล/รายงานใดๆ ยกเว้นหน้ารายชื่อ (ที่ใช้ติ๊กคืน)
+  const rows = rowsAll.filter((r) => !r.excluded);
+  const go = (p) => ctx.go("ann:" + p);
+  const banner = !["home", "flow", "hub"].includes(pg);
 
   return (
     <div className="grid">
-      <AnnualCycleBanner cycle={cycle} />
-      <Card><div style={{ padding: "0 8px" }}><Tabs tabs={tabs} active={tab} onChange={setTab} /></div></Card>
-      {tab === "mine" && <AnnualMine rows={rows} onOpen={setFormId} />}
-      {tab === "overview" && <AnnualOverview rows={rows} cycle={cycle} />}
-      {tab === "forms" && <AnnualAllForms rows={rows} onOpen={setFormId} reload={load} />}
-      {tab === "setup" && <AnnualSetup rows={rows} cycle={cycle} reload={load} />}
-      {tab === "deduct" && <AnnualDeductions rows={rows} cycle={cycle} reload={load} />}
-      {tab === "items" && <AnnualItems rows={rows} />}
-      {tab === "reports" && <AnnualReports rows={rows} cycle={cycle} />}
-      {tab === "cycle" && <AnnualCycleSettings cycle={cycle} reload={load} />}
+      {banner && <AnnualCycleBanner cycle={cycle} />}
+      {pg === "home" && <AnnualHome rows={rows} cycle={cycle} onOpen={setFormId} go={go} />}
+      {pg === "flow" && <AnnualFlow rows={rows} go={go} />}
+      {pg === "hub" && <AnnualSetupHub rowsAll={rowsAll} go={go} goRoute={ctx.go} />}
+      {pg === "mine" && <AnnualMine rows={rows} onOpen={setFormId} preset="all" />}
+      {pg === "todo" && (hr
+        ? <AnnualMine rows={rows.filter(annHrMustFill)} onOpen={setFormId} title="ใบที่ HR ต้องกรอกเอง (หัวหน้า/ผู้จัดการ)" />
+        : <AnnualMine rows={rows} onOpen={setFormId} />)}
+      {pg === "approve" && (hr
+        ? <AnnualAllForms rows={rows} onOpen={setFormId} reload={load} preset="wait" />
+        : <AnnualMine rows={rows} onOpen={setFormId} preset="sent" />)}
+      {pg === "overview" && <AnnualOverview rows={rows} rowsAll={rowsAll} cycle={cycle} />}
+      {pg === "forms" && <AnnualAllForms rows={rows} onOpen={setFormId} reload={load} />}
+      {pg === "calib" && <AnnualCalib rows={rows} cycle={cycle} onOpen={setFormId} />}
+      {/* ติ๊ก "ไม่ต้องประเมิน" แล้วโหลดข้อมูลทั้งระบบใหม่ด้วย ให้แดชบอร์ด/สถิติตัดคนนั้นออกทันที */}
+      {(pg === "setup" || pg === "exclude") && <AnnualSetup key={pg} rows={rowsAll} cycle={cycle} reload={async () => { await load(); if (ctx.refresh) ctx.refresh(); }} initial={pg === "exclude" ? "excl" : "all"} />}
+      {pg === "deduct" && <AnnualDeductions rows={rows} cycle={cycle} reload={load} />}
+      {pg === "items" && <AnnualItems rows={rows} />}
+      {pg.startsWith("reports") && <AnnualReports key={pg} rows={rows} cycle={cycle} only={pg.split("-")[1]} />}
+      {pg === "cycle" && <AnnualCycleSettings cycle={cycle} reload={load} />}
     </div>
   );
 }
@@ -152,11 +182,11 @@ function AnnualCycleBanner({ cycle }) {
 }
 
 /* ---------- สำหรับบัญชีหน่วยงาน: รายชื่อที่ต้องประเมิน ---------- */
-function AnnualMine({ rows, onOpen }) {
+function AnnualMine({ rows, onOpen, preset, title }) {
   const [q, setQ] = useAnnS("");
-  const [only, setOnly] = useAnnS("todo");
+  const [only, setOnly] = useAnnS(preset || "todo");
   const list = rows.filter((r) => r.eligible)
-    .filter((r) => only === "all" || ["pending", "draft", "returned"].includes(r.status))
+    .filter((r) => only === "all" || (only === "sent" ? !annTodoStatus(r.status) : annTodoStatus(r.status)))
     .filter((r) => !q || (r.name + r.employee_id + (r.position || "")).toLowerCase().includes(q.toLowerCase()));
   const done = rows.filter((r) => r.eligible && !["pending", "draft", "returned"].includes(r.status)).length;
   const total = rows.filter((r) => r.eligible).length;
@@ -172,8 +202,8 @@ function AnnualMine({ rows, onOpen }) {
       <Stat icon="award" label="อนุมัติแล้ว" value={n(["approved"])} tone="#16a34a" soft="#e7f6ec" />
     </div>
     <Card>
-      <CardHead title={"ส่งแล้ว " + done + " จาก " + total + " คน"} sub="กดชื่อเพื่อให้คะแนน · ให้ระดับ 1–5 ทุกข้อ แล้วกด ส่งใบประเมิน"
-        right={<Seg options={[{ value: "todo", label: "ยังไม่ส่ง" }, { value: "all", label: "ทั้งหมด" }]} value={only} onChange={setOnly} />} />
+      <CardHead title={(title ? title + " · " : "") + "ส่งแล้ว " + done + " จาก " + total + " คน"} sub="กดชื่อเพื่อเปิดใบประเมิน · ให้ระดับ 1–5 ทุกข้อ แล้วกด ส่งใบประเมิน"
+        right={<Seg options={[{ value: "todo", label: "ยังไม่ส่ง" }, { value: "sent", label: "ส่งแล้ว" }, { value: "all", label: "ทั้งหมด" }]} value={only} onChange={setOnly} />} />
       <div style={{ padding: "0 20px 12px" }}><input className="input" placeholder="ค้นหาชื่อ / รหัส" value={q} onChange={(e) => setQ(e.target.value)} /></div>
       <div className="tbl-wrap">
         <table className="tbl">
@@ -190,11 +220,11 @@ function AnnualMine({ rows, onOpen }) {
                 <td><AnnGrade g={r.complete ? r.grade : null} /></td>
               </tr>
             ))}
-            {!list.length && <tr><td colSpan={6} className="muted" style={{ textAlign: "center", padding: 28 }}>{only === "todo" ? "ส่งครบทุกคนแล้ว" : "ไม่มีรายชื่อ"}</td></tr>}
+            {!list.length && <tr><td colSpan={6} className="muted" style={{ textAlign: "center", padding: 28 }}>{only === "todo" ? "ไม่มีงานค้าง — ส่งครบทุกคนแล้ว" : only === "sent" ? "ยังไม่มีใบที่ส่ง" : "ไม่มีรายชื่อ"}</td></tr>}
           </tbody>
         </table>
       </div>
-      <div className="muted" style={{ fontSize: 12, padding: "10px 20px 16px" }}>ใบประเมินของหัวหน้าและผู้จัดการหน่วยงาน HR เป็นผู้กรอก จึงไม่อยู่ในรายชื่อนี้</div>
+      {!annIsHR() && <div className="muted" style={{ fontSize: 12, padding: "10px 20px 16px" }}>ใบประเมินของหัวหน้าและผู้จัดการหน่วยงาน HR เป็นผู้กรอก จึงไม่อยู่ในรายชื่อนี้</div>}
     </Card>
     </>
   );
@@ -516,7 +546,8 @@ function AnnAdjustPanel({ r, bands, dirty, onDone }) {
 /* =========================================================
    HR: ภาพรวม
    ========================================================= */
-function AnnualOverview({ rows, cycle }) {
+function AnnualOverview({ rows, rowsAll, cycle }) {
+  const nExcl = (rowsAll || rows).filter((r) => r.excluded).length;
   const el = rows.filter((r) => r.eligible);
   const cnt = (s) => el.filter((r) => r.status === s).length;
   const bands = (cycle.config && cycle.config.bands) || [];
@@ -534,14 +565,14 @@ function AnnualOverview({ rows, cycle }) {
   return (
     <>
       <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 14 }}>
-        <Stat icon="users" label="ต้องประเมิน" value={el.length} sub={rows.length - el.length + " คนไม่อยู่ในรอบ"} />
+        <Stat icon="users" label="ต้องประเมิน" value={el.length} sub={rows.length - el.length + " คนไม่อยู่ในรอบ" + (nExcl ? " · " + nExcl + " คนไม่ต้องประเมิน" : "")} />
         <Stat icon="clock" label="ยังไม่ส่ง" value={cnt("pending") + cnt("draft") + cnt("returned")} tone="#e08a00" soft="#fdf1dc" sub={cnt("returned") + " ใบถูกตีกลับ"} />
         <Stat icon="checkCircle" label="รอ HR อนุมัติ" value={cnt("reviewed") + cnt("submitted")} tone="#0d9488" soft="#e2f4f2" />
         <Stat icon="award" label="อนุมัติแล้ว" value={cnt("approved")} tone="#16a34a" soft="#e7f6ec" />
       </div>
       {noJd > 0 && <Card pad><div style={{ color: "#b45309", fontSize: 13.5 }}><Icon name="alert" size={15} /> มี {noJd} คนที่ยังไม่ผูก JD — ใบของคนกลุ่มนี้มีแค่พฤติกรรมหลัก (แก้ได้ที่แท็บ รายชื่อ & ผู้ประเมิน)</div></Card>}
       <Card>
-        <CardHead title="การกระจายเกรด" sub={graded + " คนที่ให้คะแนนครบแล้ว"} right={<button className="btn btn-soft btn-sm" onClick={exportCsv}><Icon name="download" size={14} />ส่งออก CSV ไป Bplus</button>} />
+        <CardHead title="การกระจายเกรด" sub={graded + " คนที่ให้คะแนนครบแล้ว"} right={annIsHR() ? <button className="btn btn-soft btn-sm" onClick={exportCsv}><Icon name="download" size={14} />ส่งออก CSV ไป Bplus</button> : null} />
         <div className="row wrap" style={{ gap: 10, padding: "0 20px 18px" }}>
           {bands.map((b) => (
             <div key={b[1]} style={{ border: "1px solid var(--border)", borderRadius: 12, padding: "10px 14px", minWidth: 96 }}>
@@ -565,15 +596,15 @@ function AnnualOverview({ rows, cycle }) {
 }
 
 /* ---------- HR: ใบประเมินทั้งหมด + อนุมัติเป็นชุด ---------- */
-function AnnualAllForms({ rows, onOpen, reload }) {
-  const [st, setSt] = useAnnS("all");
+function AnnualAllForms({ rows, onOpen, reload, preset }) {
+  const [st, setSt] = useAnnS(preset || "all");
   const [dept, setDept] = useAnnS("all");
   const [q, setQ] = useAnnS("");
   const [sel, setSel] = useAnnS({});
   const [busy, setBusy] = useAnnS(false);
   const depts = [...new Set(rows.map((r) => r.dept_name || r.dept))];
   const list = rows.filter((r) => r.eligible)
-    .filter((r) => st === "all" || (st === "todo" ? ["pending", "draft", "returned"].includes(r.status) : r.status === st))
+    .filter((r) => st === "all" || (st === "todo" ? annTodoStatus(r.status) : st === "wait" ? annWaitStatus(r.status) : r.status === st))
     .filter((r) => dept === "all" || (r.dept_name || r.dept) === dept)
     .filter((r) => !q || (r.name + r.employee_id).toLowerCase().includes(q.toLowerCase()));
   const picked = list.filter((r) => sel[r.assignment_id] && ["submitted", "reviewed"].includes(r.status)).map((r) => r.assignment_id);
@@ -589,7 +620,7 @@ function AnnualAllForms({ rows, onOpen, reload }) {
         right={<button className="btn btn-pri btn-sm" disabled={busy || !picked.length} onClick={approve}><Icon name="check" size={14} />อนุมัติที่เลือก ({picked.length})</button>} />
       <div className="row wrap" style={{ gap: 10, padding: "0 20px 12px" }}>
         <select className="select" style={{ maxWidth: 200 }} value={st} onChange={(e) => setSt(e.target.value)}>
-          <option value="all">ทุกสถานะ</option><option value="todo">ยังไม่ส่ง</option>
+          <option value="all">ทุกสถานะ</option><option value="wait">รอ HR อนุมัติ (ทั้งหมด)</option><option value="todo">ยังไม่ส่ง</option>
           {Object.entries(ANN_STATUS).map(([k, v]) => <option key={k} value={k}>{v[0]}</option>)}
         </select>
         <select className="select" style={{ maxWidth: 220 }} value={dept} onChange={(e) => setDept(e.target.value)}>
@@ -623,10 +654,20 @@ function AnnualAllForms({ rows, onOpen, reload }) {
 }
 
 /* ---------- HR: รายชื่อ ผู้ประเมิน ระดับ JD สิทธิ์เข้ารอบ ---------- */
-function AnnualSetup({ rows, cycle, reload }) {
+function AnnualSetup({ rows, cycle, reload, initial }) {
   const [busy, setBusy] = useAnnS(false);
   const [q, setQ] = useAnnS("");
-  const [flt, setFlt] = useAnnS("all");
+  const [flt, setFlt] = useAnnS(initial || "all");
+  // ไม่ต้องประเมิน = มีชื่อใน Bplus เพื่อทำเงินเดือนอย่างเดียว → ไม่มีใบ ไม่อยู่ในสรุปผล/รายงาน/สถิติ (ติ๊กคืนได้)
+  const setExcl = async (r, on) => {
+    let reason = null;
+    if (on) {
+      reason = window.prompt("ไม่ต้องประเมิน " + r.name + "\nเหตุผล (เช่น มีชื่อเพื่อทำเงินเดือนอย่างเดียว):", "มีชื่อใน Bplus เพื่อทำเงินเดือนอย่างเดียว");
+      if (reason == null) return;
+    } else if (!window.confirm("นำ " + r.name + " กลับเข้ารอบประเมิน?")) return;
+    try { await annRpc("perf_set_excluded", { p_emp: r.employee_id, p_excluded: on, p_reason: reason }); toast(on ? "ตั้งเป็นไม่ต้องประเมินแล้ว" : "นำกลับเข้ารอบแล้ว", "check"); await reload(); }
+    catch (e) { toast(e.message, "x"); }
+  };
   const emps = (window.EMPLOYEES_ALL || window.EMPLOYEES || []).slice().sort((a, b) => (a.name || "").localeCompare(b.name || "", "th"));
   const jds = (window.JD_LIBRARY || []).slice().sort((a, b) => String(a.id).localeCompare(String(b.id), "en", { numeric: true }));
   const gen = async (refresh) => {
@@ -640,7 +681,7 @@ function AnnualSetup({ rows, cycle, reload }) {
     if (error) { toast("บันทึกไม่สำเร็จ: " + error.message, "x"); return; }
     toast("บันทึกแล้ว", "check"); reload();
   };
-  const list = rows.filter((r) => flt === "all" || (flt === "nojd" && !r.jd_id) || (flt === "out" && !r.eligible) || (flt === "noev" && !r.evaluator_id))
+  const list = rows.filter((r) => flt === "excl" ? r.excluded : !r.excluded && (flt === "all" || (flt === "nojd" && !r.jd_id) || (flt === "out" && !r.eligible) || (flt === "noev" && !r.evaluator_id)))
     .filter((r) => !q || (r.name + r.employee_id + (r.dept_name || "")).toLowerCase().includes(q.toLowerCase()));
   return (
     <Card>
@@ -650,16 +691,16 @@ function AnnualSetup({ rows, cycle, reload }) {
           <button className="btn btn-soft btn-sm" disabled={busy} onClick={() => gen(true)}><Icon name="refresh" size={14} />คำนวณใหม่ (ใบที่ยังไม่เริ่ม)</button>
         </div>} />
       <div className="row wrap" style={{ gap: 10, padding: "0 20px 12px" }}>
-        <Seg options={[{ value: "all", label: "ทั้งหมด" }, { value: "nojd", label: "ยังไม่มี JD" }, { value: "out", label: "ไม่อยู่ในรอบ" }, { value: "noev", label: "ไม่มีผู้ประเมิน" }]} value={flt} onChange={setFlt} />
+        <Seg options={[{ value: "all", label: "ทั้งหมด" }, { value: "nojd", label: "ยังไม่มี JD" }, { value: "out", label: "ไม่อยู่ในรอบ" }, { value: "noev", label: "ไม่มีผู้ประเมิน" }, { value: "excl", label: "ไม่ต้องประเมิน (" + rows.filter((r) => r.excluded).length + ")" }]} value={flt} onChange={setFlt} />
         <input className="input" style={{ maxWidth: 240 }} placeholder="ค้นหา" value={q} onChange={(e) => setQ(e.target.value)} />
       </div>
       <div className="tbl-wrap"><table className="tbl">
-        <thead><tr><th>พนักงาน</th><th>ระดับ</th><th>JD</th><th>ผู้ประเมินตามสาย</th><th>ผู้ทบทวน</th><th>เข้ารอบ</th></tr></thead>
+        <thead><tr><th>พนักงาน</th><th>ระดับ</th><th>JD</th><th>ผู้ประเมินตามสาย</th><th>ผู้ทบทวน</th><th>เข้ารอบ</th><th>ไม่ต้องประเมิน</th></tr></thead>
         <tbody>{list.map((r) => {
           const locked = r.status !== "pending";
           return (
             <tr key={r.assignment_id}>
-              <td><b>{r.name}</b>{r.employment_status && !["ACTIVE", "PROBATION"].includes(r.employment_status) && <span style={{ marginLeft: 6 }}><Badge cls="b-red">{r.employment_status === "RESIGNED" ? "ลาออกแล้ว" : r.employment_status}</Badge></span>}
+              <td style={{ minWidth: 210 }}><b>{r.name}</b>{r.employment_status && !["ACTIVE", "PROBATION"].includes(r.employment_status) && <span style={{ marginLeft: 6 }}><Badge cls="b-red">{r.employment_status === "RESIGNED" ? "ลาออกแล้ว" : r.employment_status}</Badge></span>}
                 <div className="muted" style={{ fontSize: 12 }}>{r.employee_id} · {r.dept_name} · {r.position}</div></td>
               <td><select className="select" style={{ minWidth: 150 }} disabled={locked} value={r.level} onChange={(e) => upd(r, { level: e.target.value })}>{Object.entries(ANN_LEVEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></td>
               <td><select className="select" style={{ minWidth: 200, borderColor: r.jd_id ? undefined : "#e08a00" }} disabled={locked} value={r.jd_id || ""} onChange={(e) => upd(r, { jd_id: e.target.value || null })}>
@@ -667,14 +708,20 @@ function AnnualSetup({ rows, cycle, reload }) {
               <td><AnnPersonPick emps={emps} id={r.evaluator_id} name={r.evaluator_name} empty="—" onPick={(v) => upd(r, { evaluator_id: v })} /></td>
               <td><AnnPersonPick emps={emps} id={r.reviewer_id} name={r.reviewer_name} empty="— ไม่มี (ส่งตรงถึง HR) —" onPick={(v) => upd(r, { reviewer_id: v })} /></td>
               <td>
-                <label className="row" style={{ gap: 6, fontSize: 13 }}><input type="checkbox" checked={!!r.eligible} onChange={(e) => upd(r, { eligible: e.target.checked, eligible_note: e.target.checked ? null : (r.eligible_note || "HR ยกเว้น") })} />{r.eligible ? "ประเมิน" : "ไม่ประเมิน"}</label>
+                <label className="row" style={{ gap: 6, fontSize: 13 }}><input type="checkbox" disabled={r.excluded} checked={!!r.eligible} onChange={(e) => upd(r, { eligible: e.target.checked, eligible_note: e.target.checked ? null : (r.eligible_note || "HR ยกเว้น") })} />{r.eligible ? "ประเมิน" : "ไม่ประเมิน"}</label>
                 {!r.eligible && r.eligible_note && <div className="muted" style={{ fontSize: 11.5 }}>{r.eligible_note}</div>}
+              </td>
+              <td>
+                <label className="row" style={{ gap: 6, fontSize: 13 }} title="มีชื่อเพื่อทำเงินเดือนอย่างเดียว — ไม่ประเมินและไม่นำไปวิเคราะห์ผล (มีผลทุกรอบ)">
+                  <input type="checkbox" checked={!!r.excluded} onChange={(e) => setExcl(r, e.target.checked)} />{r.excluded ? "ไม่ต้องประเมิน" : ""}</label>
+                {r.excluded && r.excluded_reason && <div className="muted" style={{ fontSize: 11.5 }}>{r.excluded_reason}</div>}
               </td>
             </tr>
           );
         })}</tbody>
       </table></div>
-      <div className="muted" style={{ fontSize: 12, padding: "10px 20px 16px" }}>ระดับและ JD แก้ได้เฉพาะใบที่ยังไม่เริ่มให้คะแนน เพราะเปลี่ยนหัวข้อประเมิน</div>
+      <div className="muted" style={{ fontSize: 12, padding: "10px 20px 16px" }}>ระดับและ JD แก้ได้เฉพาะใบที่ยังไม่เริ่มให้คะแนน เพราะเปลี่ยนหัวข้อประเมิน ·
+        <b> ไม่ต้องประเมิน</b> = มีชื่อใน Bplus เพื่อทำเงินเดือนอย่างเดียว: ไม่มีใบประเมิน ไม่นับในสรุปผล รายงาน และสถิติทุกหน้า มีผลทุกรอบจนกว่าจะเอาเครื่องหมายออก</div>
     </Card>
   );
 }
@@ -867,8 +914,8 @@ const ANN_REPORTS = [
   ["dept", "สรุปผลรายหน่วยงาน", "ความคืบหน้า คะแนนเฉลี่ย การกระจายเกรด และโบนัสรวมของแต่ละหน่วยงาน"],
   ["inform", "ใบแจ้งผลการประเมินรายบุคคล", "พิมพ์ใบแจ้งผลให้พนักงานลงนามรับทราบ ทีละหน่วยงาน (1 คน / 1 หน้า)"],
 ];
-function AnnualReports({ rows, cycle }) {
-  const [rep, setRep] = useAnnS("annual");
+function AnnualReports({ rows, cycle, only }) {
+  const [rep, setRep] = useAnnS(only || "annual");
   const [dept, setDept] = useAnnS("all");
   const [extra, setExtra] = useAnnS({});   // ข้อมูลที่โหลดเพิ่มตามรายงาน
   const [showMoney, setShowMoney] = useAnnS(false);
@@ -988,7 +1035,7 @@ function AnnualReports({ rows, cycle }) {
 
   return (
     <>
-      <Card pad>
+      {!only && <Card pad>
         <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 10 }}>
           {ANN_REPORTS.map(([id, t, d]) => (
             <button key={id} onClick={() => setRep(id)} className="btn" style={{ display: "block", textAlign: "left", padding: "10px 12px", height: "auto", whiteSpace: "normal",
@@ -997,7 +1044,7 @@ function AnnualReports({ rows, cycle }) {
             </button>
           ))}
         </div>
-      </Card>
+      </Card>}
       <Card>
         <CardHead title={title} sub={R.length + " รายการ · " + sub}
           right={<div className="row" style={{ gap: 8 }}>
@@ -1023,6 +1070,219 @@ function AnnualReports({ rows, cycle }) {
         )}
         <div className="muted" style={{ fontSize: 12, padding: "10px 20px 16px" }}>{note}{R.length > 500 ? " · หน้าจอแสดง 500 แถวแรก (พิมพ์/CSV ได้ครบ)" : ""}</div>
       </Card>
+    </>
+  );
+}
+
+/* กรอบเนื้อหาแบบ Prosoft: แถบหัวสีเทาอ่อน + เนื้อหา */
+function AnnPanel({ title, sub, right, children, pad }) {
+  return (
+    <div className="hcm-panel">
+      <div className="hcm-panel-h"><div><b>{title}</b>{sub && <span>{sub}</span>}</div>{right}</div>
+      <div className={pad === false ? "" : "hcm-panel-b"}>{children}</div>
+    </div>
+  );
+}
+
+/* ---------- หน้าแรก (Home): สรุปผล + เอกสารรอดำเนินการ ---------- */
+function AnnualHome({ rows, cycle, onOpen, go }) {
+  const hr = annIsHR();
+  const el = rows.filter((r) => r.eligible);
+  const graded = el.filter((r) => r.grade);
+  const avg = (f) => graded.length ? graded.reduce((s, r) => s + f(r), 0) / graded.length : null;
+  const avgTotal = avg((r) => Number(r.total));
+  const avgPerf = avg((r) => 0.9 * Number(r.perf_pct || 0));
+  const avgAtt = avg((r) => Number(r.attendance_points || 0));
+  const avgWarn = avg((r) => Number(r.warning_points || 0));
+  const g = avgTotal == null ? null : window.bandOf(avgTotal);
+  const todo = el.filter((r) => annTodoStatus(r.status) && (!hr || annHrMustFill(r)));
+  const wait = el.filter((r) => annWaitStatus(r.status));
+  const docs = (hr ? [...wait, ...todo] : [...todo.filter((r) => r.status === "returned"), ...todo.filter((r) => r.status !== "returned")]).slice(0, 8);
+  const scope = hr ? "ทั้งองค์กร" : ([...new Set(el.map((r) => r.dept_name))].join(", ") || "หน่วยงานของคุณ");
+  const today = new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10);
+  const dates = [["เปิดรับประเมิน", cycle.open_from], ["ปิดรับประเมิน", cycle.open_to], ["ผลงานถึงวันที่", cycle.period_end], ["จ่ายโบนัส", cycle.bonus_pay], ["เงินเดือนใหม่มีผล", cycle.raise_effective]]
+    .filter((d) => d[1]).sort((a, b) => a[1].localeCompare(b[1]));
+  const cnt = (f) => el.filter(f).length;
+  return (
+    <>
+      <div className="hcm-quote">
+        <span>“ ประเมินอย่างเป็นธรรม โปร่งใส ตรวจสอบได้ — เพื่อการเติบโตไปด้วยกัน ”</span>
+        <AnnualCycleBadge cycle={cycle} />
+      </div>
+      <div className="hcm-home-grid">
+        <AnnPanel title="สรุปผลการประเมิน" sub={cycle.name + " · " + scope}>
+          <div className="hcm-sum">
+            <div className="hcm-sum-grade">
+              <div className="muted" style={{ fontSize: 12.5 }}>ณ รอบ {cycle.year_th || cycle.id}</div>
+              <div className="g" style={{ color: g ? g.color : "var(--text-3)" }}>{g ? "เกรด " + g.key : "ยังไม่มีผล"}</div>
+              <Icon name="trophy" size={46} color={g ? "#e8a317" : "#cbd5e1"} />
+              <div className="t">{avgTotal == null ? "—" : avgTotal.toFixed(2) + " %"}</div>
+              <div className="muted" style={{ fontSize: 12 }}>คะแนนรวมเฉลี่ย (100%)</div>
+            </div>
+            <div className="hcm-sum-side">
+              {[["dashboard", "#2563eb", avgPerf, "ผลงานเฉลี่ย (เต็ม 90)"], ["clock", "#0d9488", avgAtt, "การมาทำงานเฉลี่ย (เต็ม 10)"], ["alert", "#e11d48", avgWarn, "หักใบเตือนเฉลี่ย"]].map(([ic, c, v, l]) => (
+                <div key={l} className="hcm-sum-item">
+                  <span className="ic" style={{ background: c + "18", color: c }}><Icon name={ic} size={22} /></span>
+                  <div><div className="v" style={{ color: c }}>{v == null ? "—" : v.toFixed(2)}</div><div className="muted" style={{ fontSize: 12 }}>{l}</div></div>
+                </div>
+              ))}
+              <div className="muted" style={{ fontSize: 12.5 }}>ให้คะแนนครบแล้ว <b>{graded.length}</b> จาก {el.length} คน</div>
+            </div>
+          </div>
+        </AnnPanel>
+        <AnnPanel title={hr ? "เอกสารรออนุมัติ / รอ HR กรอก" : "เอกสารรอประเมิน"} sub={(hr ? wait.length + " ใบรออนุมัติ · " : "") + todo.length + " ใบรอให้คะแนน"}
+          right={<button className="btn btn-ghost btn-sm" onClick={() => go(hr ? "approve" : "todo")}>ดูทั้งหมด</button>} pad={false}>
+          <div className="hcm-docs">
+            {docs.map((r) => (
+              <button key={r.assignment_id} className="hcm-doc" onClick={() => onOpen(r.assignment_id)}>
+                <span className="av">{(r.name || "?").replace(/^(นาย|นางสาว|นาง)\s*/, "").trim()[0]}</span>
+                <span style={{ minWidth: 0, flex: 1 }}>
+                  <b>ชื่อพนักงาน : {r.name}</b>
+                  <span className="muted">{r.doc_no} · {r.position} · {r.dept_name}</span>
+                </span>
+                <AnnStatus s={r.status} />
+              </button>
+            ))}
+            {!docs.length && <div className="muted" style={{ padding: 22, textAlign: "center", fontSize: 13 }}>ไม่มีเอกสารค้าง</div>}
+          </div>
+        </AnnPanel>
+      </div>
+      <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 14 }}>
+        <Stat icon="users" label="พนักงานที่ต้องประเมิน" value={el.length} />
+        <Stat icon="clock" label="ยังไม่ส่ง" value={cnt((r) => annTodoStatus(r.status))} tone="#e08a00" soft="#fdf1dc" />
+        <Stat icon="checkCircle" label="รออนุมัติ" value={wait.length} tone="#0d9488" soft="#e2f4f2" />
+        <Stat icon="award" label="อนุมัติแล้ว" value={cnt((r) => r.status === "approved")} tone="#16a34a" soft="#e7f6ec" />
+      </div>
+      <AnnPanel title="กำหนดการรอบประเมิน" sub="วันที่สำคัญของรอบนี้">
+        <div className="hcm-timeline">
+          {dates.map(([l, d]) => (
+            <div key={l} className={"hcm-tl" + (d <= today ? " past" : "")}><span className="dot" /><b>{annDate(d)}</b><span>{l}</span></div>
+          ))}
+        </div>
+      </AnnPanel>
+    </>
+  );
+}
+function AnnualCycleBadge({ cycle }) {
+  const today = new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10);
+  const open = cycle.status === "open" && today >= cycle.open_from && today <= cycle.open_to;
+  return <Badge cls={open ? "b-green" : "b-gray"} dot>{open ? "เปิดรับประเมินถึง " + annDate(cycle.open_to) : cycle.status === "draft" ? "ยังไม่เปิดรับ (เปิด " + annDate(cycle.open_from) + ")" : today < cycle.open_from ? "เปิดรับ " + annDate(cycle.open_from) : "ปิดรับประเมินแล้ว"}</Badge>;
+}
+
+/* ---------- ขั้นตอนการประเมิน (แผนภาพแบบหน้า Performance Management) ---------- */
+function AnnualFlow({ rows, go }) {
+  const hr = annIsHR();
+  const el = rows.filter((r) => r.eligible);
+  const n = (f) => el.filter(f).length;
+  const Node = ({ ic, c, t, s, p, k }) => (
+    <button className="flow-node" disabled={!p} onClick={() => p && go(p)}>
+      <span className="ic" style={{ background: c + "1a", color: c }}><Icon name={ic} size={26} /></span>
+      <b>{t}</b><span className="muted">{s}</span>
+      {k > 0 && <span className="flow-k" style={{ background: c }}>{k}</span>}
+    </button>
+  );
+  const main = [
+    { ic: "settings", c: "#64748b", t: "ตั้งค่ารอบ & รายชื่อ", s: "ระดับ · JD · ผู้ประเมิน", p: hr ? "hub" : null },
+    { ic: "eval", c: "#2563eb", t: "หน่วยงานประเมินตาม JD", s: "ให้ระดับ 1–5 ทุกข้อ", p: hr ? "forms" : "todo", k: n((r) => annTodoStatus(r.status)) },
+    { ic: "checkCircle", c: "#0d9488", t: "ส่งใบ / ผู้จัดการทบทวน", s: "ตีกลับให้แก้ได้", p: "approve", k: n((r) => r.status === "submitted") },
+    { ic: "award", c: "#16a34a", t: "HR อนุมัติ", s: "รายใบหรือเป็นชุด", p: "approve", k: n((r) => r.status === "reviewed") },
+    { ic: "sliders", c: "#c2410c", t: "ปรับผล (Calibration)", s: "ปรับเกรดพร้อมเหตุผล", p: hr ? "calib" : null, k: n((r) => r.adjusted) },
+    { ic: "trophy", c: "#7c3aed", t: "สรุปผลการประเมิน", s: "เกรด · โบนัส · ขึ้นเงินเดือน", p: "overview", k: n((r) => r.status === "approved") },
+    { ic: "file", c: "#0f766e", t: "แจ้งผล & ส่ง Bplus", s: "ใบแจ้งผลรายคน · CSV", p: hr ? "reports-inform" : null },
+  ];
+  return (
+    <>
+      <AnnPanel title="ขั้นตอนการประเมินผลประจำปี" sub="กดที่กล่องเพื่อไปยังหน้านั้น · ตัวเลข = จำนวนใบที่อยู่ในขั้นนั้นตอนนี้">
+        <div className="flow">
+          {main.map((x, i) => <React.Fragment key={x.t}>{i > 0 && <span className="flow-arrow">→</span>}<Node {...x} /></React.Fragment>)}
+        </div>
+        <div className="flow flow-sub">
+          <span className="flow-lab">ข้อมูลประกอบ</span>
+          <Node ic="clock" c="#e08a00" t="ตอกบัตร + ใบเตือน" s="นำเข้าใน HR Core" p={hr ? "deduct" : null} />
+          <span className="flow-arrow">→</span>
+          <Node ic="alert" c="#e11d48" t="คะแนนหัก" s="มาทำงาน 10 − ใบเตือน" p={hr ? "deduct" : null} k={n((r) => Number(r.attendance_points) < 10 || Number(r.warning_points) > 0)} />
+          <span className="flow-arrow">↗</span>
+          <span className="muted" style={{ fontSize: 12.5 }}>รวมเข้าคะแนนรวมอัตโนมัติ</span>
+        </div>
+      </AnnPanel>
+      <AnnPanel title="วิธีคิดคะแนน">
+        <div style={{ fontSize: 13.5, lineHeight: 1.8 }}>
+          <b>คะแนนรวม = ผลงาน (เต็ม 90) + การมาทำงาน (เต็ม 10) − หักใบเตือน</b><br />
+          ผลงาน = ส่วน A งานตาม JD + B ทักษะงาน/ภาวะผู้นำ + C พฤติกรรมหลัก ถ่วงน้ำหนักตามระดับตำแหน่ง · ระดับ 3 ทุกข้อ = 70% (ตามมาตรฐาน) · ระดับ 5 = 100%<br />
+          เกรด: {(window.PERF_BANDS || window.BANDS_DEFAULT).map((b) => b[1] + " ≥ " + b[0]).join(" · ")}
+        </div>
+      </AnnPanel>
+    </>
+  );
+}
+
+/* ---------- ตั้งค่าระบบ (Setup) — ไอคอนแยกหมวด ---------- */
+function AnnualSetupHub({ rowsAll, go, goRoute }) {
+  const nEx = rowsAll.filter((r) => r.excluded).length;
+  const nNoJd = rowsAll.filter((r) => !r.excluded && r.eligible && !r.jd_id).length;
+  const groups = [
+    ["รอบประเมิน", [["calendar", "#2563eb", "รอบประเมิน & เกณฑ์", () => go("cycle")], ["users", "#0d9488", "รายชื่อ & ผู้ประเมิน", () => go("setup"), nNoJd ? nNoJd + " ไม่มี JD" : null],
+      ["x", "#e11d48", "ไม่ต้องประเมิน", () => go("exclude"), nEx ? nEx + " คน" : null], ["list", "#7c3aed", "หัวข้อประเมิน (JD)", () => go("items")], ["alert", "#e08a00", "คะแนนหัก", () => go("deduct")]]],
+    ["องค์กร & ข้อมูลพนักงาน", [["jd", "#2563eb", "จัดการ JD", () => goRoute("jd")], ["employee", "#0d9488", "รายชื่อพนักงาน", () => goRoute("employee")],
+      ["layers", "#64748b", "จัดการข้อมูล", () => goRoute("manage")], ["settings", "#334155", "ตั้งค่าระบบ", () => goRoute("settings")]]],
+    ["รายงาน", [["file", "#0f766e", "รายงานทั้งหมด", () => go("reports")], ["award", "#16a34a", "สรุปผลการประเมิน", () => go("overview")], ["sliders", "#c2410c", "ปรับผล (Calibration)", () => go("calib")]]],
+  ];
+  return groups.map(([t, items]) => (
+    <AnnPanel key={t} title={t}>
+      <div className="hub">
+        {items.map(([ic, c, l, fn, note]) => (
+          <button key={l} className="hub-tile" onClick={fn}>
+            <span className="ic" style={{ background: c + "18", color: c }}><Icon name={ic} size={30} /></span>
+            <span>{l}</span>{note && <span className="hub-note">{note}</span>}
+          </button>
+        ))}
+      </div>
+    </AnnPanel>
+  ));
+}
+
+/* ---------- ปรับผล (Calibration): เทียบเกรดที่ระบบคิดกับเกรดที่ใช้จริง ---------- */
+function AnnualCalib({ rows, cycle, onOpen }) {
+  const [dept, setDept] = useAnnS("all");
+  const [onlyAdj, setOnlyAdj] = useAnnS(false);
+  const bands = (cycle.config && cycle.config.bands) || [];
+  const done = rows.filter((r) => r.eligible && r.complete);
+  const el = done.filter((r) => dept === "all" || (r.dept_name || r.dept) === dept);
+  const list = el.filter((r) => !onlyAdj || r.adjusted).sort((a, b) => Number(b.total) - Number(a.total));
+  const depts = [...new Set(done.map((r) => r.dept_name || r.dept))];
+  return (
+    <>
+      <AnnPanel title="การกระจายเกรด: ระบบคิด เทียบกับ หลังปรับผล" sub={el.length + " คนที่ให้คะแนนครบ" + (dept !== "all" ? " · " + dept : "")}>
+        <div className="tbl-wrap"><table className="tbl">
+          <thead><tr><th></th>{bands.map((b) => <th key={b[1]} className="num"><AnnGrade g={b[1]} /></th>)}</tr></thead>
+          <tbody>
+            <tr><td>ระบบคิด</td>{bands.map((b) => <td key={b[1]} className="num">{el.filter((r) => r.calc_grade === b[1]).length || ""}</td>)}</tr>
+            <tr><td><b>หลังปรับผล (ใช้จริง)</b></td>{bands.map((b) => <td key={b[1]} className="num"><b>{el.filter((r) => r.grade === b[1]).length || ""}</b></td>)}</tr>
+            <tr><td className="muted">สัดส่วน</td>{bands.map((b) => <td key={b[1]} className="num muted">{el.length ? Math.round(el.filter((r) => r.grade === b[1]).length / el.length * 100) + "%" : ""}</td>)}</tr>
+          </tbody>
+        </table></div>
+      </AnnPanel>
+      <AnnPanel title={"รายชื่อ " + list.length + " คน"} sub="เรียงคะแนนมาก → น้อย · กดเปิดใบเพื่อปรับผล (ต้องใส่เหตุผลทุกครั้ง)"
+        right={<div className="row wrap" style={{ gap: 10 }}>
+          <select className="select" style={{ width: 200 }} value={dept} onChange={(e) => setDept(e.target.value)}><option value="all">ทุกหน่วยงาน</option>{depts.map((d) => <option key={d} value={d}>{d}</option>)}</select>
+          <label className="row" style={{ gap: 6, fontSize: 13 }}><input type="checkbox" checked={onlyAdj} onChange={(e) => setOnlyAdj(e.target.checked)} />เฉพาะที่ปรับแล้ว</label>
+        </div>} pad={false}>
+        <div className="tbl-wrap"><table className="tbl">
+          <thead><tr><th>เลขที่</th><th>พนักงาน</th><th>หน่วยงาน</th><th>สถานะ</th><th className="num">ระบบคิด</th><th>เกรดระบบ</th><th className="num">ใช้จริง</th><th>เกรด</th><th>เหตุผลการปรับ</th><th></th></tr></thead>
+          <tbody>{list.map((r) => (
+            <tr key={r.assignment_id}>
+              <td className="mono" style={{ fontSize: 12 }}>{r.doc_no}</td>
+              <td><b>{r.name}</b><div className="muted" style={{ fontSize: 12 }}>{r.position}</div></td>
+              <td style={{ fontSize: 13 }}>{r.dept_name}</td><td><AnnStatus s={r.status} /></td>
+              <td className="num">{annFmt(r.calc_total)}</td><td><AnnGrade g={r.calc_grade} /></td>
+              <td className="num"><AnnTotal r={r} /></td><td><AnnGrade g={r.grade} /></td>
+              <td style={{ fontSize: 12.5 }}>{r.adjusted ? r.adj_reason : ""}</td>
+              <td><button className="btn btn-soft btn-sm" onClick={() => onOpen(r.assignment_id)}>เปิด / ปรับ</button></td>
+            </tr>))}
+            {!list.length && <tr><td colSpan={10} className="muted" style={{ textAlign: "center", padding: 26 }}>{onlyAdj ? "ยังไม่มีการปรับผล" : "ยังไม่มีใบที่ให้คะแนนครบ"}</td></tr>}
+          </tbody>
+        </table></div>
+      </AnnPanel>
     </>
   );
 }

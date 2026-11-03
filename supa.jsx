@@ -137,9 +137,39 @@ async function loadHRData() {
       eval: ev || null, jd_score: ev ? _num(ev.jd_score) : null,
     };
   });
+  // ===== ผลประเมินประจำปีแบบใหม่ (perf_list) เป็นแหล่งข้อมูลเดียวของคะแนน/เกรด/สถานะทุกหน้า =====
+  // ระบบเดิม (evaluations / employees.kpi / comp) ไม่มีข้อมูลแล้ว — ถ้าไม่แทนที่ หน้าแดชบอร์ด/รายชื่อจะไม่ตรงกับหน้าประเมินประจำปี
+  const [perfCyc, perfEx] = await Promise.all([
+    sb.from("perf_cycles").select("*").order("id", { ascending: false }).limit(1).maybeSingle(),
+    sb.from("perf_exclusions").select("employee_id, reason"),
+  ]);
+  window.PERF_CYCLE = perfCyc.data || null;
+  window.PERF_EXCLUDED = {}; (perfEx.data || []).forEach((x) => { window.PERF_EXCLUDED[x.employee_id] = x.reason || "ไม่ต้องประเมิน"; });
+  if (window.PERF_CYCLE && window.PERF_CYCLE.config && window.PERF_CYCLE.config.bands) window.PERF_BANDS = window.PERF_CYCLE.config.bands;
+  const annRes = window.PERF_CYCLE ? await sb.rpc("perf_list", { p_cycle: window.PERF_CYCLE.id }) : { data: [] };
+  const annByEmp = {}; (annRes.data || []).forEach((r) => { annByEmp[r.employee_id] = r; });
+  const _ST = { pending: "pending", draft: "progress", returned: "progress", submitted: "review", reviewed: "review", approved: "done" };
+  const _p = (av) => av == null ? 0 : Math.round((70 + (Number(av) - 3) * 15) * 10) / 10;
+  ALL_EMPLOYEES.forEach((e) => {
+    const r = annByEmp[e.id];
+    e.perfExcluded = !!window.PERF_EXCLUDED[e.id];
+    if (!r) return;
+    e.annual = r;
+    e.status = _ST[r.status] || "pending";
+    e.overall = r.complete && r.total != null ? Number(r.total) : 0;
+    e.band = bandOf(e.overall, r.complete ? r.grade : null);
+    // คอลัมน์เดิม "KPI" = ส่วน A งานตาม JD (%) · "Competency" = ส่วน B+C (%)
+    e.kpi = _p(r.avg_a);
+    e.comp = r.avg_b == null && r.avg_c == null ? 0 : Math.round(((_p(r.avg_b) || _p(r.avg_c)) + (_p(r.avg_c) || _p(r.avg_b))) / 2 * 10) / 10;
+  });
+
+  // ยังไม่มีคะแนน (ไม่ครบ/ไม่อยู่ในรอบ) → ไม่ให้ขึ้นเกรด F จากคะแนน 0
+  ALL_EMPLOYEES.forEach((e) => { if (!(e.overall > 0)) e.band = { key: "—", label: "ยังไม่มีผล", cls: "b-gray", color: "#94a3b8" }; });
+
   // พนักงานที่ยังทำงานอยู่เท่านั้นเข้าสู่ทุกหน้าจอ/สถิติ · ผู้ที่ลาออกจัดการได้ที่หน้า "จัดการข้อมูล"
+  // คนที่ HR ติ๊ก "ไม่ต้องประเมิน" (มีชื่อเพื่อทำเงินเดือนอย่างเดียว) ไม่นำมาวิเคราะห์ในแอปนี้
   const _WORKING = ["ACTIVE", "PROBATION", "ON_LEAVE", "SUSPENDED"];
-  const EMPLOYEES = ALL_EMPLOYEES.filter((e) => _WORKING.indexOf(String(e.employment_status || "ACTIVE").toUpperCase()) > -1);
+  const EMPLOYEES = ALL_EMPLOYEES.filter((e) => _WORKING.indexOf(String(e.employment_status || "ACTIVE").toUpperCase()) > -1 && !e.perfExcluded);
   window.EMPLOYEES_ALL = ALL_EMPLOYEES;
 
   // department aggregates (head / done / avg score) computed LIVE from employees — never stale
@@ -220,7 +250,7 @@ async function loadHRData() {
   if (!COMP_RADAR.length) COMP_RADAR = [{ id: "x", name: "สมรรถนะ", v: avgCompScore }];
 
   // grade distribution (real) for dashboard
-  const GRADE_KEYS = [["A+", "#15803d"], ["A", "#16a34a"], ["B+", "#0d9488"], ["B", "#0891b2"], ["C", "#2563eb"], ["D", "#e11d48"]];
+  const GRADE_KEYS = (window.PERF_BANDS || window.BANDS_DEFAULT).map((b) => [b[1], (window.BAND_STYLE[b[1]] || [0, "#64748b"])[1]]);
   const GRADE_DIST = GRADE_KEYS.map(([g, color]) => ({ g, color, n: EMPLOYEES.filter((e) => e.status === "done" && e.band.key === g).length }));
 
   const currentUser = (appUsers || []).find((u) => (u.email || "").toLowerCase() === authEmail)

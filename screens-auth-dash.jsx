@@ -249,7 +249,7 @@ function Dashboard({ ctx }) {
     avgTrend: SUMMARY.avgTrend,
     topDept: (topDepts[0] || {}).name || "-", topDeptScore: (topDepts[0] || {}).score || 0,
   };
-  const _GK = [["A+", "#15803d"], ["A", "#16a34a"], ["B+", "#0d9488"], ["B", "#0891b2"], ["C", "#2563eb"], ["D", "#e11d48"]];
+  const _GK = (window.PERF_BANDS || window.BANDS_DEFAULT).map((b) => [b[1], (window.BAND_STYLE[b[1]] || [0, "#64748b"])[1]]);
   const gradeDist = window.SCOPE.all ? (window.GRADE_DIST || []) : _GK.map(([g, color]) => ({ g, color, n: _doneE.filter((e) => e.band && e.band.key === g).length }));
   const scopeLabel = window.SCOPE.all ? "ทั้งองค์กร" : (window.SCOPE.depts.map((id) => deptShort(id)).join(", ") || "หน่วยงานของคุณ");
 
@@ -257,7 +257,7 @@ function Dashboard({ ctx }) {
     <div className="grid" style={{ gridTemplateColumns: `repeat(auto-fit, minmax(${compact ? 175 : 210}px, 1fr))` }}>
       <Stat icon="users" label="พนักงานทั้งหมด" value={SUM.total} unit="คน" tone="#2563eb" soft="#e8effb" sub={window.SCOPE.all ? `${DEPARTMENTS.length} หน่วยงาน` : scopeLabel} />
       <Stat icon="checkCircle" label="ประเมินแล้ว" value={SUM.done} unit="คน" tone="#16a34a" soft="#e7f6ec" sub={`${SUM.total ? Math.round(SUM.done / SUM.total * 100) : 0}% ของทั้งหมด`} />
-      <Stat icon="clock" label="รอดำเนินการ" value={SUM.pending} unit="คน" tone="#e08a00" soft="#fdf1dc" sub="ครบกำหนด 15 มิ.ย." />
+      <Stat icon="clock" label="รอดำเนินการ" value={SUM.pending} unit="คน" tone="#e08a00" soft="#fdf1dc" sub={window.PERF_CYCLE ? "ปิดรับประเมิน " + new Date(window.PERF_CYCLE.open_to).toLocaleDateString("th-TH", { day: "numeric", month: "short" }) : ""} />
       <Stat icon="target" label={window.SCOPE.all ? "คะแนนเฉลี่ยองค์กร" : "คะแนนเฉลี่ย"} value={SUM.avgScore} tone="#7c3aed" soft="#f1ebfd" delta={SUM.avgTrend} sub="เทียบปีก่อน" />
       {!compact && <Stat icon="trophy" label="หน่วยงานอันดับ 1" value={SUM.topDeptScore} tone="#0d9488" soft="#e2f4f2" sub={SUM.topDept} />}
     </div>

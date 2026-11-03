@@ -401,3 +401,167 @@ textarea.input { resize: vertical; min-height: 76px; line-height: 1.55; }
 @media (max-width: 1080px) {
   .hide-md { display: none !important; }
 }
+
+/* ============================================================
+   ธีมแบบ Prosoft HCM (03/11/2569) — แถบบนสีน้ำเงิน + เมนูซ้ายพร้อมโปรไฟล์ + breadcrumb
+   ============================================================ */
+.hcm {
+  --hcm-blue: #2f6db5; --hcm-blue-2: #275d9c; --hcm-blue-3: #1f4f87;
+  --hcm-side: #f5f7fa; --hcm-line: #dde4ec;
+  --r: 8px; --r-sm: 7px; --r-lg: 10px;
+  --bg: #eef2f6;
+  min-height: 100vh; display: flex; flex-direction: column; background: var(--bg);
+}
+.hcm .card, .hcm .stat { border-radius: 8px; box-shadow: 0 1px 2px rgba(15,33,71,.05); border-color: var(--hcm-line); }
+.hcm .card-head { background: #f7f9fb; border-bottom: 1px solid var(--hcm-line); border-radius: 8px 8px 0 0; padding: 13px 18px; }
+.hcm .tbl th { background: #edf2f8; color: #2b3b55; text-transform: none; letter-spacing: 0; font-size: 12.5px; border-bottom: 1px solid #d5deea; padding: 10px 14px; }
+.hcm .tbl td { padding: 10px 14px; }
+.hcm .btn-pri { background: var(--hcm-blue); box-shadow: none; }
+.hcm .btn-pri:hover { background: var(--hcm-blue-2); }
+.hcm .tabs button.on { color: var(--hcm-blue); }
+.hcm .tabs button.on::after { background: var(--hcm-blue); }
+
+/* ---- แถบบน ---- */
+.hcm-top { position: sticky; top: 0; z-index: 45; height: 68px; display: flex; align-items: center; gap: 14px; padding: 0 18px;
+  background: linear-gradient(180deg, var(--hcm-blue) 0%, var(--hcm-blue-2) 100%); color: #fff; box-shadow: 0 2px 6px rgba(15,33,71,.18); }
+.hcm-burger { display: none; background: none; border: none; color: #fff; cursor: pointer; padding: 6px; }
+.hcm-brand { display: flex; align-items: center; gap: 10px; cursor: pointer; min-width: 0; }
+.hcm-logo { width: 40px; height: 40px; border-radius: 8px; background: #fff; display: grid; place-items: center; overflow: hidden; flex: 0 0 40px; padding: 3px; }
+.hcm-brand-t { display: flex; flex-direction: column; line-height: 1.15; }
+.hcm-brand-t b { font-size: 19px; font-weight: 700; letter-spacing: .01em; white-space: nowrap; }
+.hcm-brand-t b em { font-style: normal; color: #ffb547; }
+.hcm-brand-t small { font-size: 11px; opacity: .85; white-space: nowrap; }
+.hcm-topnav { display: flex; align-items: stretch; gap: 4px; margin: 0 auto; height: 100%; }
+.hcm-tn { background: none; border: none; color: #fff; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  min-width: 92px; padding: 0 10px; font-size: 12.5px; opacity: .92; position: relative; }
+.hcm-tn:hover { background: rgba(255,255,255,.12); opacity: 1; }
+.hcm-tn.on { background: rgba(255,255,255,.18); opacity: 1; }
+.hcm-tn.on::after { content: ""; position: absolute; left: 14px; right: 14px; bottom: 0; height: 3px; border-radius: 3px 3px 0 0; background: #ffb547; }
+.hcm-tn .i { position: relative; display: grid; place-items: center; }
+.hcm-tn .l { white-space: nowrap; }
+.hcm-badge { position: absolute; top: -6px; right: -12px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: #e5484d; color: #fff;
+  font-size: 11px; font-weight: 700; display: grid; place-items: center; line-height: 1; border: 2px solid #fff; }
+.hcm-who { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.2; min-width: 0; }
+.hcm-who b { font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 220px; }
+.hcm-who span { font-size: 11.5px; opacity: .85; }
+
+/* ---- ตัวเนื้อหา ---- */
+.hcm-body { flex: 1; display: flex; min-height: 0; }
+.hcm-side { width: 262px; flex: 0 0 262px; background: var(--hcm-side); border-right: 1px solid var(--hcm-line); position: sticky; top: 68px;
+  height: calc(100vh - 68px); overflow-y: auto; display: flex; flex-direction: column; transition: width .2s, flex-basis .2s; z-index: 41; }
+.hcm-side.mini { width: 72px; flex-basis: 72px; }
+.hcm-prof { display: flex; gap: 12px; padding: 16px 14px 14px; border-bottom: 1px solid var(--hcm-line); position: relative; background: #fff; }
+.hcm-prof-av { cursor: pointer; border-radius: 999px; box-shadow: 0 0 0 3px #fff, 0 0 0 4px #c9d6e6; height: 64px; }
+.hcm-prof-r { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.hcm-prof-r b { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
+.hcm-prof-r > span { font-size: 12px; color: var(--text-2); display: flex; align-items: center; gap: 4px; }
+.hcm-bell, .hcm-mini-btn { position: relative; background: none; border: none; cursor: pointer; color: var(--text-2); padding: 3px; }
+.hcm-bell .hcm-badge { top: -4px; right: -8px; }
+.hcm-link { background: none; border: none; padding: 0; color: var(--hcm-blue); font-size: 12px; cursor: pointer; text-align: left; }
+.hcm-side.mini .hcm-prof-r, .hcm-side.mini .hcm-mi .l, .hcm-side.mini .hcm-mi > svg:last-child { display: none; }
+.hcm-side.mini .hcm-prof { padding: 12px 4px; justify-content: center; }
+.hcm-side.mini .hcm-prof-av { transform: scale(.7); }
+.hcm-menu { padding: 8px 0 20px; }
+.hcm-mi { display: flex; align-items: center; gap: 11px; width: 100%; padding: 11px 16px; border: none; background: none; cursor: pointer; color: #2b3b55;
+  font-size: 14px; text-align: left; position: relative; border-bottom: 1px solid #e8edf3; }
+.hcm-mi .l { flex: 1; min-width: 0; }
+.hcm-mi:hover { background: #e9eff7; }
+.hcm-mi.on, .hcm-mi.in { background: var(--hcm-blue); color: #fff; font-weight: 600; }
+.hcm-mi .hcm-badge { position: static; border: none; }
+.hcm-grp.open > .hcm-mi > svg:last-child { transform: rotate(90deg); }
+.hcm-mi > svg:last-child { transition: transform .15s; }
+.hcm-sub { background: #fff; border-bottom: 1px solid #e8edf3; padding: 4px 0; }
+.hcm-si { display: block; width: 100%; text-align: left; border: none; background: none; cursor: pointer; padding: 8px 16px 8px 46px; font-size: 13.5px; color: #3b4a62; position: relative; }
+.hcm-si::before { content: ""; position: absolute; left: 30px; top: 50%; width: 6px; height: 6px; border-radius: 999px; background: #c3cfdd; transform: translateY(-50%); }
+.hcm-si:hover { background: #f0f4fa; color: var(--hcm-blue); }
+.hcm-si.on { color: var(--hcm-blue); font-weight: 600; background: #e8f0fb; }
+.hcm-si.on::before { background: var(--hcm-blue); }
+.hcm-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.hcm-crumb { display: flex; align-items: center; gap: 8px; padding: 10px 26px; background: #fff; border-bottom: 1px solid var(--hcm-line); font-size: 13px; color: var(--hcm-blue); }
+.hcm-crumb .sep { color: #9aa8bb; }
+.hcm-crumb .cur { color: #2b3b55; font-weight: 600; }
+.hcm-search { position: relative; display: flex; align-items: center; gap: 6px; border: 1px solid var(--hcm-line); border-radius: 6px; padding: 4px 10px; color: var(--text-3); }
+.hcm-search input { border: none; outline: none; font-size: 13px; width: 180px; background: none; }
+.hcm-sr { gap: 10px; width: 100%; padding: 7px 10px; border: none; background: none; cursor: pointer; border-radius: 6px; }
+.hcm-sr:hover { background: var(--surface-2); }
+.hcm-title { font-size: 21px; font-weight: 600; margin: 0 0 var(--gap); color: #1e2d45; padding-bottom: 10px; border-bottom: 1px solid var(--hcm-line); }
+.hcm-foot { text-align: center; font-size: 11.5px; color: var(--text-3); padding: 10px 0 18px; }
+
+/* ---- กรอบเนื้อหา ---- */
+.hcm-panel { background: #fff; border: 1px solid var(--hcm-line); border-radius: 8px; box-shadow: 0 1px 2px rgba(15,33,71,.05); overflow: hidden; }
+.hcm-panel-h { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 0 16px 0 0; background: #f4f7fa; border-bottom: 1px solid var(--hcm-line); min-height: 44px; }
+.hcm-panel-h > div:first-child { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.hcm-panel-h > div:first-child > b { font-size: 14px; color: #1e2d45; background: #fff; padding: 11px 18px; border-right: 1px solid var(--hcm-line); border-top: 3px solid var(--hcm-blue); margin-bottom: -1px; }
+.hcm-panel-h > div:first-child > span { font-size: 12.5px; color: var(--text-2); }
+.hcm-panel-b { padding: 18px; }
+.hcm-quote { background: #fff; border: 1px solid var(--hcm-line); border-radius: 8px; padding: 18px 22px; display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;
+  font-style: italic; font-size: 16px; color: #2b3b55; border-left: 5px solid var(--hcm-blue); }
+.hcm-home-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--gap); }
+.hcm-sum { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: center; }
+.hcm-sum-grade { text-align: center; border: 1px solid var(--hcm-line); border-radius: 8px; padding: 16px 10px; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.hcm-sum-grade .g { font-size: 26px; font-weight: 700; }
+.hcm-sum-grade .t { font-size: 24px; font-weight: 700; color: var(--hcm-blue); font-family: var(--mono); }
+.hcm-sum-side { display: flex; flex-direction: column; gap: 12px; }
+.hcm-sum-item { display: flex; align-items: center; gap: 12px; border: 1px solid var(--hcm-line); border-radius: 8px; padding: 10px 12px; }
+.hcm-sum-item .ic { width: 42px; height: 42px; border-radius: 10px; display: grid; place-items: center; flex: 0 0 42px; }
+.hcm-sum-item .v { font-size: 22px; font-weight: 700; font-family: var(--mono); line-height: 1.1; }
+.hcm-docs { max-height: 330px; overflow-y: auto; }
+.hcm-doc { display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 16px; border: none; border-bottom: 1px solid #edf1f5; background: none; cursor: pointer; text-align: left; font-family: inherit; }
+.hcm-doc:hover { background: #f4f8fd; }
+.hcm-doc .av { width: 36px; height: 36px; border-radius: 999px; background: #e3ecf8; color: var(--hcm-blue); display: grid; place-items: center; font-weight: 700; flex: 0 0 36px; }
+.hcm-doc b { display: block; font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hcm-doc .muted { display: block; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hcm-timeline { display: flex; overflow-x: auto; padding: 6px 0; }
+.hcm-tl { flex: 1; min-width: 130px; display: flex; flex-direction: column; align-items: center; gap: 3px; position: relative; font-size: 12.5px; text-align: center; }
+.hcm-tl::before { content: ""; position: absolute; top: 7px; left: 0; right: 0; height: 2px; background: #d5deea; }
+.hcm-tl:first-child::before { left: 50%; }
+.hcm-tl:last-child::before { right: 50%; }
+.hcm-tl .dot { width: 16px; height: 16px; border-radius: 999px; background: #fff; border: 3px solid var(--hcm-blue); position: relative; z-index: 1; }
+.hcm-tl.past .dot { background: var(--hcm-blue); }
+.hcm-tl b { font-family: var(--mono); font-size: 13px; color: #1e2d45; }
+.hcm-tl span { color: var(--text-2); }
+
+/* ---- แผนภาพขั้นตอน ---- */
+.flow { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.flow-sub { margin-top: 18px; padding-top: 16px; border-top: 1px dashed var(--hcm-line); }
+.flow-lab { font-size: 12.5px; font-weight: 600; color: var(--text-2); margin-right: 6px; }
+.flow-arrow { color: var(--hcm-blue); font-size: 18px; font-weight: 700; }
+.flow-node { position: relative; width: 118px; min-height: 124px; border: 1px solid var(--hcm-line); border-radius: 10px; background: #fff; padding: 12px 8px; cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; transition: box-shadow .15s, border-color .15s; font-family: inherit; }
+.flow-node:hover:not(:disabled) { border-color: var(--hcm-blue); box-shadow: 0 4px 14px rgba(47,109,181,.15); }
+.flow-node:disabled { cursor: default; color: inherit; }
+.flow-node .ic { width: 50px; height: 50px; border-radius: 12px; display: grid; place-items: center; }
+.flow-node b { font-size: 13px; color: #1e2d45; line-height: 1.3; }
+.flow-node .muted { font-size: 11.5px; line-height: 1.3; }
+.flow-k { position: absolute; top: -8px; right: -8px; min-width: 24px; height: 24px; padding: 0 6px; border-radius: 999px; color: #fff; font-size: 12px; font-weight: 700; display: grid; place-items: center; border: 2px solid #fff; }
+
+/* ---- ตั้งค่าระบบ: ไอคอนแยกหมวด ---- */
+.hub { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; }
+.hub-tile { border: 1px solid transparent; background: none; border-radius: 10px; padding: 14px 8px; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 8px;
+  font-size: 13px; color: #2b3b55; text-align: center; position: relative; font-family: inherit; }
+.hub-tile:hover { border-color: var(--hcm-line); background: #f6f9fd; }
+.hub-tile .ic { width: 62px; height: 62px; border-radius: 16px; display: grid; place-items: center; }
+.hub-note { font-size: 11px; color: #c2410c; font-weight: 600; }
+
+@media (max-width: 1180px) { .hcm-tn { min-width: 70px; } .hcm-who { display: none; } }
+@media (max-width: 960px) {
+  .hcm-burger { display: block; }
+  .hcm-side { position: fixed; left: 0; top: 68px; bottom: 0; height: auto; transform: translateX(-100%); transition: transform .2s; box-shadow: 0 10px 30px rgba(0,0,0,.2); }
+  .hcm-side.open { transform: none; }
+  .hcm-side.mini { width: 262px; flex-basis: 262px; }
+  .hcm-mini-btn { display: none; }
+  .hcm-home-grid { grid-template-columns: 1fr; }
+  .hcm-brand-t small { display: none; }
+}
+@media (max-width: 720px) {
+  .hcm-top { padding: 0 8px; gap: 6px; }
+  .hcm-tn { min-width: 46px; padding: 0 6px; }
+  .hcm-tn .l { display: none; }
+  .hcm-brand-t { display: none; }
+  .hcm-topnav { margin: 0 0 0 auto; }
+  .hcm-panel-h > div:first-child > span { padding: 0 14px 8px; }
+  .hcm-crumb { padding: 8px 14px; }
+  .hcm .content { padding: 14px 16px 50px; }
+  .hcm-sum { grid-template-columns: 1fr; }
+  .flow-node { width: calc(50% - 24px); }
+}

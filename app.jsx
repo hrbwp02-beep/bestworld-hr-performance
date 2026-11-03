@@ -51,7 +51,35 @@ const ROLE_PAGES = {
   viewer: ["dashboard", "hrdata", "profile"],
 };
 const pagesFor = (role) => ROLE_PAGES[role] || ROLE_PAGES.viewer;
-const canSeePage = (role, id) => { const p = pagesFor(role); return p === "*" || p.indexOf(id) > -1; };
+// หน้าในระบบประเมินประจำปีใช้ route "ann:<หน้า>" — สิทธิ์เท่ากับหน้า "annual"
+const baseRoute = (id) => String(id).startsWith("ann:") ? "annual" : id;
+const canSeePage = (role, id) => { const p = pagesFor(role); return p === "*" || p.indexOf(baseRoute(id)) > -1; };
+
+// ===== เมนูด้านซ้ายแบบ Prosoft HCM (กลุ่ม › เมนูย่อย) — hr: true = เฉพาะ HR/admin =====
+const SIDE_MENU = [
+  { id: "ann:home", label: "หน้าแรก", icon: "home" },
+  { id: "g_setup", label: "ตั้งค่าระบบ", icon: "settings", hr: true, children: [
+    ["ann:hub", "ภาพรวมการตั้งค่า"], ["ann:cycle", "รอบประเมิน & เกณฑ์"], ["ann:setup", "รายชื่อ & ผู้ประเมิน"], ["ann:exclude", "ผู้ที่ไม่ต้องประเมิน"],
+    ["ann:items", "หัวข้อประเมิน (JD)"], ["ann:deduct", "คะแนนหัก (ตอกบัตร/ใบเตือน)"], ["jd", "จัดการ JD"], ["manage", "จัดการข้อมูล"], ["settings", "ตั้งค่าทั่วไป"]] },
+  { id: "g_perf", label: "การประเมินผลงาน", icon: "eval", children: [
+    ["ann:flow", "ขั้นตอนการประเมิน"], ["ann:forms", "ใบประเมินทั้งหมด", "hr"], ["ann:mine", "ใบประเมินของหน่วยงาน", "nohr"], ["ann:overview", "สรุปผลการประเมิน"],
+    ["ann:calib", "ปรับผล (Calibration)", "hr"], ["ann:reports-inform", "แจ้งผลการประเมิน", "hr"]] },
+  { id: "ann:approve", label: "ศูนย์อนุมัติ", icon: "checkCircle", badge: "approve" },
+  { id: "ann:todo", label: "งานของฉัน", icon: "list", badge: "todo" },
+  { id: "g_rep", label: "รายงาน", icon: "reports", hr: true, children: [
+    ["ann:reports", "รายงานทั้งหมด"], ["ann:reports-annual", "ผลประเมินประจำปี"], ["ann:reports-approval", "สถานะการอนุมัติ"], ["ann:reports-adjust", "การปรับเกรด/คะแนน"],
+    ["ann:reports-deduct", "คะแนนหักการมาทำงาน"], ["ann:reports-dept", "สรุปผลรายหน่วยงาน"]] },
+  { id: "g_people", label: "ข้อมูลพนักงาน", icon: "users", children: [["employee", "รายชื่อพนักงาน"], ["hrdata", "แดชบอร์ดกำลังคน"], ["analytics", "สถิติหน่วยงาน"]] },
+  { id: "g_more", label: "วิเคราะห์เพิ่มเติม", icon: "trend", children: [["dashboard", "แดชบอร์ดผลประเมิน"], ["exec", "มุมมองผู้บริหาร"], ["reports", "รายงานวิเคราะห์"], ["kpi", "KPI หน่วยงาน (ยังไม่นับคะแนน)"]] },
+];
+const ANN_TITLES = {
+  home: "หน้าแรก", flow: "ขั้นตอนการประเมิน", hub: "ตั้งค่าระบบ", mine: "ใบประเมินของหน่วยงาน", forms: "ใบประเมินทั้งหมด", todo: "งานของฉัน",
+  approve: "ศูนย์อนุมัติ", overview: "สรุปผลการประเมิน", calib: "ปรับผล (Calibration)", setup: "รายชื่อ & ผู้ประเมิน", exclude: "ผู้ที่ไม่ต้องประเมิน",
+  deduct: "คะแนนหัก (ตอกบัตร/ใบเตือน)", items: "หัวข้อประเมิน (JD)", reports: "รายงาน", cycle: "รอบประเมิน & เกณฑ์",
+  "reports-annual": "รายงานผลประเมินประจำปี", "reports-approval": "รายงานตรวจสอบสถานะการอนุมัติ", "reports-adjust": "รายงานการปรับเกรด/คะแนน",
+  "reports-deduct": "รายงานคะแนนหักการมาทำงานและใบเตือน", "reports-dept": "สรุปผลรายหน่วยงาน", "reports-inform": "แจ้งผลการประเมิน",
+};
+const routeTitle = (r) => String(r).startsWith("ann:") ? ANN_TITLES[r.slice(4)] || "ประเมินผลประจำปี" : (TITLES[r] || [""])[0];
 const canSeeSettings = (role) => role === "admin" || role === "hr";
 
 const TITLES = {
@@ -100,7 +128,10 @@ function App() {
   const [checking, setChecking] = useA(true);
   const [dataReady, setDataReady] = useA(false);
   const [loadErr, setLoadErr] = useA(null);
-  const [route, setRoute] = useA("annual");
+  const [route, setRoute] = useA("ann:home");
+  const [annCounts, setAnnCounts] = useA({ todo: 0, approve: 0 });
+  const [annOpenId, setAnnOpenId] = useA(null);
+  const [openGroups, setOpenGroups] = useA({ g_perf: true });
   const [empId, setEmpId] = useA("E1000");
   const [evalEmp, setEvalEmp] = useA("");
   const [year, setYear] = useA(String(window.CYCLE_YEAR || "2569"));
@@ -146,14 +177,16 @@ function App() {
     if (!session) { setDataReady(false); setLoadErr(null); }
   }, [session]);
 
-  const go = (rt) => { setRoute(rt); setMobileOpen(false); setNotifOpen(false); setMenuOpen(false); if (rt !== "exec") setExecDept(null); window.scrollTo(0, 0); };
+  // "annual" (ลิงก์เดิมจากหน้าอื่น) → หน้าใบประเมินของระบบใหม่
+  const go = (rt0) => { const rt = rt0 === "annual" ? (["admin", "hr"].includes((window.CURRENT_USER || {}).role) ? "ann:forms" : "ann:mine") : rt0; setRoute(rt); setMobileOpen(false); setNotifOpen(false); setMenuOpen(false); if (rt !== "exec") setExecDept(null); window.scrollTo(0, 0); };
   const openEmp = (id) => { setEmpId(id); go("profile"); };
   // ปุ่ม "ประเมิน" ในหน้าพนักงาน/JD ยังเรียกตัวนี้อยู่ — ส่งไปหน้าประเมินประจำปีแบบใหม่ ไม่ให้ไปเขียนตาราง evaluations เดิม
   const startEval = (id) => { setEvalEmp(id); go("annual"); };
   const openSub = (id) => setSubId(id);
   const goExec = (deptId) => { setExecDept(deptId); setRoute("exec"); setMobileOpen(false); window.scrollTo(0, 0); };
 
-  const ctx = { t, setTweak, go, openEmp, startEval, openSub, goExec, empId, evalEmp, year, setYear, execDept, refresh, dataVer };
+  const ctx = { t, setTweak, go, openEmp, startEval, openSub, goExec, empId, evalEmp, year, setYear, execDept, refresh, dataVer,
+    setAnnCounts, annOpenId, setAnnOpenId };
 
   const Panel = (
     <TweaksPanel>
@@ -190,165 +223,156 @@ function App() {
   const cuInitials = (cuName.trim()[0] || "U");
   // จำกัดสิทธิ์เข้าหน้า: ถ้าหน้าปัจจุบันไม่ได้รับอนุญาต ให้ตกกลับไปหน้าภาพรวม
   const routeAllowed = (r) => r === "settings" ? canSeeSettings(cu.role) : canSeePage(cu.role, r);
-  const effRoute = routeAllowed(route) ? route : (routeAllowed("annual") ? "annual" : "dashboard");
-  const [tTitle, tSub] = TITLES[effRoute] || TITLES.dashboard;
+  const effRoute = routeAllowed(route) ? route : "ann:home";
+  const isHR = canSeeSettings(cu.role);
   // หาพนักงานที่ตรงกับบัญชีผู้ใช้: ใช้ employee_id ที่ผูกไว้ก่อน แล้วค่อย fallback เทียบชื่อ
   const _normName = (s) => (s || "").replace(/^(นาย|นางสาว|นาง|คุณ|น\.ส\.)\s*/, "").replace(/\s+/g, "").toLowerCase();
   const myEmp = (cu.employee_id && (window.EMPLOYEES || []).find((e) => e.id === cu.employee_id))
     || (window.EMPLOYEES || []).find((e) => _normName(e.name) === _normName(cuName)) || null;
-  const openMyProfile = () => { if (myEmp) openEmp(myEmp.id); else toast("ไม่พบข้อมูลพนักงานที่ตรงกับบัญชีนี้ในระบบ", "info"); };
-  const visibleNav = NAV.filter((n) => canSeePage(cu.role, n.id));
-  // โมดูลปัจจุบันดูจากหน้าที่เปิดอยู่ · แถบเมนูแสดงเฉพาะเมนูของโมดูลนั้น
-  const curMod = moduleOfPage(effRoute);
-  const visibleMods = MODULES.filter((m) => visibleNav.some((n) => n.mod === m.id));
-  const modNav = visibleNav.filter((n) => n.mod === curMod);
-  const goModule = (mid) => { const first = visibleNav.find((n) => n.mod === mid); if (first) go(first.id); };
-  const modHighlight = effRoute === "settings" ? null : curMod;   // อยู่หน้าตั้งค่า = ไม่ไฮไลต์โมดูลใด
-  const curModLabel = (MODULES.find((m) => m.id === curMod) || {}).label || "";
+  const openMyProfile = () => { if (myEmp) openEmp(myEmp.id); else toast("บัญชีนี้เป็นบัญชีหน่วยงาน — ไม่ได้ผูกกับพนักงานคนใด", "info"); };
+
+  // เมนูที่บัญชีนี้เห็น (ตัดเมนูย่อยที่ไม่มีสิทธิ์ · กลุ่มที่ไม่เหลือเมนูย่อยไม่แสดง)
+  const okItem = (id, flag) => routeAllowed(id) && (flag !== "hr" || isHR) && (flag !== "nohr" || !isHR);
+  const menu = SIDE_MENU.filter((m) => !m.hr || isHR).map((m) => m.children ? { ...m, children: m.children.filter(([id, , f]) => okItem(id, f)) } : m)
+    .filter((m) => m.children ? m.children.length : routeAllowed(m.id));
+  const curGroup = menu.find((m) => m.children && m.children.some(([id]) => id === effRoute || (effRoute === "profile" && id === "employee")));
+  const title = effRoute === "profile" ? "ข้อมูลพนักงาน" : routeTitle(effRoute);
+  const crumbs = ["หน้าแรก", ...(curGroup ? [curGroup.label] : []), ...(effRoute !== "ann:home" ? [title] : [])];
+  const badge = (k) => k && annCounts[k] ? <span className="hcm-badge">{annCounts[k]}</span> : null;
+  const toggleGroup = (id) => setOpenGroups((o) => ({ ...o, [id]: !o[id] }));
+
+  const topNav = [
+    ["home", "หน้าแรก", "ann:home"], ["checkCircle", "ศูนย์อนุมัติ", "ann:approve", "approve"], ["list", "งานของฉัน", "ann:todo", "todo"],
+    ...(isHR ? [["settings", "ตั้งค่า", "ann:hub"]] : [["lock", "เปลี่ยนรหัสผ่าน", "pw"]]),
+  ];
 
   return (
-    <div className="app" data-density={t.density}>
-      {mobileOpen && <div className="scrim-side" onClick={() => setMobileOpen(false)} />}
-      <aside className={"sidebar " + (t.sidebarStyle === "light" ? "light " : "") + (collapsed ? "collapsed " : "") + (mobileOpen ? "mobile-open" : "")}>
-        <div className="side-brand">
-          <div className="side-logo"><LogoMark fontSize={16} /></div>
-          <div className="side-brand-txt"><b>{COMPANY.name}</b><span>BWP HR Connect</span></div>
+    <div className="hcm" data-density={t.density}>
+      {/* ===== แถบบนสีน้ำเงิน (Home / Approve Center / Todo List / Setting / Log Out) ===== */}
+      <header className="hcm-top">
+        <button className="hcm-burger" aria-label="เปิดเมนู" onClick={() => setMobileOpen(!mobileOpen)}><Icon name="menu" size={22} /></button>
+        <div className="hcm-brand" onClick={() => go("ann:home")}>
+          <span className="hcm-logo"><LogoMark fontSize={14} /></span>
+          <span className="hcm-brand-t"><b>BWP <em>HR</em> Performance</b><small>Human Capital Management</small></span>
         </div>
-        <nav className="side-nav">
-          <div className="side-section">โมดูล</div>
-          <div className="mod-switch">
-            {visibleMods.map((m) => (
-              <button key={m.id} className={"mod-btn" + (modHighlight === m.id ? " on" : "")} onClick={() => goModule(m.id)} title={m.label + " · " + m.en}>
-                <Icon name={m.icon} size={18} stroke={1.9} />
-                <span className="mod-txt"><b>{m.label}</b><span>{m.en}</span></span>
-              </button>
-            ))}
-          </div>
-          <div className="side-section">{curModLabel || "เมนู"}</div>
-          {modNav.map((n) => (
-            <button key={n.id} className={"nav-item" + (effRoute === n.id || (effRoute === "profile" && n.id === "employee") ? " active" : "")} onClick={() => go(n.id)}>
-              <Icon name={n.icon} size={20} stroke={1.9} />
-              <span className="lbl">{n.label}</span>
-              
+        <nav className="hcm-topnav">
+          {topNav.map(([ic, l, r, k]) => (
+            <button key={l} className={"hcm-tn" + (effRoute === r ? " on" : "")} onClick={() => r === "pw" ? setPwOpen(true) : go(r)}>
+              <span className="i"><Icon name={ic} size={22} stroke={1.8} />{badge(k)}</span><span className="l">{l}</span>
             </button>
           ))}
-          {canSeeSettings(cu.role) && <>
-          <div className="side-section">ระบบ</div>
-          <button className={"nav-item" + (effRoute === "settings" ? " active" : "")} onClick={() => go("settings")}>
-            <Icon name="settings" size={20} stroke={1.9} /><span className="lbl">ตั้งค่า</span>
+          <button className="hcm-tn" onClick={() => { if (window.confirm("ออกจากระบบ?")) window.sb.auth.signOut(); }}>
+            <span className="i"><Icon name="logout" size={22} stroke={1.8} /></span><span className="l">ออกจากระบบ</span>
           </button>
-          </>}
-          <div className="side-section">BWP HR Connect</div>
-          <a className="nav-item" href="https://bwp-hr-connect.vercel.app/" style={{ textDecoration: "none" }}>
-            <Icon name="chevLeft" size={20} stroke={1.9} /><span className="lbl">กลับหน้าหลัก</span>
-          </a>
         </nav>
-        <div className="side-foot">
-          <div className="side-user" onClick={openMyProfile} style={{ cursor: "pointer" }}>
-            <Avatar name={cuName} initials={cuInitials} color="#0d9488" size={36} />
-            <div className="meta"><b>{cuName}</b><span>{cuRole.label}</span></div>
-          </div>
-        </div>
-      </aside>
+        <div className="hcm-who"><b>{cuName}</b><span>{cuRole.label}</span></div>
+      </header>
 
-      <div className="main">
-        <header className="topbar">
-          <button className="icon-btn mobile-only" aria-label="เปิดเมนู" onClick={() => setMobileOpen(true)}><Icon name="menu" size={20} /></button>
-          <button className="icon-btn desktop-only" aria-label="ย่อ/ขยายเมนู" onClick={() => setCollapsed(!collapsed)}><Icon name="menu" size={20} /></button>
-          <div>
-            <div className="top-title">{tTitle}</div>
-            <div className="top-sub">{effRoute === "settings" ? tSub : (curModLabel ? curModLabel + " · " : "") + tSub}</div>
-          </div>
-          <div className="top-spacer" />
-          <div className="search hide-xs" style={{ position: "relative" }}>
-            <Icon name="search" size={18} />
-            <input aria-label="ค้นหาพนักงาน" placeholder="ค้นหาพนักงาน, ตำแหน่ง…" value={searchQ} onChange={(e) => setSearchQ(e.target.value)} />
-            {!searchQ && <kbd className="hide-sm">⌘K</kbd>}
-            {searchQ.trim().length >= 2 && (() => {
-              const ql = searchQ.trim().toLowerCase();
-              const res = window.scopeEmployees(window.EMPLOYEES || []).filter((e) => (e.name || "").toLowerCase().includes(ql) || (e.position || "").toLowerCase().includes(ql) || String(e.id).includes(ql)).slice(0, 8);
-              return (
-                <div className="card" style={{ position: "absolute", top: 46, left: 0, right: 0, zIndex: 60, boxShadow: "var(--shadow-lg)", padding: 6, maxHeight: 360, overflowY: "auto" }}>
-                  {res.length === 0 ? <div className="muted" style={{ padding: "10px 12px", fontSize: 13 }}>ไม่พบผลลัพธ์</div> : res.map((e) => (
-                    <button key={e.id} className="row" style={{ gap: 10, width: "100%", padding: "8px 10px", border: "none", background: "none", cursor: "pointer", borderRadius: 8, textAlign: "left" }}
-                      onMouseEnter={(ev) => ev.currentTarget.style.background = "var(--surface-2)"} onMouseLeave={(ev) => ev.currentTarget.style.background = "none"}
-                      onClick={() => { openEmp(e.id); setSearchQ(""); }}>
-                      <Avatar name={e.name} initials={e.initials} color={e.color} size={30} />
-                      <div style={{ minWidth: 0 }}><div style={{ fontWeight: 600, fontSize: 13 }}>{e.name}</div><div className="muted" style={{ fontSize: 11.5 }}>{e.position} · {window.deptShort ? window.deptShort(e.dept) : e.dept}</div></div>
-                    </button>
-                  ))}
-                </div>
-              );
-            })()}
-          </div>
-
-          <div style={{ position: "relative" }}>
-            <button className="icon-btn" aria-label="การแจ้งเตือน" onClick={() => { setNotifOpen(!notifOpen); setMenuOpen(false); }}><Icon name="bell" size={19} /><span className="dot" /></button>
+      <div className="hcm-body">
+        {mobileOpen && <div className="scrim-side" onClick={() => setMobileOpen(false)} />}
+        {/* ===== เมนูซ้าย: โปรไฟล์ + เมนูแบบกลุ่ม ===== */}
+        <aside className={"hcm-side" + (mobileOpen ? " open" : "") + (collapsed ? " mini" : "")}>
+          <div className="hcm-prof">
+            <div className="hcm-prof-av" onClick={openMyProfile}><Avatar name={cuName} initials={cuInitials} color="#2f6db5" size={64} /></div>
+            <div className="hcm-prof-r">
+              <div className="row" style={{ gap: 6, justifyContent: "space-between" }}>
+                <button className="hcm-bell" aria-label="การแจ้งเตือน" onClick={() => { setNotifOpen(!notifOpen); setMenuOpen(false); }}>
+                  <Icon name="bell" size={19} />{NOTIFS.length > 0 && <span className="hcm-badge">{NOTIFS.length}</span>}
+                </button>
+                <button className="hcm-mini-btn" aria-label="ย่อ/ขยายเมนู" onClick={() => setCollapsed(!collapsed)}><Icon name="menu" size={18} /></button>
+              </div>
+              <b>{cuName}</b>
+              <span><Icon name="user" size={13} /> {cuRole.label}</span>
+              <button className="hcm-link" onClick={() => setPwOpen(true)}>เปลี่ยนรหัสผ่าน</button>
+            </div>
             {notifOpen && (
               <>
                 <div style={{ position: "fixed", inset: 0, zIndex: 49 }} onClick={() => setNotifOpen(false)} />
-                <div className="card" style={{ position: "absolute", right: 0, top: 50, width: 340, zIndex: 50, boxShadow: "var(--shadow-lg)", overflow: "hidden" }}>
-                  <div className="card-head" style={{ padding: "14px 18px" }}><h3 style={{ fontSize: 14 }}>การแจ้งเตือน</h3><div className="spacer" /><span className="muted" style={{ fontSize: 12 }}>{NOTIFS.length} ใหม่</span></div>
-                  <div style={{ maxHeight: 360, overflowY: "auto" }}>
-                    {NOTIFS.map((n) => {
-                      const ic = { warn: ["alert", "#e08a00", "#fdf1dc"], info: ["bell", "#2563eb", "#e8effb"], ok: ["checkCircle", "#16a34a", "#e7f6ec"] }[n.type];
-                      return (
-                        <div key={n.id} className="row" style={{ gap: 11, padding: "12px 18px", borderBottom: "1px solid var(--border-2)", alignItems: "flex-start", cursor: "pointer" }}
-                          onMouseEnter={(e) => e.currentTarget.style.background = "var(--surface-2)"} onMouseLeave={(e) => e.currentTarget.style.background = "none"}>
-                          <span style={{ width: 32, height: 32, borderRadius: 9, background: ic[2], color: ic[1], display: "grid", placeItems: "center", flex: "0 0 32px" }}><Icon name={ic[0]} size={16} /></span>
-                          <div><div style={{ fontWeight: 600, fontSize: 13 }}>{n.title}</div><div className="muted" style={{ fontSize: 12, marginTop: 1 }}>{n.body}</div><div className="muted-3" style={{ fontSize: 11, marginTop: 3 }}>{n.time}</div></div>
-                        </div>
-                      );
-                    })}
+                <div className="card" style={{ position: "absolute", left: 12, top: 96, width: 320, zIndex: 50, boxShadow: "var(--shadow-lg)", overflow: "hidden" }}>
+                  <div className="card-head" style={{ padding: "12px 16px" }}><h3 style={{ fontSize: 14 }}>การแจ้งเตือน</h3><div className="spacer" /><span className="muted" style={{ fontSize: 12 }}>{NOTIFS.length} ใหม่</span></div>
+                  <div style={{ maxHeight: 340, overflowY: "auto" }}>
+                    {NOTIFS.map((n) => (
+                      <div key={n.id} style={{ padding: "10px 16px", borderBottom: "1px solid var(--border-2)" }}>
+                        <div style={{ fontWeight: 600, fontSize: 13 }}>{n.title}</div><div className="muted" style={{ fontSize: 12 }}>{n.body}</div><div className="muted-3" style={{ fontSize: 11 }}>{n.time}</div>
+                      </div>
+                    ))}
+                    {!NOTIFS.length && <div className="muted" style={{ padding: 16, fontSize: 13 }}>ไม่มีการแจ้งเตือน</div>}
                   </div>
-                  <button className="btn btn-soft btn-sm" style={{ margin: 12, width: "calc(100% - 24px)" }} onClick={async () => { setNotifOpen(false); await window.markNotifsRead(); await refresh(); toast("ทำเครื่องหมายอ่านทั้งหมดแล้ว", "check"); }}>อ่านทั้งหมด</button>
+                  {NOTIFS.length > 0 && <button className="btn btn-soft btn-sm" style={{ margin: 10, width: "calc(100% - 20px)" }} onClick={async () => { setNotifOpen(false); await window.markNotifsRead(); await refresh(); toast("ทำเครื่องหมายอ่านทั้งหมดแล้ว", "check"); }}>อ่านทั้งหมด</button>}
                 </div>
               </>
             )}
           </div>
+          <nav className="hcm-menu">
+            {menu.map((m) => m.children ? (
+              <div key={m.id} className={"hcm-grp" + (openGroups[m.id] || curGroup === m ? " open" : "")}>
+                <button className={"hcm-mi" + (curGroup === m ? " in" : "")} onClick={() => toggleGroup(m.id)} title={m.label}>
+                  <Icon name={m.icon} size={19} stroke={1.9} /><span className="l">{m.label}</span><Icon name="chevRight" size={15} />
+                </button>
+                {(openGroups[m.id] || curGroup === m) && !collapsed && (
+                  <div className="hcm-sub">
+                    {m.children.map(([id, l]) => (
+                      <button key={id} className={"hcm-si" + (effRoute === id || (effRoute === "profile" && id === "employee") ? " on" : "")} onClick={() => go(id)}>{l}</button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <button key={m.id} className={"hcm-mi" + (effRoute === m.id ? " on" : "")} onClick={() => go(m.id)} title={m.label}>
+                <Icon name={m.icon} size={19} stroke={1.9} /><span className="l">{m.label}</span>{badge(m.badge)}
+              </button>
+            ))}
+            <a className="hcm-mi" href="https://bwp-hr-connect.vercel.app/" style={{ textDecoration: "none" }} title="กลับหน้ารวมระบบ HR">
+              <Icon name="chevLeft" size={19} stroke={1.9} /><span className="l">กลับหน้ารวมระบบ HR</span>
+            </a>
+          </nav>
+        </aside>
 
-          <div style={{ position: "relative" }}>
-            <button className="row" style={{ gap: 9, background: "none", border: "none", cursor: "pointer", padding: 2 }} onClick={() => { setMenuOpen(!menuOpen); setNotifOpen(false); }}>
-              <Avatar name={cuName} initials={cuInitials} color="#0d9488" size={38} />
-              <div className="hide-md" style={{ textAlign: "left", lineHeight: 1.25 }}><div style={{ fontWeight: 600, fontSize: 13 }}>{cuName}</div><div className="muted" style={{ fontSize: 11.5 }}>{cuRole.label}</div></div>
-              <span className="hide-md muted"><Icon name="chevDown" size={15} /></span>
-            </button>
-            {menuOpen && (
-              <>
-                <div style={{ position: "fixed", inset: 0, zIndex: 49 }} onClick={() => setMenuOpen(false)} />
-                <div className="card" style={{ position: "absolute", right: 0, top: 52, width: 220, zIndex: 50, boxShadow: "var(--shadow-lg)", padding: 6 }}>
-                  {[["user", "โปรไฟล์ของฉัน", "profile"], ["lock", "เปลี่ยนรหัสผ่าน", "pw"], ...(canSeeSettings(cu.role) ? [["settings", "ตั้งค่า", "settings"]] : [])].map(([ic, l, act]) => (
-                    <button key={act} className="row" style={{ gap: 11, width: "100%", padding: "10px 12px", border: "none", background: "none", cursor: "pointer", borderRadius: 9, fontSize: 13.5, color: "var(--text)" }}
-                      onMouseEnter={(e) => e.currentTarget.style.background = "var(--surface-2)"} onMouseLeave={(e) => e.currentTarget.style.background = "none"}
-                      onClick={() => { setMenuOpen(false); if (act === "settings") go("settings"); else if (act === "profile") openMyProfile(); else if (act === "pw") setPwOpen(true); }}><Icon name={ic} size={17} color="var(--text-2)" />{l}</button>
-                  ))}
-                  <hr className="divider" style={{ margin: "5px 0" }} />
-                  <button className="row" style={{ gap: 11, width: "100%", padding: "10px 12px", border: "none", background: "none", cursor: "pointer", borderRadius: 9, fontSize: 13.5, color: "var(--red)" }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = "var(--red-soft)"} onMouseLeave={(e) => e.currentTarget.style.background = "none"}
-                    onClick={() => { window.sb.auth.signOut(); setMenuOpen(false); }}><Icon name="logout" size={17} />ออกจากระบบ</button>
-                </div>
-              </>
-            )}
+        <div className="hcm-main">
+          {/* breadcrumb + ค้นหาพนักงาน */}
+          <div className="hcm-crumb">
+            <Icon name="home" size={15} />
+            {crumbs.map((c, i) => <React.Fragment key={i}>{i > 0 && <span className="sep">›</span>}<span className={i === crumbs.length - 1 ? "cur" : ""} onClick={i === 0 ? () => go("ann:home") : undefined} style={i === 0 ? { cursor: "pointer" } : undefined}>{c}</span></React.Fragment>)}
+            <div className="top-spacer" />
+            <div className="hcm-search hide-xs">
+              <Icon name="search" size={15} />
+              <input aria-label="ค้นหาพนักงาน" placeholder="ค้นหาพนักงาน…" value={searchQ} onChange={(e) => setSearchQ(e.target.value)} />
+              {searchQ.trim().length >= 2 && (() => {
+                const ql = searchQ.trim().toLowerCase();
+                const res = window.scopeEmployees(window.EMPLOYEES || []).filter((e) => (e.name || "").toLowerCase().includes(ql) || (e.position || "").toLowerCase().includes(ql) || String(e.id).includes(ql)).slice(0, 8);
+                return (
+                  <div className="card" style={{ position: "absolute", top: 36, right: 0, width: 320, zIndex: 60, boxShadow: "var(--shadow-lg)", padding: 6, maxHeight: 360, overflowY: "auto" }}>
+                    {res.length === 0 ? <div className="muted" style={{ padding: "10px 12px", fontSize: 13 }}>ไม่พบผลลัพธ์</div> : res.map((e) => (
+                      <button key={e.id} className="row hcm-sr" onClick={() => { openEmp(e.id); setSearchQ(""); }}>
+                        <Avatar name={e.name} initials={e.initials} color={e.color} size={28} />
+                        <div style={{ minWidth: 0, textAlign: "left" }}><div style={{ fontWeight: 600, fontSize: 13 }}>{e.name}</div><div className="muted" style={{ fontSize: 11.5 }}>{e.position} · {window.deptShort ? window.deptShort(e.dept) : e.dept}</div></div>
+                      </button>
+                    ))}
+                  </div>
+                );
+              })()}
+            </div>
           </div>
-        </header>
-
-        <main className="content">
-          {effRoute === "annual" && <AnnualEval ctx={ctx} />}
-          {effRoute === "dashboard" && <Dashboard ctx={ctx} />}
-          {effRoute === "exec" && <ExecDashboard ctx={ctx} />}
-          {effRoute === "employee" && <EmployeeList ctx={ctx} />}
-          {effRoute === "hrdata" && <HRDataDashboard ctx={ctx} />}
-          {effRoute === "analytics" && <HRAnalytics ctx={ctx} />}
-          {effRoute === "evaltrack" && <EvalTracking ctx={ctx} />}
-          {effRoute === "profile" && <EmployeeProfile ctx={ctx} empId={empId} />}
-          {effRoute === "kpi" && <KPIModule ctx={ctx} />}
-          {effRoute === "eval" && <Evaluation key={ctx.evalEmp} ctx={ctx} />}
-          {effRoute === "jd" && <JDManagement ctx={ctx} />}
-          {effRoute === "reports" && <Reports ctx={ctx} />}
-          {effRoute === "calibration" && <Calibration ctx={ctx} />}
-          {effRoute === "manage" && <DataManagement ctx={ctx} />}
-          {effRoute === "settings" && <Settings ctx={ctx} />}
-        </main>
+          <main className="content">
+            {effRoute !== "ann:home" && <h1 className="hcm-title">{title}</h1>}
+            {effRoute.startsWith("ann:") && <AnnualEval ctx={ctx} page={effRoute.slice(4)} />}
+            {effRoute === "dashboard" && <Dashboard ctx={ctx} />}
+            {effRoute === "exec" && <ExecDashboard ctx={ctx} />}
+            {effRoute === "employee" && <EmployeeList ctx={ctx} />}
+            {effRoute === "hrdata" && <HRDataDashboard ctx={ctx} />}
+            {effRoute === "analytics" && <HRAnalytics ctx={ctx} />}
+            {effRoute === "evaltrack" && <EvalTracking ctx={ctx} />}
+            {effRoute === "profile" && <EmployeeProfile ctx={ctx} empId={empId} />}
+            {effRoute === "kpi" && <KPIModule ctx={ctx} />}
+            {effRoute === "eval" && <Evaluation key={ctx.evalEmp} ctx={ctx} />}
+            {effRoute === "jd" && <JDManagement ctx={ctx} />}
+            {effRoute === "reports" && <Reports ctx={ctx} />}
+            {effRoute === "calibration" && <Calibration ctx={ctx} />}
+            {effRoute === "manage" && <DataManagement ctx={ctx} />}
+            {effRoute === "settings" && <Settings ctx={ctx} />}
+          </main>
+          <footer className="hcm-foot">Powered by BWP HR Connect © 2569 บริษัท เบสท์เวิลด์ อินเตอร์พลาส จำกัด</footer>
+        </div>
       </div>
 
       {subId && <SubmissionDrawer subId={subId} onClose={() => setSubId(null)} ctx={ctx} />}

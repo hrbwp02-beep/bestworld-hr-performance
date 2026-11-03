@@ -1,5 +1,6 @@
 // icons.jsx — line icon set (stroke-based, 24x24)
 const ICON_PATHS = {
+  home: "M3 11l9-8 9 8 M5 9.5V21h14V9.5 M10 21v-6h4v6",
   dashboard: "M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z",
   employee: "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2 M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8 M22 21v-2a4 4 0 0 0-3-3.87 M16 3.13a4 4 0 0 1 0 7.75",
   deptkpi: "M3 3v18h18 M7 16l4-5 3 3 5-7",

@@ -263,14 +263,17 @@ async function loadHRData() {
   window.SCOPE = { all: _allAccess, depts: _scopeDepts };
   window.inScope = (deptId) => window.SCOPE.all || window.SCOPE.depts.indexOf(deptId) > -1;
   window.scopeEmployees = (list) => window.SCOPE.all ? (list || []) : (list || []).filter((e) => window.SCOPE.depts.indexOf(e.dept) > -1);
+  // บัญชีหน่วยงานเห็นเฉพาะหน่วยงานตนเองทุกหน้า (ข้อมูลถูกกันที่ฐานข้อมูลแล้ว — ตรงนี้กันไม่ให้รายชื่อ/กราฟแสดงหน่วยงานอื่นแม้เป็นค่า 0)
+  window.DEPARTMENTS_ALL = departments;
+  const _myDepartments = _allAccess ? departments : departments.filter((d) => _scopeDepts.indexOf(d.id) > -1);
 
   Object.assign(window, {
-    DEPARTMENTS: departments, COMPETENCIES: competencies, EMPLOYEES,
+    DEPARTMENTS: _myDepartments, COMPETENCIES: competencies, EMPLOYEES,
     JD_LIBRARY: jdLibrary, NOTIFS: myNotifs, KPI_ITEMS: kpiItems, JD_ITEMS: jdItems,
     KPI_DEFS, KPI_MONTHLY, SUBMISSIONS, TEAMS: teams, SUMMARY, STATUS_PIE, COMP_RADAR, GRADE_DIST, HR_ROSTER,
     APP_USERS: appUsers || [], APP_SETTINGS: appSettings || null, CYCLE_YEAR: cycleYear,
     CURRENT_USER: currentUser,
-    KPI_DEPTS: departments.filter((d) => KPI_DEFS.some((k) => k.dept === d.id)).map((d) => d.id),
+    KPI_DEPTS: _myDepartments.filter((d) => KPI_DEFS.some((k) => k.dept === d.id)).map((d) => d.id),
     ...(trCur.length ? { TREND: trCur } : {}),
     ...(trPrev.length ? { TREND_PREV: trPrev } : {}),
   });

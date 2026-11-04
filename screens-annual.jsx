@@ -834,11 +834,15 @@ function AnnualSetup({ rows, cycle, reload, initial }) {
 /* เลือกคน: แสดงชื่อก่อน กดแล้วค่อยเปิดรายชื่อ (ถ้าสร้าง select ทุกแถวจะมีตัวเลือกหลายหมื่นอัน หน้าค้าง) */
 function AnnPersonPick({ emps, id, name, empty, onPick }) {
   const [open, setOpen] = useAnnS(false);
+  // ให้เลือกได้เฉพาะระดับเจ้าหน้าที่ขึ้นไป (posRank ≤ 9) · คนที่ถูกเลือกไว้แล้วยังแสดงเสมอ · เรียงตามหน่วยงาน → ตำแหน่งใหญ่ไปเล็ก
+  const pick = useAnnM(() => (emps || []).filter((x) => x.id === id || window.posRank(x.position) <= 9).slice().sort(window.empOrderCmp), [emps, id]);
+  const groups = []; pick.forEach((x) => { const g = groups[groups.length - 1]; if (g && g.dept === x.dept) g.list.push(x); else groups.push({ dept: x.dept, list: [x] }); });
   if (!open) return <button className="btn btn-ghost btn-sm" style={{ minWidth: 180, justifyContent: "flex-start" }} onClick={() => setOpen(true)}>{id ? (name || id) + " (" + id + ")" : empty}<Icon name="chevDown" size={13} /></button>;
   return (
     <select className="select" style={{ minWidth: 180 }} autoFocus value={id || ""} onBlur={() => setOpen(false)}
       onChange={(e) => { setOpen(false); if ((e.target.value || null) !== (id || null)) onPick(e.target.value || null); }}>
-      <option value="">{empty}</option>{emps.map((x) => <option key={x.id} value={x.id}>{x.name} ({x.id})</option>)}
+      <option value="">{empty}</option>
+      {groups.map((g) => <optgroup key={g.dept} label={window.deptName(g.dept)}>{g.list.map((x) => <option key={x.id} value={x.id}>{x.name} · {x.position} ({x.id})</option>)}</optgroup>)}
     </select>
   );
 }

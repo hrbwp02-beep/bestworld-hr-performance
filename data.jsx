@@ -100,10 +100,10 @@ function posRank(position) {
   if (/ผู้ช่วย.*กรรมการ|ที่ปรึกษา/.test(p)) return 1;
   if (/ผู้จัดการ|ผจก/.test(p) && !/ผู้ช่วย/.test(p)) return 2;
   if (/ผู้ช่วยผู้จัดการ/.test(p)) return 3;
-  if (/หัวหน้าฝ่าย|หัวหน้าแผนก|หัวหน้าส่วน/.test(p)) return 4;
+  if (/หัวหน้าฝ่าย|หัวหน้าแผน|หัวหน้าส่วน/.test(p)) return 4; // "หัวหน้าแผน" รวมคำสะกดผิด "หัวหน้าแผนซ่อมบำรุง"
   if (/ซุปเปอร์ไวเซอร์|supervisor|หัวหน้างาน/i.test(p)) return 5;
   if (/หัวหน้ากะ|โฟร์แมน|foreman|หัวหน้า/i.test(p)) return 6;
-  if (/วิศวกร|engineer/i.test(p)) return 7;
+  if (/วิศวกร|วิศกร|engineer/i.test(p)) return 7;
   if (/นักวิ|วิชาชีพ/.test(p)) return 8;
   if (/เจ้าหน้าที่|ธุรการ|เลขานุการ|officer|admin/i.test(p)) return 9;
   if (/ผู้ช่วยช่าง/.test(p)) return 10.5;

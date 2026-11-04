@@ -835,7 +835,8 @@ function AnnualSetup({ rows, cycle, reload, initial }) {
 function AnnPersonPick({ emps, id, name, empty, onPick }) {
   const [open, setOpen] = useAnnS(false);
   // ให้เลือกได้เฉพาะระดับเจ้าหน้าที่ขึ้นไป (posRank ≤ 9) · คนที่ถูกเลือกไว้แล้วยังแสดงเสมอ · เรียงตามหน่วยงาน → ตำแหน่งใหญ่ไปเล็ก
-  const pick = useAnnM(() => (emps || []).filter((x) => x.id === id || window.posRank(x.position) <= 9).slice().sort(window.empOrderCmp), [emps, id]);
+  const pick = useAnnM(() => (emps || []).filter((x) => x.id === id || (window.posRank(x.position) <= 9
+    && ["ACTIVE", "PROBATION", "ON_LEAVE", "SUSPENDED"].includes(String(x.employment_status || "ACTIVE").toUpperCase()))).slice().sort(window.empOrderCmp), [emps, id]);
   const groups = []; pick.forEach((x) => { const g = groups[groups.length - 1]; if (g && g.dept === x.dept) g.list.push(x); else groups.push({ dept: x.dept, list: [x] }); });
   if (!open) return <button className="btn btn-ghost btn-sm" style={{ minWidth: 180, justifyContent: "flex-start" }} onClick={() => setOpen(true)}>{id ? (name || id) + " (" + id + ")" : empty}<Icon name="chevDown" size={13} /></button>;
   return (
@@ -1599,7 +1600,7 @@ function AnnualLines({ cycle, rowsAll, reload }) {
   const [edit, setEdit] = useAnnS(null);
   const [busy, setBusy] = useAnnS(false);
   const emps = (window.EMPLOYEES_ALL || []).filter((e) => ["ACTIVE", "PROBATION", "ON_LEAVE", "SUSPENDED"].includes(String(e.employment_status || "ACTIVE").toUpperCase()))
-    .slice().sort((a, b) => String(a.id).localeCompare(String(b.id)));
+    .slice().sort((a, b) => window.empOrderCmp({ ...a, annual: null }, { ...b, annual: null }));
   const empBy = {}; emps.forEach((e) => { empBy[e.id] = e; });
   const deps = window.DEPARTMENTS_ALL || window.DEPARTMENTS || [];
   const load = async () => {

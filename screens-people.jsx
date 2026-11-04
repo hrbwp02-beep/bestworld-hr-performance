@@ -471,7 +471,7 @@ function EmployeeList({ ctx }) {
                     <Avatar name={e.name} initials={e.initials} color={e.color} src={e.photo_url} size={48} />
                     <div style={{ minWidth: 0 }}><div style={{ fontWeight: 600, fontSize: 14, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{e.name}</div><div className="muted" style={{ fontSize: 12, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{e.position}</div></div>
                   </div>
-                  <div className="between"><Badge cls="b-gray">{deptShort(e.dept)}</Badge><Badge cls={sm.cls} dot>{sm.label}</Badge></div>
+                  <div className="between"><Badge cls="b-gray">{deptShort(e.dept)}</Badge>{naNote(e) ? <Badge cls="b-gray">{naNote(e)}</Badge> : <Badge cls={sm.cls} dot>{sm.label}</Badge>}</div>
                   <div className="between" style={{ borderTop: "1px solid var(--border-2)", paddingTop: 12 }}>
                     <div><div className="muted" style={{ fontSize: 11 }}>คะแนนรวม</div><div className="num" style={{ fontWeight: 700, fontSize: 20, color: e.band.color }}>{e.overall || "—"}</div></div>
                     <span className={"badge " + e.band.cls}><span className="bdot" />{e.band.label}</span>

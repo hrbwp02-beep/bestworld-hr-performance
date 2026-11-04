@@ -93,6 +93,43 @@ function sectionOf(position) {
   return "ส่วนกลาง";
 }
 
+// ลำดับตำแหน่ง (เลขน้อย = ตำแหน่งใหญ่) ใช้เรียงรายชื่อ
+function posRank(position) {
+  const p = String(position || "");
+  if (/ประธาน|กรรมการผู้จัดการ|ผู้อำนวยการ/.test(p) && !/ผู้ช่วย/.test(p)) return 0;
+  if (/ผู้ช่วย.*กรรมการ|ที่ปรึกษา/.test(p)) return 1;
+  if (/ผู้จัดการ|ผจก/.test(p) && !/ผู้ช่วย/.test(p)) return 2;
+  if (/ผู้ช่วยผู้จัดการ/.test(p)) return 3;
+  if (/หัวหน้าฝ่าย|หัวหน้าแผนก|หัวหน้าส่วน/.test(p)) return 4;
+  if (/ซุปเปอร์ไวเซอร์|supervisor|หัวหน้างาน/i.test(p)) return 5;
+  if (/หัวหน้ากะ|โฟร์แมน|foreman|หัวหน้า/i.test(p)) return 6;
+  if (/วิศวกร|engineer/i.test(p)) return 7;
+  if (/นักวิ|วิชาชีพ/.test(p)) return 8;
+  if (/เจ้าหน้าที่|ธุรการ|เลขานุการ|officer|admin/i.test(p)) return 9;
+  if (/ผู้ช่วยช่าง/.test(p)) return 10.5;
+  if (/ช่าง/.test(p)) return 10;
+  return 11;
+}
+// เรียงรายชื่อ: หน่วยงาน → ส่วนงานย่อย (ตามสายการประเมิน เช่น 09-1 เป่า, 09-4 พิมพ์) → ตำแหน่งใหญ่ไปเล็ก → รหัส
+// ระดับผู้จัดการขึ้นไปอยู่บนสุดของหน่วยงานเสมอ · ใช้ได้ทั้งแถว employees (e.annual.line_name) และแถว perf_list (r.line_name)
+function empOrderCmp(a, b) {
+  const deps = window.DEPARTMENTS_ALL || window.DEPARTMENTS || [];
+  const di = (x) => { const i = deps.findIndex((d) => d.id === x.dept); return i < 0 ? 999 : i; };
+  const pos = (x) => x.position || "";
+  const id = (x) => String(x.employee_id || x.id || "");
+  const sub = (x) => {
+    if (posRank(pos(x)) <= 3) return [-2, 0, ""];
+    const ln = x.line_name || (x.annual && x.annual.line_name) || "";
+    const m = ln.match(/^(\d+)(?:-(\d+))?/);
+    if (m) return [Number(m[1]), m[2] ? Number(m[2]) : 0, ln];
+    if (ln) return [900, 0, ln];
+    const s = sectionOf(pos(x)); return [s === "ส่วนกลาง" ? -1 : 500, 0, s];
+  };
+  const sa = sub(a), sb_ = sub(b);
+  return di(a) - di(b) || sa[0] - sb_[0] || sa[1] - sb_[1] || sa[2].localeCompare(sb_[2], "th")
+    || posRank(pos(a)) - posRank(pos(b)) || id(a).localeCompare(id(b), "en", { numeric: true });
+}
+
 // อายุงาน — compute from hire date (วันเข้างาน) relative to today
 function tenureFrom(hireDate) {
   if (!hireDate) return "—";
@@ -148,5 +185,5 @@ const NINEBOX = {
 
 Object.assign(window, { BANDS_DEFAULT, BAND_STYLE,
   COMPANY, TREND, TREND_PREV, COMP_RADAR, NINEBOX,
-  bandOf, statusMeta, deptName, deptShort, tenureFrom, LEVELS, levelFromPosition, evalOutcome, BONUS_TIERS_DEFAULT, sectionOf,
+  bandOf, statusMeta, deptName, deptShort, tenureFrom, LEVELS, levelFromPosition, posRank, empOrderCmp, evalOutcome, BONUS_TIERS_DEFAULT, sectionOf,
 });

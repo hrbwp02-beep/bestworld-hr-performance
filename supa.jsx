@@ -171,6 +171,9 @@ async function loadHRData() {
   const _WORKING = ["ACTIVE", "PROBATION", "ON_LEAVE", "SUSPENDED"];
   const EMPLOYEES = ALL_EMPLOYEES.filter((e) => _WORKING.indexOf(String(e.employment_status || "ACTIVE").toUpperCase()) > -1 && !e.perfExcluded);
   window.EMPLOYEES_ALL = ALL_EMPLOYEES;
+  // เรียงทุกหน้า: หน่วยงาน → ส่วนงานย่อย → ตำแหน่งใหญ่ไปเล็ก (ต้องตั้ง DEPARTMENTS ก่อนถึงจะเรียงหน่วยงานถูก)
+  window.DEPARTMENTS_ALL = departments;
+  try { EMPLOYEES.sort(window.empOrderCmp); ALL_EMPLOYEES.sort(window.empOrderCmp); } catch (e) {}
 
   // department aggregates (head / done / avg score) computed LIVE from employees — never stale
   departments.forEach((d) => {

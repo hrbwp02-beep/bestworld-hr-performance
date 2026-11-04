@@ -134,6 +134,7 @@ function AnnualEval({ ctx, page }) {
       if (!cy) { setCycle(null); setRows([]); return; }
       setCycle(cy);
       const rs = await annRpc("perf_list", { p_cycle: cy.id }) || [];
+      try { rs.sort(window.empOrderCmp); } catch (e) {} // หน่วยงาน → ส่วนงานย่อย → ตำแหน่งใหญ่ไปเล็ก
       setRows(rs);
       // ตัวเลขบนแถบเมนู (งานของฉัน / ศูนย์อนุมัติ)
       const live = rs.filter((r) => r.eligible && !r.excluded);

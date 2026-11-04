@@ -565,3 +565,20 @@ textarea.input { resize: vertical; min-height: 76px; line-height: 1.55; }
   .hcm-sum { grid-template-columns: 1fr; }
   .flow-node { width: calc(50% - 24px); }
 }
+
+/* ---- สายการประเมิน (ลากชื่อย้ายสาย) ---- */
+.lines-grid { display: grid; grid-template-columns: minmax(260px, 340px) minmax(0, 1fr); gap: var(--gap); align-items: start; }
+.lines-list { max-height: 70vh; overflow-y: auto; padding: 6px; display: flex; flex-direction: column; gap: 4px; }
+.lines-item { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; border: 1px solid transparent; background: none; border-radius: 8px; padding: 8px 10px; cursor: pointer; font-family: inherit; }
+.lines-item b { display: block; font-size: 13.5px; color: #1e2d45; }
+.lines-item .muted { display: block; font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lines-item:hover { background: #f0f4fa; }
+.lines-item.on { background: #e8f0fb; border-color: #b9cfee; }
+.lines-item.over { background: #fff7e6; border: 2px dashed #e08a00; }
+.lines-members { max-height: 62vh; overflow-y: auto; padding: 8px 14px 14px; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 6px; }
+.lines-mem { display: flex; align-items: center; gap: 9px; border: 1px solid var(--border); border-radius: 8px; padding: 7px 10px; background: #fff; cursor: grab; }
+.lines-mem:active { cursor: grabbing; }
+.lines-mem.on { border-color: #2f6db5; background: #eef4fd; }
+.lines-mem b { display: block; font-size: 13px; }
+.lines-mem .muted { display: block; font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 860px) { .lines-grid { grid-template-columns: 1fr; } .lines-list { max-height: 300px; } }

@@ -5,7 +5,28 @@ const { useState: useS1, useEffect: useE1 } = React;
    LOGIN — glassmorphism
    ========================================================= */
 function LoginScreen({ onLogin, logo }) {
-  const [u, setU] = useS1("hr.admin@bestworld.co.th");
+  const [u, setU] = useS1("");
+  // ผู้ประเมินรายบุคคล: ล็อกอินด้วยรหัสพนักงาน (ระบบแปลงเป็นอีเมลภายใน) · ลงทะเบียน/ลืมรหัสผ่านทำเองได้
+  const toEmail = (x) => /^\d{5,8}$/.test(String(x).trim()) ? String(x).trim() + "@staff.bwp.co.th" : String(x).trim();
+  const [regMode, setRegMode] = useS1(false);
+  const [rg, setRg] = useS1({ emp: "", birth: "", hire: "", p1: "", p2: "" });
+  const [rgErr, setRgErr] = useS1("");
+  const [rgBusy, setRgBusy] = useS1(false);
+  const register = async (e) => {
+    e.preventDefault(); setRgErr("");
+    if (!/^\d{5,8}$/.test(rg.emp.trim())) { setRgErr("กรอกรหัสพนักงาน (ตัวเลข)"); return; }
+    if (!rg.birth || !rg.hire) { setRgErr("กรอกวันเกิดและวันเริ่มงานให้ครบ"); return; }
+    if (rg.p1.length < 8) { setRgErr("รหัสผ่านต้องยาวอย่างน้อย 8 ตัวอักษร"); return; }
+    if (rg.p1 !== rg.p2) { setRgErr("รหัสผ่านทั้งสองช่องไม่ตรงกัน"); return; }
+    setRgBusy(true);
+    const { data, error } = await window.sb.functions.invoke("perf-register", { body: { emp_id: rg.emp.trim(), birth_date: rg.birth, hire_date: rg.hire, password: rg.p1 } });
+    setRgBusy(false);
+    let d = data;
+    if (error && error.context && error.context.json) { try { d = await error.context.json(); } catch (x) { /* ใช้ข้อความทั่วไป */ } }
+    if (!d || !d.ok) { setRgErr((d && d.error) || "ลงทะเบียนไม่สำเร็จ ลองใหม่อีกครั้ง"); return; }
+    toast(d.reset ? "ตั้งรหัสผ่านใหม่แล้ว — เข้าสู่ระบบด้วยรหัสพนักงาน" : "ลงทะเบียนสำเร็จ — เข้าสู่ระบบด้วยรหัสพนักงาน", "check");
+    setU(rg.emp.trim()); setP(""); setRg({ emp: "", birth: "", hire: "", p1: "", p2: "" }); setRegMode(false);
+  };
   const [p, setP] = useS1("");
   const [show, setShow] = useS1(false);
   const [busy, setBusy] = useS1(false);
@@ -43,10 +64,10 @@ function LoginScreen({ onLogin, logo }) {
   const submit = async (e) => {
     e.preventDefault();
     setErr(""); setBusy(true);
-    const { error } = await window.sb.auth.signInWithPassword({ email: u.trim(), password: p });
-    if (error) { setBusy(false); setErr("เข้าสู่ระบบไม่สำเร็จ — ตรวจสอบอีเมล/รหัสผ่านอีกครั้ง"); return; }
+    const { error } = await window.sb.auth.signInWithPassword({ email: toEmail(u), password: p });
+    if (error) { setBusy(false); setErr("เข้าสู่ระบบไม่สำเร็จ — ตรวจสอบอีเมล/รหัสพนักงาน และรหัสผ่านอีกครั้ง"); return; }
     // enforce account status: a suspended (active=false) user must not get in
-    const { data: au } = await window.sb.from("app_users").select("active").eq("email", u.trim().toLowerCase()).maybeSingle();
+    const { data: au } = await window.sb.from("app_users").select("active").eq("email", toEmail(u).toLowerCase()).maybeSingle();
     if (au && au.active === false) {
       await window.sb.auth.signOut();
       setBusy(false); setErr("บัญชีนี้ถูกระงับการใช้งาน กรุณาติดต่อผู้ดูแลระบบ"); return;
@@ -102,14 +123,31 @@ function LoginScreen({ onLogin, logo }) {
 
       {/* glass login card */}
       <div style={{ position: "relative", zIndex: 1, flex: "0 0 auto", width: "min(480px, 100%)", display: "grid", placeItems: "center", padding: 24 }}>
-        {!selfMode && <form onSubmit={submit} style={{ width: "min(400px, 100%)", background: "rgba(255,255,255,.09)", backdropFilter: "blur(22px)",
+        {!selfMode && regMode && (
+          <form onSubmit={register} style={{ width: "min(420px, 100%)", background: "rgba(255,255,255,.09)", backdropFilter: "blur(22px)", border: "1px solid rgba(255,255,255,.18)", borderRadius: 22, padding: "30px 28px", boxShadow: "0 28px 70px rgba(0,0,0,.4)", color: "#fff" }}>
+            <button type="button" onClick={() => { setRegMode(false); setRgErr(""); }} style={{ background: "none", border: "none", color: "#9dc0ff", cursor: "pointer", fontSize: 13, padding: 0, marginBottom: 8 }}><Icon name="chevLeft" size={15} />กลับเข้าสู่ระบบ</button>
+            <h2 style={{ margin: 0, fontSize: 21, fontWeight: 700 }}>ผู้ประเมิน: ลงทะเบียน / ตั้งรหัสผ่านใหม่</h2>
+            <p style={{ margin: "6px 0 18px", color: "rgba(255,255,255,.65)", fontSize: 13, lineHeight: 1.6 }}>สำหรับหัวหน้า/ผู้จัดการที่ HR ตั้งเป็นผู้ประเมินในสายการประเมิน · ยืนยันตัวตนด้วยวันเกิดและวันเริ่มงานตามทะเบียนพนักงาน · ลืมรหัสผ่านก็ใช้หน้านี้</p>
+            {[["emp", "รหัสพนักงาน", "text", "เช่น 180008"], ["birth", "วันเกิด", "date"], ["hire", "วันเริ่มงาน", "date"], ["p1", "ตั้งรหัสผ่าน (อย่างน้อย 8 ตัว)", "password"], ["p2", "ยืนยันรหัสผ่าน", "password"]].map(([k, l, t, ph]) => (
+              <div key={k} className="field" style={{ marginBottom: 12 }}>
+                <label style={{ color: "rgba(255,255,255,.82)" }}>{l}</label>
+                <input className="input" type={t} inputMode={k === "emp" ? "numeric" : undefined} placeholder={ph} value={rg[k]} onChange={(e) => setRg({ ...rg, [k]: e.target.value })} style={{ ...glassInput, paddingLeft: 13 }} />
+              </div>
+            ))}
+            {rgErr && <div style={{ marginBottom: 12, padding: "10px 13px", borderRadius: 10, background: "rgba(225,29,72,.18)", border: "1px solid rgba(255,140,160,.4)", color: "#ffd5dd", fontSize: 13 }}>{rgErr}</div>}
+            <button type="submit" className="btn btn-pri" disabled={rgBusy} style={{ width: "100%", padding: 12, fontSize: 15 }}>{rgBusy ? "กำลังตรวจสอบ…" : "ลงทะเบียน / ตั้งรหัสผ่าน"}</button>
+            <div style={{ fontSize: 12, color: "rgba(255,255,255,.5)", marginTop: 12, lineHeight: 1.6 }}>ข้อมูลไม่ตรงเกิน 5 ครั้งใน 24 ชั่วโมงจะถูกล็อก · HR ได้รับแจ้งทุกครั้งที่มีการลงทะเบียน</div>
+          </form>
+        )}
+
+        {!selfMode && !regMode && <form onSubmit={submit} style={{ width: "min(400px, 100%)", background: "rgba(255,255,255,.09)", backdropFilter: "blur(22px)",
           border: "1px solid rgba(255,255,255,.18)", borderRadius: 22, padding: "38px 34px", boxShadow: "0 28px 70px rgba(0,0,0,.4)" }}>
           <div className="side-logo mobile-only" style={{ width: 48, height: 48, marginBottom: 18 }}>{logo ? <img src={logo} alt="BWP" style={{ width: "100%", height: "100%", objectFit: "contain" }} onError={(e) => { if (!e.currentTarget.dataset.fb) { e.currentTarget.dataset.fb = "1"; e.currentTarget.src = "logo.svg"; } }} /> : <Icon name="layers" size={24} />}</div>
           <h2 style={{ margin: 0, color: "#fff", fontSize: 23, fontWeight: 700 }}>เข้าสู่ระบบ</h2>
           <p style={{ margin: "7px 0 26px", color: "rgba(255,255,255,.62)", fontSize: 14 }}>ยินดีต้อนรับกลับ กรุณาเข้าสู่ระบบเพื่อใช้งาน</p>
 
           <div className="field" style={{ marginBottom: 16 }}>
-            <label style={{ color: "rgba(255,255,255,.82)" }}>ชื่อผู้ใช้ / อีเมล</label>
+            <label style={{ color: "rgba(255,255,255,.82)" }}>อีเมล หรือ รหัสพนักงาน (ผู้ประเมิน)</label>
             <div style={{ position: "relative" }}>
               <span style={{ position: "absolute", left: 13, top: "50%", transform: "translateY(-50%)", color: "rgba(255,255,255,.5)" }}><Icon name="user" size={18} /></span>
               <input className="input" value={u} onChange={(e) => setU(e.target.value)} style={glassInput} />
@@ -127,7 +165,7 @@ function LoginScreen({ onLogin, logo }) {
             <label className="row" style={{ gap: 8, color: "rgba(255,255,255,.78)", fontSize: 13.5, cursor: "pointer" }}>
               <input type="checkbox" defaultChecked style={{ accentColor: "#5b8def", width: 16, height: 16 }} /> จดจำการเข้าสู่ระบบ
             </label>
-            <a href="#" onClick={async (e) => { e.preventDefault(); if (!u.trim()) { toast("กรุณากรอกอีเมลก่อน", "mail"); return; } const { error } = await window.sb.auth.resetPasswordForEmail(u.trim()); toast(error ? ("ส่งไม่สำเร็จ: " + error.message) : "ส่งลิงก์รีเซ็ตรหัสผ่านไปยังอีเมลแล้ว", "mail"); }} style={{ color: "#9dc0ff", fontSize: 13.5, textDecoration: "none", fontWeight: 600 }}>ลืมรหัสผ่าน?</a>
+            <a href="#" onClick={async (e) => { e.preventDefault(); if (/^\d{5,8}$/.test(u.trim())) { setRg({ ...rg, emp: u.trim() }); setRegMode(true); return; } if (!u.trim()) { toast("กรุณากรอกอีเมลก่อน (ผู้ประเมินใช้ปุ่ม ลงทะเบียน/ตั้งรหัสผ่านใหม่)", "mail"); return; } const { error } = await window.sb.auth.resetPasswordForEmail(u.trim()); toast(error ? ("ส่งไม่สำเร็จ: " + error.message) : "ส่งลิงก์รีเซ็ตรหัสผ่านไปยังอีเมลแล้ว", "mail"); }} style={{ color: "#9dc0ff", fontSize: 13.5, textDecoration: "none", fontWeight: 600 }}>ลืมรหัสผ่าน?</a>
           </div>
           {err && (
             <div style={{ marginBottom: 14, padding: "10px 13px", borderRadius: 10, background: "rgba(225,29,72,.18)", border: "1px solid rgba(255,140,160,.4)", color: "#ffd5dd", fontSize: 13 }}>
@@ -138,6 +176,9 @@ function LoginScreen({ onLogin, logo }) {
             {busy ? "กำลังเข้าสู่ระบบ…" : <>เข้าสู่ระบบ <Icon name="chevRight" size={18} /></>}
           </button>
           <div style={{ borderTop: "1px solid rgba(255,255,255,.14)", margin: "20px 0 0", paddingTop: 16, textAlign: "center" }}>
+            <button type="button" onClick={() => { setRegMode(true); setErr(""); }} className="btn btn-ghost" style={{ width: "100%", color: "#fff", background: "rgba(255,255,255,.08)", border: "1px solid rgba(255,255,255,.2)", marginBottom: 10 }}>
+              <Icon name="user" size={16} />ผู้ประเมิน: ลงทะเบียน / ลืมรหัสผ่าน
+            </button>
             <button type="button" onClick={() => { setSelfMode(true); setErr(""); }} className="btn btn-ghost" style={{ width: "100%", color: "#fff", background: "rgba(255,255,255,.08)", border: "1px solid rgba(255,255,255,.2)" }}>
               <Icon name="user" size={16} />พนักงานดูผลประเมินของตัวเอง
             </button>

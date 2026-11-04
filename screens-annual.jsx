@@ -100,9 +100,12 @@ function AnnGrade({ g }) {
    หน้าหลัก
    ========================================================= */
 // หน้าที่เฉพาะ HR เปิดได้ (บัญชีหน่วยงานเปิดแล้วจะกลับไปหน้าแรก)
-const ANN_HR_PAGES = ["forms", "setup", "exclude", "deduct", "items", "reports", "cycle", "calib", "hub"];
+const ANN_HR_PAGES = ["forms", "setup", "exclude", "deduct", "items", "reports", "cycle", "calib", "hub", "lines"];
 // ใบที่ HR ต้องกรอกเอง = หัวหน้า/ผู้จัดการ (บัญชีหน่วยงานประเมินไม่ได้ กันให้คะแนนตัวเอง)
-const annHrMustFill = (r) => r.level === "supervisor" || r.level === "manager";
+// HR ต้องกรอกเอง = ไม่มีผู้ประเมินที่ลงทะเบียน และบัญชีหน่วยงานกรอกแทนไม่ได้ (หัวหน้า/ผู้จัดการ) — ฐานข้อมูลคิดให้ใน fill_by
+const annHrMustFill = (r) => r.fill_by === "hr";
+// ใบที่รอเราในฐานะผู้ประเมินคนที่ 2
+const annWaitMe = (r) => r.my_role === "reviewer" && r.status === "submitted";
 const annTodoStatus = (s) => ["pending", "draft", "returned"].includes(s);
 const annWaitStatus = (s) => s === "submitted" || s === "reviewed";
 
@@ -135,8 +138,8 @@ function AnnualEval({ ctx, page }) {
       // ตัวเลขบนแถบเมนู (งานของฉัน / ศูนย์อนุมัติ)
       const live = rs.filter((r) => r.eligible && !r.excluded);
       if (ctx && ctx.setAnnCounts) ctx.setAnnCounts({
-        todo: live.filter((r) => annTodoStatus(r.status) && (!hr || annHrMustFill(r))).length,
-        approve: live.filter((r) => annWaitStatus(r.status)).length,
+        todo: live.filter((r) => annTodoStatus(r.status) && (hr ? annHrMustFill(r) : r.can_eval)).length,
+        approve: live.filter((r) => hr ? annWaitStatus(r.status) : annWaitMe(r)).length,
       });
     } catch (e) { setErr(e.message || String(e)); setRows([]); }
   };
@@ -165,11 +168,11 @@ function AnnualEval({ ctx, page }) {
       {pg === "hub" && <AnnualSetupHub rowsAll={rowsAll} go={go} goRoute={ctx.go} />}
       {pg === "mine" && <AnnualMine rows={rows} onOpen={setFormId} preset="all" />}
       {pg === "todo" && (hr
-        ? <AnnualMine rows={rows.filter(annHrMustFill)} onOpen={setFormId} title="ใบที่ HR ต้องกรอกเอง (หัวหน้า/ผู้จัดการ)" />
-        : <AnnualMine rows={rows} onOpen={setFormId} />)}
+        ? <AnnualMine rows={rows.filter(annHrMustFill)} onOpen={setFormId} title="ใบที่ HR ต้องกรอกเอง" />
+        : <AnnualMine rows={rows.filter((r) => r.can_eval)} onOpen={setFormId} title="ใบที่คุณเป็นผู้ประเมิน" />)}
       {pg === "approve" && (hr
         ? <AnnualAllForms rows={rows} onOpen={setFormId} reload={load} preset="wait" />
-        : <AnnualMine rows={rows} onOpen={setFormId} preset="sent" />)}
+        : <AnnualMine rows={rows.filter((r) => r.my_role === "reviewer")} onOpen={setFormId} review title="ใบที่คุณเป็นผู้ประเมินคนที่ 2" />)}
       {pg === "overview" && <AnnualOverview rows={rows} rowsAll={rowsAll} cycle={cycle} />}
       {pg === "forms" && <AnnualAllForms rows={rows} onOpen={setFormId} reload={load} />}
       {pg === "calib" && <AnnualCalib rows={rows} cycle={cycle} onOpen={setFormId} />}
@@ -178,6 +181,7 @@ function AnnualEval({ ctx, page }) {
       {pg === "deduct" && <AnnualDeductions rows={rows} cycle={cycle} reload={load} />}
       {pg === "items" && <AnnualItems rows={rows} />}
       {pg.startsWith("reports") && <AnnualReports key={pg} rows={rows} cycle={cycle} only={pg.split("-")[1]} />}
+      {pg === "lines" && <AnnualLines cycle={cycle} rowsAll={rowsAll} reload={load} />}
       {pg === "cycle" && <AnnualCycleSettings key={cycle.id} cycle={cycle} reload={() => load()} cyc={cyc} rows={rows} />}
     </div>
   );
@@ -237,11 +241,12 @@ function AnnualCycleBanner({ cycle, cyc }) {
 }
 
 /* ---------- สำหรับบัญชีหน่วยงาน: รายชื่อที่ต้องประเมิน ---------- */
-function AnnualMine({ rows, onOpen, preset, title }) {
+function AnnualMine({ rows, onOpen, preset, title, review }) {
   const [q, setQ] = useAnnS("");
   const [only, setOnly] = useAnnS(preset || "todo");
+  const isTodo = (st) => review ? st === "submitted" : annTodoStatus(st);
   const list = rows.filter((r) => r.eligible)
-    .filter((r) => only === "all" || (only === "sent" ? !annTodoStatus(r.status) : annTodoStatus(r.status)))
+    .filter((r) => only === "all" || (only === "sent" ? !isTodo(r.status) : isTodo(r.status)))
     .filter((r) => !q || (r.name + r.employee_id + (r.position || "")).toLowerCase().includes(q.toLowerCase()));
   const done = rows.filter((r) => r.eligible && !["pending", "draft", "returned"].includes(r.status)).length;
   const total = rows.filter((r) => r.eligible).length;
@@ -257,8 +262,8 @@ function AnnualMine({ rows, onOpen, preset, title }) {
       <Stat icon="award" label="อนุมัติแล้ว" value={n(["approved"])} tone="#16a34a" soft="#e7f6ec" />
     </div>
     <Card>
-      <CardHead title={(title ? title + " · " : "") + "ส่งแล้ว " + done + " จาก " + total + " คน"} sub="กดชื่อเพื่อเปิดใบประเมิน · ให้ระดับ 1–5 ทุกข้อ แล้วกด ส่งใบประเมิน"
-        right={<Seg options={[{ value: "todo", label: "ยังไม่ส่ง" }, { value: "sent", label: "ส่งแล้ว" }, { value: "all", label: "ทั้งหมด" }]} value={only} onChange={setOnly} />} />
+      <CardHead title={(title ? title + " · " : "") + "ส่งแล้ว " + done + " จาก " + total + " คน"} sub={review ? "กดชื่อเพื่อตรวจ · แก้คะแนนข้อที่ไม่เห็นด้วยได้ (ต้องใส่เหตุผล) · อนุมัติส่งต่อ HR หรือตีกลับให้ผู้ประเมินคนที่ 1 แก้" : "กดชื่อเพื่อเปิดใบประเมิน · ให้ระดับ 1–5 ทุกข้อ แล้วกด ส่งใบประเมิน"}
+        right={<Seg options={review ? [{ value: "todo", label: "รอคุณตรวจ/อนุมัติ" }, { value: "sent", label: "ดำเนินการแล้ว" }, { value: "all", label: "ทั้งหมด" }] : [{ value: "todo", label: "ยังไม่ส่ง" }, { value: "sent", label: "ส่งแล้ว" }, { value: "all", label: "ทั้งหมด" }]} value={only} onChange={setOnly} />} />
       <div style={{ padding: "0 20px 12px" }}><input className="input" placeholder="ค้นหาชื่อ / รหัส" value={q} onChange={(e) => setQ(e.target.value)} /></div>
       <div className="tbl-wrap">
         <table className="tbl">
@@ -266,7 +271,8 @@ function AnnualMine({ rows, onOpen, preset, title }) {
           <tbody>
             {list.map((r) => (
               <tr key={r.assignment_id} style={{ cursor: "pointer" }} onClick={() => onOpen(r.assignment_id)}>
-                <td><b>{r.name}</b><div className="muted" style={{ fontSize: 12 }}>{r.employee_id} · {r.dept_name} · {r.doc_no}</div></td>
+                <td><b>{r.name}</b><div className="muted" style={{ fontSize: 12 }}>{r.employee_id} · {r.line_name || r.dept_name} · {r.doc_no}</div>
+                  {review && <div className="muted" style={{ fontSize: 11.5 }}>ผู้ประเมินคนที่ 1: {r.evaluator_name || "—"}</div>}{r.revised_items > 0 && <div style={{ fontSize: 11.5, color: "#7c3aed" }}>แก้คะแนน {r.revised_items} ข้อ</div>}</td>
                 <td style={{ fontSize: 13 }}>{r.position}</td>
                 <td className="num">{r.items_rated}/{r.items_total}</td>
                 <td><AnnStatus s={r.status} />{r.status !== "approved" && <div className="muted" style={{ fontSize: 11.5, marginTop: 2 }}>ถัดไป: {ANN_NEXT[r.status]}</div>}</td>
@@ -275,11 +281,11 @@ function AnnualMine({ rows, onOpen, preset, title }) {
                 <td><AnnGrade g={r.complete ? r.grade : null} /></td>
               </tr>
             ))}
-            {!list.length && <tr><td colSpan={6} className="muted" style={{ textAlign: "center", padding: 28 }}>{only === "todo" ? "ไม่มีงานค้าง — ส่งครบทุกคนแล้ว" : only === "sent" ? "ยังไม่มีใบที่ส่ง" : "ไม่มีรายชื่อ"}</td></tr>}
+            {!list.length && <tr><td colSpan={6} className="muted" style={{ textAlign: "center", padding: 28 }}>{only === "todo" ? (review ? "ไม่มีใบรอคุณอนุมัติ" : "ไม่มีงานค้าง — ส่งครบทุกคนแล้ว") : only === "sent" ? "ยังไม่มีใบที่ส่ง" : "ไม่มีรายชื่อ"}</td></tr>}
           </tbody>
         </table>
       </div>
-      {!annIsHR() && <div className="muted" style={{ fontSize: 12, padding: "10px 20px 16px" }}>ใบประเมินของหัวหน้าและผู้จัดการหน่วยงาน HR เป็นผู้กรอก จึงไม่อยู่ในรายชื่อนี้</div>}
+      {!annIsHR() && <div className="muted" style={{ fontSize: 12, padding: "10px 20px 16px" }}>รายชื่อตามสายการประเมินที่ HR ตั้ง · ใบของตัวคุณเองจะไม่อยู่ในรายชื่อนี้ (ผู้ประเมินลำดับถัดไปหรือ HR เป็นผู้กรอก)</div>}
     </Card>
     </>
   );
@@ -310,6 +316,10 @@ function AnnualForm({ id, onBack }) {
   if (!f) return <Card pad><div className="muted">กำลังโหลดใบประเมิน…</div></Card>;
   const r = f.row || {};
   const can = !!f.can_edit;
+  // ผู้ประเมินคนที่ 2 (หรือ HR) ตรวจใบที่ส่งมา: แก้ระดับรายข้อได้ ต้องเขียนเหตุผล · คะแนนเดิมของผู้ประเมินคนที่ 1 ถูกเก็บไว้ในฐาน
+  const rvMode = !!f.can_review || (!!f.is_hr && r.status === "reviewed");
+  const baseRating = {}; (f.items || []).forEach((x) => { baseRating[x.item_id] = x.rating; });
+  const changed = rvMode ? items.filter((x) => x.rating !== baseRating[x.item_id]) : [];
   const cfg = (f.cycle && f.cycle.config) || {};
   const lead = r.level === "supervisor" || r.level === "manager";
 
@@ -357,6 +367,17 @@ function AnnualForm({ id, onBack }) {
     try { await annRpc("perf_recall", { p_assignment: id }); toast("ดึงกลับมาแก้ไขแล้ว", "check"); await load(); }
     catch (e) { setErr(e.message); } finally { setBusy(false); }
   };
+  const approveReview = async () => {
+    const miss = changed.filter((x) => !(x.rnote || "").trim()).length;
+    if (miss) { setErr("ข้อที่แก้คะแนนต้องเขียนเหตุผล (ยังขาด " + miss + " ข้อ)"); return; }
+    if (changed.length && !window.confirm("แก้คะแนน " + changed.length + " ข้อ แล้วอนุมัติ?\nคะแนนเดิมของผู้ประเมินคนที่ 1 จะถูกเก็บไว้ให้ตรวจสอบได้")) return;
+    setBusy(true); setErr("");
+    try {
+      if (changed.length || !f.is_hr) await annRpc("perf_review_save", { p_assignment: id, p_scores: changed.map((x) => ({ item_id: x.item_id, rating: x.rating, note: x.rnote })), p_comment: note2, p_approve: !f.is_hr });
+      if (f.is_hr) await annRpc("perf_hr_decide", { p_ids: [id], p_action: "approve", p_comment: note2 });
+      toast(changed.length ? "แก้ " + changed.length + " ข้อ และอนุมัติแล้ว" : "อนุมัติแล้ว", "check"); setNote2(""); await load();
+    } catch (e) { setErr(e.message); } finally { setBusy(false); }
+  };
   const review = async (action) => {
     if (action === "return" && !note2.trim()) { setErr("ตีกลับต้องเขียนเหตุผล"); return; }
     setBusy(true); setErr("");
@@ -384,7 +405,7 @@ function AnnualForm({ id, onBack }) {
   const tenure = (() => { if (!r.hire_date) return "—"; const [y, m] = r.hire_date.split("-").map(Number); const now = new Date(); let mm = (now.getFullYear() - y) * 12 + now.getMonth() + 1 - m; return Math.floor(mm / 12) + " ปี " + (mm % 12) + " เดือน"; })();
 
   const printForm = () => {
-    const sec = groups.map(([k, label, xs]) => `<h2>${annEsc(label)} · น้ำหนัก ${w[k] || 0}%</h2><table><tr><th style="width:28px">#</th><th>หัวข้อ</th><th class="n" style="width:60px">ระดับ</th><th>เหตุผล / ตัวอย่างผลงาน</th></tr>${xs.map((x, i) => `<tr><td>${i + 1}</td><td>${annEsc(x.title)}${x.standard ? `<div class="sub">มาตรฐานระดับ 3: ${annEsc(x.standard)}</div>` : ""}</td><td class="n"><b>${x.rating || "—"}</b></td><td>${annEsc(x.note || "")}</td></tr>`).join("")}</table>`).join("");
+    const sec = groups.map(([k, label, xs]) => `<h2>${annEsc(label)} · น้ำหนัก ${w[k] || 0}%</h2><table><tr><th style="width:28px">#</th><th>หัวข้อ</th><th class="n" style="width:60px">ระดับ</th><th>เหตุผล / ตัวอย่างผลงาน</th></tr>${xs.map((x, i) => `<tr><td>${i + 1}</td><td>${annEsc(x.title)}${x.standard ? `<div class="sub">มาตรฐานระดับ 3: ${annEsc(x.standard)}</div>` : ""}</td><td class="n"><b>${x.rating || "—"}</b>${x.orig_rating != null && x.orig_rating !== x.rating ? `<div class="sub">เดิม ${x.orig_rating}</div>` : ""}</td><td>${annEsc(x.note || "")}${x.orig_rating != null && x.orig_rating !== x.rating ? `<div class="sub">แก้โดย ${annEsc(x.revised_by || "")}: ${annEsc(x.revise_note || "")}</div>` : ""}</td></tr>`).join("")}</table>`).join("");
     annPrint("ใบประเมิน " + r.name, annPrintHead("แบบประเมินผลการปฏิบัติงานประจำปี", (f.cycle || {}).name + " · เลขที่ " + (r.doc_no || "")) +
       `<table><tr><td>ชื่อ-สกุล <b>${annEsc(r.name)}</b></td><td>รหัส <b>${annEsc(r.employee_id)}</b></td><td>สถานะ <b>${annEsc((ANN_STATUS[r.status] || [r.status])[0])}</b></td></tr>
        <tr><td>ตำแหน่ง ${annEsc(r.position)}</td><td>หน่วยงาน ${annEsc(r.dept_name)}</td><td>ระดับ ${annEsc(ANN_LEVEL[r.level])}</td></tr>
@@ -407,7 +428,8 @@ function AnnualForm({ id, onBack }) {
           <div>
             <div className="row" style={{ gap: 10 }}><span style={{ fontWeight: 700, fontSize: 18 }}>{r.name}</span><AnnStatus s={r.status} /></div>
             <div className="muted" style={{ fontSize: 13.5, marginTop: 3 }}>{r.employee_id} · {r.position} · {r.dept_name}</div>
-            <div className="muted" style={{ fontSize: 12.5, marginTop: 3 }}>เลขที่ {r.doc_no} · ระดับ: {ANN_LEVEL[r.level]} · JD: {r.jd_id ? r.jd_id + " " + (r.jd_title || "") : "ยังไม่ผูก JD"}{r.evaluator_name ? " · ผู้ประเมินตามสาย: " + r.evaluator_name : ""}</div>
+            <div className="muted" style={{ fontSize: 12.5, marginTop: 3 }}>เลขที่ {r.doc_no} · ระดับ: {ANN_LEVEL[r.level]} · JD: {r.jd_id ? r.jd_id + " " + (r.jd_title || "") : "ยังไม่ผูก JD"}</div>
+            <div className="muted" style={{ fontSize: 12.5, marginTop: 3 }}>{r.line_name ? "สาย: " + r.line_name + " · " : ""}ผู้ประเมินคนที่ 1: <b>{r.evaluator_name || "HR"}</b>{r.evaluator_id && !r.evaluator_registered ? " (ยังไม่ลงทะเบียน — บัญชีหน่วยงาน/HR กรอกแทน)" : ""}{r.reviewer_name ? <> · คนที่ 2: <b>{r.reviewer_name}</b>{!r.reviewer_registered ? " (ยังไม่ลงทะเบียน — ส่งตรงถึง HR)" : ""}</> : " · ไม่มีคนที่ 2 (ส่งตรงถึง HR)"}{r.revised_items ? <span style={{ color: "#7c3aed", fontWeight: 600 }}> · ผู้ประเมินคนที่ 2 แก้คะแนน {r.revised_items} ข้อ</span> : null}</div>
             {r.status !== "approved" && <div className="muted" style={{ fontSize: 12.5, marginTop: 3 }}>ขั้นถัดไป: <b>{ANN_NEXT[r.status]}</b></div>}
           </div>
           <div style={{ textAlign: "center", minWidth: 150 }}>
@@ -480,6 +502,7 @@ function AnnualForm({ id, onBack }) {
                 <div className="mono muted" style={{ fontSize: 12, minWidth: 120 }}>{annDateTime(e.at)}</div>
                 <div style={{ fontSize: 13.5 }}>
                   {e.action === "status" ? <>{(ANN_STATUS[e.from] || [e.from])[0]} → <b>{(ANN_STATUS[e.to] || [e.to])[0]}</b></>
+                    : e.action === "revise" ? <b style={{ color: "#7c3aed" }}>แก้คะแนน "{(e.data || {}).title}": {(e.data || {}).from} → {(e.data || {}).to}</b>
                     : e.action === "adjust" ? <b style={{ color: "#c2410c" }}>HR ปรับผล: {e.data && e.data.new_total != null ? "คะแนน " + annFmt(e.data.new_total) : ""}{e.data && e.data.new_grade ? " เกรด " + e.data.new_grade : ""}{e.data && e.data.calc_total != null ? " (ระบบคิด " + annFmt(e.data.calc_total) + " / " + (e.data.calc_grade || "—") + ")" : ""}</b>
                     : <b>ยกเลิกการปรับผล — กลับไปใช้คะแนนที่ระบบคิด</b>}
                   <div className="muted" style={{ fontSize: 12 }}>{e.actor}{e.note ? " · " + e.note : ""}</div>
@@ -494,6 +517,8 @@ function AnnualForm({ id, onBack }) {
       {ftab === "score" && f.is_hr && r.eligible && r.complete && <AnnAdjustPanel r={r} bands={cfg.bands || []} dirty={dirty} onDone={load} />}
 
       {ftab === "score" && <>
+      {rvMode && <Card pad><div style={{ fontSize: 13.5, color: "#8a5a00" }}><b>คุณเป็น{f.is_hr ? " HR (ตรวจแทนผู้ประเมินคนที่ 2)" : "ผู้ประเมินคนที่ 2"}</b> — ถ้าไม่เห็นด้วยกับข้อไหน กดระดับใหม่ได้เลยแล้วเขียนเหตุผล · คะแนนเดิมของผู้ประเมินคนที่ 1 ถูกเก็บไว้ ·
+        หรือกด "ตีกลับให้แก้" ให้ผู้ประเมินคนที่ 1 แก้เอง {changed.length > 0 && <b> · แก้แล้ว {changed.length} ข้อ</b>}</div></Card>}
       <Card pad>
         <div className="row wrap" style={{ gap: 8, fontSize: 12.5 }}>
           <b>ระดับ:</b>{ANN_RATING.map(([n, t]) => <span key={n} className="badge b-gray">{n} = {t}</span>)}
@@ -513,12 +538,24 @@ function AnnualForm({ id, onBack }) {
                   {x.standard && <div className="muted" style={{ fontSize: 12.5, marginTop: 3 }}>มาตรฐานระดับ 3: {x.standard}</div>}
                   <div className="row wrap" style={{ gap: 6, marginTop: 10 }}>
                     {ANN_RATING.map(([n, t]) => (
-                      <button key={n} disabled={!can} onClick={() => setItem(x.item_id, { rating: x.rating === n ? null : n })} title={t}
+                      <button key={n} disabled={!(can || rvMode)} onClick={() => setItem(x.item_id, { rating: rvMode ? n : (x.rating === n ? null : n) })} title={t}
                         className={"btn btn-sm " + (x.rating === n ? "btn-pri" : "btn-ghost")} style={{ minWidth: 44, fontWeight: 700 }}>{n}</button>
                     ))}
                     <span className="muted" style={{ fontSize: 12.5, marginLeft: 6 }}>{x.rating ? ANN_RATING[x.rating - 1][1] : "ยังไม่ให้คะแนน"}</span>
                     {x.rating && <AnnGap g={x.rating - 3} />}
                   </div>
+                  {/* แก้โดยผู้ประเมินคนที่ 2 แล้ว — แสดงของเดิมเสมอ (ตรวจสอบได้) */}
+                  {x.orig_rating != null && x.orig_rating !== baseRating[x.item_id] && x.rating === baseRating[x.item_id] && (
+                    <div style={{ marginTop: 8, padding: "8px 11px", borderRadius: 8, background: "#f3eefe", color: "#5b21b6", fontSize: 12.5 }}>
+                      ผู้ประเมินคนที่ 1 ให้ <b>{x.orig_rating}</b> → แก้เป็น <b>{x.rating}</b> โดย {x.revised_by} · {annDateTime(x.revised_at)}
+                      <div>เหตุผลที่แก้: {x.revise_note}</div>{x.orig_note && <div style={{ opacity: .8 }}>เหตุผลเดิม: {x.orig_note}</div>}
+                    </div>)}
+                  {rvMode && x.rating !== baseRating[x.item_id] && (
+                    <div style={{ marginTop: 8, padding: "8px 11px", borderRadius: 8, background: "#fff7e6", border: "1px solid #f5c26b", fontSize: 12.5 }}>
+                      แก้จาก <b>{baseRating[x.item_id] || "—"}</b> เป็น <b>{x.rating}</b> · <button className="btn btn-ghost btn-sm" style={{ padding: "1px 8px" }} onClick={() => setItem(x.item_id, { rating: baseRating[x.item_id], rnote: "" })}>ยกเลิกการแก้ข้อนี้</button>
+                      <input className="input" placeholder="เหตุผลที่แก้ (บังคับ) — ผู้ประเมินคนที่ 1 และ HR จะเห็น" value={x.rnote || ""} onChange={(e) => setItem(x.item_id, { rnote: e.target.value })}
+                        style={{ marginTop: 6, fontSize: 13, borderColor: (x.rnote || "").trim() ? undefined : "var(--red)" }} />
+                    </div>)}
                   {(can || x.note) && <input className="input" disabled={!can} placeholder={needNote ? "ต้องเขียนเหตุผล / ตัวอย่างผลงาน" : "เหตุผล / ตัวอย่างผลงาน (ไม่บังคับ)"} value={x.note || ""}
                     onChange={(e) => setItem(x.item_id, { note: e.target.value })} style={{ marginTop: 10, fontSize: 13.5, borderColor: needNote ? "var(--red)" : undefined }} />}
                 </div>
@@ -532,7 +569,7 @@ function AnnualForm({ id, onBack }) {
       <Card pad>
         <div className="field"><label>ความเห็นของผู้ประเมิน / สิ่งที่ควรพัฒนา</label>
           <textarea className="input" disabled={!can} value={comment} onChange={(e) => { setComment(e.target.value); setDirty(true); }} /></div>
-        {r.reviewer_comment && r.status !== "returned" && <div className="muted" style={{ fontSize: 13, marginTop: 8 }}>ความเห็นผู้ทบทวน: {r.reviewer_comment}</div>}
+        {r.reviewer_comment && r.status !== "returned" && <div className="muted" style={{ fontSize: 13, marginTop: 8 }}>ความเห็นผู้ประเมินคนที่ 2: {r.reviewer_comment}</div>}
         {err && <div style={{ marginTop: 12, padding: "10px 13px", borderRadius: 10, background: "var(--red-soft)", color: "#be123c", fontSize: 13 }}>{err}</div>}
         <div className="row wrap" style={{ gap: 10, marginTop: 14, justifyContent: "flex-end" }}>
           {can && <button className="btn btn-ghost" disabled={busy} onClick={() => save(false)}><Icon name="check" size={15} />บันทึก</button>}
@@ -542,13 +579,13 @@ function AnnualForm({ id, onBack }) {
         </div>
         {(f.can_review || hrCanDecide || (f.is_hr && r.status === "approved")) && (
           <div style={{ marginTop: 16, borderTop: "1px solid var(--border)", paddingTop: 14 }}>
-            <div className="field"><label>{f.is_hr ? "ความเห็น HR" : "ความเห็นผู้ทบทวน"} (ตีกลับต้องใส่)</label><input className="input" value={note2} onChange={(e) => setNote2(e.target.value)} /></div>
+            <div className="field"><label>{f.is_hr ? "ความเห็น HR" : "ความเห็นผู้ประเมินคนที่ 2"} (ตีกลับต้องใส่)</label><input className="input" value={note2} onChange={(e) => setNote2(e.target.value)} /></div>
             <div className="row wrap" style={{ gap: 10, marginTop: 10, justifyContent: "flex-end" }}>
               {r.status === "approved"
                 ? <button className="btn btn-ghost" disabled={busy} onClick={() => review("reopen")}>ยกเลิกอนุมัติ</button>
                 : <>
                     <button className="btn btn-ghost" disabled={busy} style={{ color: "var(--red)" }} onClick={() => review("return")}><Icon name="x" size={15} />ตีกลับให้แก้</button>
-                    <button className="btn btn-pri" disabled={busy} onClick={() => review("approve")}><Icon name="check" size={15} />{f.is_hr ? "HR อนุมัติ" : "อนุมัติ"}</button>
+                    <button className="btn btn-pri" disabled={busy} onClick={approveReview}><Icon name="check" size={15} />{changed.length ? "บันทึกการแก้ " + changed.length + " ข้อ + อนุมัติ" : f.is_hr ? "HR อนุมัติ" : "อนุมัติ ส่งต่อ HR"}</button>
                   </>}
             </div>
           </div>
@@ -702,8 +739,8 @@ function AnnualAllForms({ rows, onOpen, reload, preset }) {
             <td onClick={(e) => e.stopPropagation()}>{["submitted", "reviewed"].includes(r.status) && <input type="checkbox" checked={!!sel[r.assignment_id]} onChange={(e) => setSel({ ...sel, [r.assignment_id]: e.target.checked })} />}</td>
             <td className="mono" style={{ fontSize: 12 }}>{r.doc_no}</td>
             <td style={{ cursor: "pointer" }} onClick={() => onOpen(r.assignment_id)}><b>{r.name}</b><div className="muted" style={{ fontSize: 12 }}>{r.employee_id} · {r.position}</div></td>
-            <td style={{ fontSize: 13 }}>{r.dept_name}</td>
-            <td><AnnStatus s={r.status} />{r.status !== "approved" && <div className="muted" style={{ fontSize: 11.5, marginTop: 2 }}>→ {ANN_NEXT[r.status]}</div>}</td>
+            <td style={{ fontSize: 13 }}>{r.dept_name}{r.line_name && <div className="muted" style={{ fontSize: 11.5 }}>{r.line_name}</div>}</td>
+            <td><AnnStatus s={r.status} />{r.status !== "approved" && <div className="muted" style={{ fontSize: 11.5, marginTop: 2 }}>→ {ANN_NEXT[r.status]}</div>}{r.revised_items > 0 && <div style={{ fontSize: 11.5, color: "#7c3aed" }}>คนที่ 2 แก้ {r.revised_items} ข้อ</div>}</td>
             <td style={{ fontSize: 12.5 }}>{r.submitted_at ? annDate(new Date(new Date(r.submitted_at).getTime() + 7 * 3600e3).toISOString()) : "—"}</td>
             <td className="num">{r.items_rated}/{r.items_total}</td>
             <td className="num">{r.perf_pct == null ? "—" : annFmt(0.9 * r.perf_pct)}</td>
@@ -752,7 +789,7 @@ function AnnualSetup({ rows, cycle, reload, initial }) {
     .filter((r) => !q || (r.name + r.employee_id + (r.dept_name || "")).toLowerCase().includes(q.toLowerCase()));
   return (
     <Card>
-      <CardHead title="รายชื่อ & ผู้ประเมิน" sub="ผู้ประเมินตามสาย = หัวหน้าหน่วยงาน · ไม่มีหัวหน้า = ผู้จัดการ · ใช้แสดงผลและคิดขั้นทบทวน (บัญชีหน่วยงานประเมินได้ทุกคนในหน่วยงานของตน)"
+      <CardHead title="รายชื่อ & ผู้ประเมิน" sub="ผู้ประเมินมาจาก สายการประเมิน (ตั้งค่าระบบ › สายการประเมิน) — แก้ในตารางนี้ได้ชั่วคราว แต่จะถูกทับเมื่อแก้สาย · คนที่ไม่อยู่ในสายใช้หัวหน้า/ผู้จัดการของหน่วยงาน"
         right={<div className="row" style={{ gap: 8 }}>
           <button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => gen(false)}><Icon name="plus" size={14} />เพิ่มพนักงานใหม่</button>
           <button className="btn btn-soft btn-sm" disabled={busy} onClick={() => gen(true)}><Icon name="refresh" size={14} />คำนวณใหม่ (ใบที่ยังไม่เริ่ม)</button>
@@ -762,7 +799,7 @@ function AnnualSetup({ rows, cycle, reload, initial }) {
         <input className="input" style={{ maxWidth: 240 }} placeholder="ค้นหา" value={q} onChange={(e) => setQ(e.target.value)} />
       </div>
       <div className="tbl-wrap"><table className="tbl">
-        <thead><tr><th>พนักงาน</th><th>ระดับ</th><th>JD</th><th>ผู้ประเมินตามสาย</th><th>ผู้ทบทวน</th><th>เข้ารอบ</th><th>ไม่ต้องประเมิน</th></tr></thead>
+        <thead><tr><th>พนักงาน</th><th>ระดับ</th><th>JD</th><th>ผู้ประเมินคนที่ 1</th><th>ผู้ประเมินคนที่ 2</th><th>เข้ารอบ</th><th>ไม่ต้องประเมิน</th></tr></thead>
         <tbody>{list.map((r) => {
           const locked = r.status !== "pending";
           return (
@@ -978,6 +1015,7 @@ const ANN_REPORTS = [
   ["approval", "รายงานตรวจสอบสถานะการอนุมัติ", "เลขที่ใบ วันที่ส่ง/ทบทวน/อนุมัติ ผู้อนุมัติ ค้างกี่วัน และขั้นถัดไป"],
   ["adjust", "รายงานการปรับเกรด/คะแนน", "ทุกครั้งที่ HR ปรับผล: ค่าที่ระบบคิด → ค่าที่ปรับ เหตุผล ผู้ปรับ เวลา"],
   ["deduct", "รายงานคะแนนหักการมาทำงานและใบเตือน", "สรุปรายคนจากตอกบัตร ใบเตือน และรายการที่ HR กรอก"],
+  ["revise", "การแก้คะแนนโดยผู้ประเมินคนที่ 2", "ทุกข้อที่ผู้จัดการแก้จากคะแนนของหัวหน้า: เดิม → ใหม่ เหตุผล ผู้แก้ เวลา"],
   ["gap", "วิเคราะห์ Gap (หัวข้อที่ต้องพัฒนา)", "ระดับเฉลี่ยรายหัวข้อ × หน่วยงาน เทียบระดับที่คาดหวัง (3) — ใช้วางแผนฝึกอบรม/พัฒนา"],
   ["dept", "สรุปผลรายหน่วยงาน", "ความคืบหน้า คะแนนเฉลี่ย การกระจายเกรด และโบนัสรวมของแต่ละหน่วยงาน"],
   ["inform", "ใบแจ้งผลการประเมินรายบุคคล", "พิมพ์ใบแจ้งผลให้พนักงานลงนามรับทราบ ทีละหน่วยงาน (1 คน / 1 หน้า)"],
@@ -1011,6 +1049,10 @@ function AnnualReports({ rows, cycle, only }) {
           const { data, error } = await window.sb.from("perf_events").select("*").in("action", ["adjust", "unadjust"]).order("at", { ascending: false });
           if (error) throw new Error(error.message);
           if (!off) setExtra((x) => ({ ...x, events: data || [] }));
+        }
+        if (rep === "revise" && !extra.revs) {
+          const g = await annRpc("perf_revisions", { p_cycle: cycle.id }) || [];
+          if (!off) setExtra((x) => ({ ...x, revs: g }));
         }
         if (rep === "gap" && !extra.gap) {
           const g = await annRpc("perf_gap", { p_cycle: cycle.id }) || [];
@@ -1063,6 +1105,12 @@ function AnnualReports({ rows, cycle, only }) {
     H = ["รหัส", "ชื่อ-สกุล", "หน่วยงาน", ...kinds.map((k) => "#" + annDeductLabel(k)), "#คะแนนมาทำงาน (เต็ม 10)", "#หักใบเตือน"];
     R = el.filter((r) => by[r.employee_id]).map((r) => [r.employee_id, r.name, r.dept_name, ...kinds.map((k) => by[r.employee_id][k] ? annFmt(by[r.employee_id][k]) : ""), annFmt(r.attendance_points), Number(r.warning_points) ? "−" + annFmt(r.warning_points) : "0"]);
     note = "ตัวเลขในช่องประเภท = จำนวนครั้ง/วัน (ไม่รวมรายการที่ตั้ง \"ไม่นับ\") · คนที่ไม่อยู่ในตารางได้คะแนนมาทำงานเต็ม 10";
+  } else if (rep === "revise") {
+    if (!extra.revs) loading = true;
+    H = ["เวลา", "เลขที่", "พนักงาน", "หน่วยงาน", "หัวข้อ", "#เดิม (คนที่ 1)", "#ใหม่ (คนที่ 2)", "#ต่าง", "เหตุผล", "ผู้แก้"];
+    R = (extra.revs || []).filter((g) => dept === "all" || g.dept_name === dept)
+      .map((g) => [annDateTime(g.revised_at), g.doc_no, g.name, g.dept_name, g.title, g.orig_rating, g.rating, (g.rating - g.orig_rating > 0 ? "+" : "") + (g.rating - g.orig_rating), g.revise_note || "", g.revised_by_name || g.revised_by]);
+    note = "คะแนนเดิมของผู้ประเมินคนที่ 1 ถูกเก็บถาวร แก้หรือลบไม่ได้ · ใช้ประกอบการ Calibration";
   } else if (rep === "gap") {
     if (!extra.gap) loading = true;
     const SEC = { A: "A งานตาม JD", B: "B ทักษะ/ภาวะผู้นำ", C: "C พฤติกรรมหลัก" };
@@ -1176,9 +1224,9 @@ function AnnualHome({ rows, cycle, onOpen, go, cyc }) {
   const avgAtt = avg((r) => Number(r.attendance_points || 0));
   const avgWarn = avg((r) => Number(r.warning_points || 0));
   const g = avgTotal == null ? null : window.bandOf(avgTotal);
-  const todo = el.filter((r) => annTodoStatus(r.status) && (!hr || annHrMustFill(r)));
-  const wait = el.filter((r) => annWaitStatus(r.status));
-  const docs = (hr ? [...wait, ...todo] : [...todo.filter((r) => r.status === "returned"), ...todo.filter((r) => r.status !== "returned")]).slice(0, 8);
+  const todo = el.filter((r) => annTodoStatus(r.status) && (hr ? annHrMustFill(r) : r.can_eval));
+  const wait = el.filter((r) => hr ? annWaitStatus(r.status) : annWaitMe(r));
+  const docs = (hr || wait.length ? [...wait, ...todo] : [...todo.filter((r) => r.status === "returned"), ...todo.filter((r) => r.status !== "returned")]).slice(0, 8);
   const scope = hr ? "ทั้งองค์กร" : ([...new Set(el.map((r) => r.dept_name))].join(", ") || "หน่วยงานของคุณ");
   const today = new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10);
   const dates = [["เปิดรับประเมิน", cycle.open_from], ["ปิดรับประเมิน", cycle.open_to], ["ผลงานถึงวันที่", cycle.period_end], ["จ่ายโบนัส", cycle.bonus_pay], ["เงินเดือนใหม่มีผล", cycle.raise_effective]]
@@ -1305,7 +1353,7 @@ function AnnualSetupHub({ rowsAll, go, goRoute }) {
   const nEx = rowsAll.filter((r) => r.excluded).length;
   const nNoJd = rowsAll.filter((r) => !r.excluded && r.eligible && !r.jd_id).length;
   const groups = [
-    ["รอบประเมิน", [["calendar", "#2563eb", "รอบประเมิน & เกณฑ์", () => go("cycle")], ["users", "#0d9488", "รายชื่อ & ผู้ประเมิน", () => go("setup"), nNoJd ? nNoJd + " ไม่มี JD" : null],
+    ["รอบประเมิน", [["calendar", "#2563eb", "รอบประเมิน & เกณฑ์", () => go("cycle")], ["users", "#0d9488", "รายชื่อ & ผู้ประเมิน", () => go("setup"), nNoJd ? nNoJd + " ไม่มี JD" : null], ["layers", "#2f6db5", "สายการประเมิน", () => go("lines")],
       ["x", "#e11d48", "ไม่ต้องประเมิน", () => go("exclude"), nEx ? nEx + " คน" : null], ["list", "#7c3aed", "หัวข้อประเมิน (JD)", () => go("items")], ["alert", "#e08a00", "คะแนนหัก", () => go("deduct")]]],
     ["องค์กร & ข้อมูลพนักงาน", [["jd", "#2563eb", "จัดการ JD", () => goRoute("jd")], ["employee", "#0d9488", "รายชื่อพนักงาน", () => goRoute("employee")],
       ["layers", "#64748b", "จัดการข้อมูล", () => goRoute("manage")], ["settings", "#334155", "ตั้งค่าระบบ", () => goRoute("settings")]]],
@@ -1531,6 +1579,159 @@ function AnnNewCycle({ cycle, cyc }) {
         </div>
       )}
     </Card>
+  );
+}
+
+/* ---------- HR: สายการประเมิน (แบบ Bplus) — ผู้ประเมินคนที่ 1 · คนที่ 2 · ลากชื่อย้ายสาย ---------- */
+function AnnualLines({ cycle, rowsAll, reload }) {
+  const [lines, setLines] = useAnnS(null);
+  const [mem, setMem] = useAnnS({});          // employee_id → line_id
+  const [accts, setAccts] = useAnnS({});      // employee_id → อีเมลบัญชี (ลงทะเบียนแล้ว)
+  const [sel, setSel] = useAnnS(null);        // line_id ที่เลือก ("none" = ยังไม่อยู่ในสาย)
+  const [pick, setPick] = useAnnS({});        // คนที่ติ๊กเลือกไว้
+  const [q, setQ] = useAnnS("");
+  const [over, setOver] = useAnnS(null);
+  const [edit, setEdit] = useAnnS(null);
+  const [busy, setBusy] = useAnnS(false);
+  const emps = (window.EMPLOYEES_ALL || []).filter((e) => ["ACTIVE", "PROBATION", "ON_LEAVE", "SUSPENDED"].includes(String(e.employment_status || "ACTIVE").toUpperCase()))
+    .slice().sort((a, b) => String(a.id).localeCompare(String(b.id)));
+  const empBy = {}; emps.forEach((e) => { empBy[e.id] = e; });
+  const deps = window.DEPARTMENTS_ALL || window.DEPARTMENTS || [];
+  const load = async () => {
+    const [l, m, u] = await Promise.all([
+      window.sb.from("perf_lines").select("*").order("sort"),
+      window.sb.from("perf_line_members").select("employee_id, line_id"),
+      window.sb.from("app_users").select("employee_id, email, active").not("employee_id", "is", null),
+    ]);
+    if (l.error || m.error) { toast((l.error || m.error).message, "x"); return; }
+    setLines(l.data || []);
+    const mm = {}; (m.data || []).forEach((x) => { mm[x.employee_id] = x.line_id; }); setMem(mm);
+    const aa = {}; (u.data || []).forEach((x) => { if (x.active) aa[x.employee_id] = x.email; }); setAccts(aa);
+    setSel((cur) => cur || ((l.data || [])[0] || {}).id || null);
+  };
+  useAnnE(() => { load(); }, []);
+  // ทุกครั้งที่เปลี่ยนสาย → นำไปใช้กับใบประเมินของรอบนี้ทันที (ยกเว้นใบที่อนุมัติแล้ว)
+  const apply = async () => {
+    try { const d = await annRpc("perf_apply_lines", { p_cycle: cycle.id }); if (d.updated) toast("อัปเดตผู้ประเมินในใบประเมิน " + d.updated + " ใบ", "check"); reload(); }
+    catch (e) { toast(e.message, "x"); }
+  };
+  const move = async (ids, lineId) => {
+    if (!ids.length) return;
+    setBusy(true);
+    const by = (window.CURRENT_USER || {}).email || "hr";
+    const r = lineId === "none"
+      ? await window.sb.from("perf_line_members").delete().in("employee_id", ids)
+      : await window.sb.from("perf_line_members").upsert(ids.map((id) => ({ employee_id: id, line_id: lineId, updated_by: by, updated_at: new Date().toISOString() })));
+    setBusy(false);
+    if (r.error) { toast("ย้ายไม่สำเร็จ: " + r.error.message, "x"); return; }
+    const ln = lineId === "none" ? "ไม่อยู่ในสาย" : ((lines || []).find((l) => l.id === lineId) || {}).name;
+    toast("ย้าย " + ids.length + " คนไป " + ln, "check"); setPick({}); await load(); apply();
+  };
+  const saveLine = async () => {
+    const x = edit; if (!x || !x.name.trim()) { toast("ตั้งชื่อสายก่อน", "x"); return; }
+    if (x.evaluator1_id && x.evaluator1_id === x.evaluator2_id) { toast("ผู้ประเมินคนที่ 1 และ 2 ต้องเป็นคนละคน", "x"); return; }
+    setBusy(true);
+    const row = { name: x.name.trim(), dept: x.dept || null, evaluator1_id: x.evaluator1_id || null, evaluator2_id: x.evaluator2_id || null, active: x.active !== false, note: x.note || null, sort: Number(x.sort) || 0, updated_at: new Date().toISOString() };
+    const r = x.id ? await window.sb.from("perf_lines").update(row).eq("id", x.id).select().single() : await window.sb.from("perf_lines").insert(row).select().single();
+    setBusy(false);
+    if (r.error) { toast(r.error.message, "x"); return; }
+    toast("บันทึกสายแล้ว", "check"); setEdit(null); setSel(r.data.id); await load(); apply();
+  };
+  const delLine = async (l) => {
+    const n = Object.values(mem).filter((v) => v === l.id).length;
+    if (!window.confirm("ลบสาย \"" + l.name + "\"?" + (n ? "\n" + n + " คนในสายนี้จะกลับไปอยู่ \"ไม่อยู่ในสาย\" (ใช้ผู้ประเมินตามหน่วยงานแทน)" : ""))) return;
+    const r = await window.sb.from("perf_lines").delete().eq("id", l.id);
+    if (r.error) { toast(r.error.message, "x"); return; }
+    setSel(null); setEdit(null); await load(); apply();
+  };
+  if (!lines) return <Card pad><div className="muted">กำลังโหลด…</div></Card>;
+  const members = (lid) => emps.filter((e) => (lid === "none" ? !mem[e.id] : mem[e.id] === lid));
+  const curLine = lines.find((l) => l.id === sel);
+  const list = members(sel || "none").filter((e) => !q || (e.name + e.id + (e.position || "")).toLowerCase().includes(q.toLowerCase()));
+  const picked = Object.keys(pick).filter((k) => pick[k]);
+  const nm = (id) => id ? (empBy[id] ? empBy[id].name : id) : null;
+  const Acct = ({ id }) => !id ? null : accts[id] ? <span className="badge b-green" style={{ fontSize: 11 }}>ลงทะเบียนแล้ว</span> : <span className="badge b-amber" style={{ fontSize: 11 }}>ยังไม่ลงทะเบียน</span>;
+  const onDragStart = (e, id) => { const ids = pick[id] ? picked : [id]; e.dataTransfer.setData("text/plain", JSON.stringify(ids)); e.dataTransfer.effectAllowed = "move"; };
+  const dropOn = (lid) => ({
+    onDragOver: (e) => { e.preventDefault(); setOver(lid); }, onDragLeave: () => setOver(null),
+    onDrop: (e) => { e.preventDefault(); setOver(null); try { move(JSON.parse(e.dataTransfer.getData("text/plain")), lid); } catch (x) { /* ไม่ใช่การลากชื่อ */ } },
+  });
+  const LineBtn = ({ l }) => {
+    const n = l === "none" ? members("none").length : Object.values(mem).filter((v) => v === l.id).length;
+    const id = l === "none" ? "none" : l.id;
+    return (
+      <button {...dropOn(id)} onClick={() => { setSel(id); setPick({}); setEdit(null); }} className={"lines-item" + (sel === id ? " on" : "") + (over === id ? " over" : "")}>
+        <span style={{ flex: 1, minWidth: 0 }}><b>{l === "none" ? "— ยังไม่อยู่ในสาย —" : l.name}</b>
+          {l !== "none" && <span className="muted">{l.evaluator1_id ? "1: " + nm(l.evaluator1_id) : "1: —"}{l.evaluator2_id ? " · 2: " + nm(l.evaluator2_id) : ""}{!l.evaluator1_id && !l.evaluator2_id ? " (HR ประเมิน)" : ""}{l.active ? "" : " · ปิดใช้"}</span>}</span>
+        <span className="badge b-gray">{n}</span>
+      </button>
+    );
+  };
+  return (
+    <>
+      <Card pad>
+        <div style={{ fontSize: 13.5, lineHeight: 1.7 }}>
+          <b>สายการประเมิน</b> = กลุ่มพนักงานที่มีผู้ประเมินชุดเดียวกัน · <b>ผู้ประเมินคนที่ 1</b> ให้คะแนน → <b>คนที่ 2</b> ตรวจ แก้คะแนนได้ (ต้องใส่เหตุผล) แล้วอนุมัติ → HR
+          · ไม่ใส่คนที่ 1 = คนที่ 2 ประเมินตรง · ไม่ใส่ทั้งคู่ = HR ประเมิน · ผู้ประเมินที่อยู่ในสายตัวเอง ระบบให้คนถัดไปประเมินแทน
+          <br /><b>ย้ายคน:</b> ลากชื่อไปวางบนสายทางซ้าย (ติ๊กหลายคนแล้วลากทีเดียวได้) หรือใช้ช่อง "ย้ายไปสาย" · ผู้ประเมินต้อง <b>ลงทะเบียนเอง</b> ที่หน้าเข้าสู่ระบบ (ปุ่ม "ผู้ประเมิน: ลงทะเบียน")
+        </div>
+      </Card>
+      <div className="lines-grid">
+        <Card>
+          <CardHead title={"สาย " + lines.length + " สาย"} right={<button className="btn btn-soft btn-sm" onClick={() => setEdit({ name: "", dept: "", evaluator1_id: "", evaluator2_id: "", active: true, sort: (lines.length + 1) * 10 })}><Icon name="plus" size={14} />สร้างสาย</button>} />
+          <div className="lines-list">
+            {lines.map((l) => <LineBtn key={l.id} l={l} />)}
+            <LineBtn l="none" />
+          </div>
+        </Card>
+        <div className="grid" style={{ alignContent: "start" }}>
+          {(edit || curLine) && (() => { const x = edit || curLine; const editing = !!edit; return (
+            <Card>
+              <CardHead title={editing ? (x.id ? "แก้ไขสาย" : "สร้างสายใหม่") : x.name} sub={editing ? null : (deps.find((d) => d.id === x.dept) || {}).name}
+                right={!editing && <div className="row" style={{ gap: 8 }}><button className="btn btn-ghost btn-sm" onClick={() => setEdit({ ...curLine })}><Icon name="edit" size={14} />แก้ไขสาย</button><button className="btn btn-ghost btn-sm" style={{ color: "var(--red)" }} onClick={() => delLine(curLine)}>ลบสาย</button></div>} />
+              <div className="card-pad">
+                {editing ? (
+                  <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
+                    <div className="field" style={{ gridColumn: "1 / -1" }}><label>ชื่อสาย / ส่วนงาน</label><input className="input" value={x.name} onChange={(e) => setEdit({ ...x, name: e.target.value })} placeholder="เช่น 09-1 ผลิต ส่วนงานเป่า กะ A" /></div>
+                    <div className="field"><label>หน่วยงานหลัก</label><select className="select" value={x.dept || ""} onChange={(e) => setEdit({ ...x, dept: e.target.value })}><option value="">— ไม่ระบุ —</option>{deps.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}</select></div>
+                    <div className="field"><label>ลำดับแสดง</label><input className="input" type="number" value={x.sort || 0} onChange={(e) => setEdit({ ...x, sort: e.target.value })} /></div>
+                    <div className="field"><label>ผู้ประเมินคนที่ 1 (ให้คะแนน)</label><AnnPersonPick emps={emps} id={x.evaluator1_id} name={nm(x.evaluator1_id)} empty="— ไม่มี (คนที่ 2 ประเมินตรง) —" onPick={(v) => setEdit({ ...x, evaluator1_id: v })} /></div>
+                    <div className="field"><label>ผู้ประเมินคนที่ 2 (ตรวจ/แก้/อนุมัติ)</label><AnnPersonPick emps={emps} id={x.evaluator2_id} name={nm(x.evaluator2_id)} empty="— ไม่มี (ส่งตรงถึง HR) —" onPick={(v) => setEdit({ ...x, evaluator2_id: v })} /></div>
+                    <label className="row" style={{ gap: 6, fontSize: 13 }}><input type="checkbox" checked={x.active !== false} onChange={(e) => setEdit({ ...x, active: e.target.checked })} />ใช้งานสายนี้</label>
+                    <div className="row" style={{ gap: 8, justifyContent: "flex-end", gridColumn: "1 / -1" }}><button className="btn btn-ghost" onClick={() => setEdit(null)}>ยกเลิก</button><button className="btn btn-pri" disabled={busy} onClick={saveLine}><Icon name="check" size={15} />บันทึกสาย</button></div>
+                  </div>
+                ) : (
+                  <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 12, fontSize: 13.5 }}>
+                    <div><div className="muted" style={{ fontSize: 12 }}>ผู้ประเมินคนที่ 1 (ให้คะแนน)</div><b>{nm(x.evaluator1_id) || "— (คนที่ 2 ประเมินตรง)"}</b> <Acct id={x.evaluator1_id} /></div>
+                    <div><div className="muted" style={{ fontSize: 12 }}>ผู้ประเมินคนที่ 2 (ตรวจ/แก้/อนุมัติ)</div><b>{nm(x.evaluator2_id) || "— (ส่งตรงถึง HR)"}</b> <Acct id={x.evaluator2_id} /></div>
+                  </div>
+                )}
+              </div>
+            </Card>); })()}
+          <Card>
+            <CardHead title={(sel === "none" ? "ยังไม่อยู่ในสาย" : "คนในสาย") + " " + list.length + " คน"} sub="ลากชื่อไปวางบนสายทางซ้ายเพื่อย้าย"
+              right={<div className="row wrap" style={{ gap: 8 }}>
+                <input className="input" style={{ width: 180 }} placeholder="ค้นหา" value={q} onChange={(e) => setQ(e.target.value)} />
+                <select className="select" style={{ width: 220 }} value="" disabled={!picked.length || busy} onChange={(e) => e.target.value && move(picked, e.target.value)}>
+                  <option value="">{picked.length ? "ย้าย " + picked.length + " คนไปสาย…" : "ติ๊กชื่อก่อน แล้วเลือกสาย"}</option>
+                  {lines.filter((l) => l.id !== sel).map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+                  {sel !== "none" && <option value="none">— เอาออกจากสาย —</option>}
+                </select>
+              </div>} />
+            <div className="lines-members">
+              {list.map((e) => (
+                <div key={e.id} draggable onDragStart={(ev) => onDragStart(ev, e.id)} className={"lines-mem" + (pick[e.id] ? " on" : "")}>
+                  <input type="checkbox" checked={!!pick[e.id]} onChange={(ev) => setPick({ ...pick, [e.id]: ev.target.checked })} />
+                  <span style={{ minWidth: 0, flex: 1 }}><b>{e.name}</b><span className="muted">{e.id} · {e.position}{curLine && (e.id === curLine.evaluator1_id || e.id === curLine.evaluator2_id) ? " · ผู้ประเมินของสายนี้ (คนถัดไป/HR ประเมินเขา)" : ""}</span></span>
+                  <Icon name="menu" size={15} color="var(--text-3)" />
+                </div>
+              ))}
+              {!list.length && <div className="muted" style={{ padding: 20, textAlign: "center", fontSize: 13 }}>ไม่มีรายชื่อ</div>}
+            </div>
+          </Card>
+        </div>
+      </div>
+    </>
   );
 }
 

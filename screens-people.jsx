@@ -352,14 +352,27 @@ function EmployeeList({ ctx }) {
   const [showAdd, setShowAdd] = useS2(false);
   const [showImport, setShowImport] = useS2(false);
 
+  // บัญชีหน่วยงาน/ผู้ประเมิน: บอกเหตุผลคนที่ตนไม่ต้องกรอกใบ (หัวหน้า/ผู้จัดการ = HR หรือผู้จัดการประเมิน · ยังไม่พ้นทดลองงาน)
+  const isHR = ["admin", "hr"].includes((window.CURRENT_USER || {}).role);
+  const naNote = (e) => {
+    if (isHR) return null;
+    const a = e.annual;
+    if (!a) return "ผู้จัดการ/HR ประเมิน";
+    if (!a.eligible) return a.eligible_note || "ยังไม่เข้ารอบนี้";
+    if (!a.can_eval && e.status === "pending") return "ผู้ประเมินในสายกรอกเอง";
+    return null;
+  };
+  const canEval = (e) => isHR || (e.annual && e.annual.eligible && e.annual.can_eval);
+  const stOf = (e) => naNote(e) ? "na" : e.status;
+
   const rows = useM2(() => EMPLOYEES.filter((e) =>
     (dept === "all" || e.dept === dept) &&
-    (status === "all" || e.status === status) &&
+    (status === "all" || stOf(e) === status) &&
     (q === "" || e.name.includes(q) || e.position.includes(q) || e.id.includes(q))
   ), [q, dept, status]);
 
-  const counts = { all: EMPLOYEES.length, done: 0, pending: 0, review: 0, progress: 0 };
-  EMPLOYEES.forEach((e) => counts[e.status]++);
+  const counts = { all: EMPLOYEES.length, done: 0, pending: 0, review: 0, progress: 0, na: 0 };
+  EMPLOYEES.forEach((e) => counts[stOf(e)]++);
 
   return (
     <div className="grid">
@@ -398,7 +411,7 @@ function EmployeeList({ ctx }) {
           </div>
         </div>
         <div className="row wrap" style={{ gap: 8 }}>
-          {[["all","ทั้งหมด"],["done","ประเมินแล้ว"],["progress","กำลังประเมิน"],["review","รออนุมัติ"],["pending","รอประเมิน"]].map(([k, l]) => (
+          {[["all","ทั้งหมด"],["done","ประเมินแล้ว"],["progress","กำลังประเมิน"],["review","รออนุมัติ"],["pending","รอประเมิน"], ...(counts.na ? [["na","ไม่ใช่ใบของเรา"]] : [])].map(([k, l]) => (
             <button key={k} className={"chip" + (status === k ? " on" : "")} onClick={() => setStatus(k)}>{l}<span className="mono" style={{ opacity: .7 }}>{counts[k]}</span></button>
           ))}
         </div>
@@ -413,7 +426,7 @@ function EmployeeList({ ctx }) {
               </tr></thead>
               <tbody>
                 {rows.map((e) => {
-                  const sm = statusMeta(e.status);
+                  const sm = statusMeta(e.status); const na = naNote(e);
                   return (
                     <tr key={e.id} style={{ cursor: "pointer" }} onClick={() => ctx.openEmp(e.id)}>
                       <td>
@@ -424,7 +437,7 @@ function EmployeeList({ ctx }) {
                       </td>
                       <td><Badge cls="b-gray">{deptShort(e.dept)}</Badge></td>
                       <td className="muted" style={{ fontSize: 13 }}>{e.tenure}</td>
-                      <td><Badge cls={sm.cls} dot>{sm.label}</Badge></td>
+                      <td>{na ? <span title={na}><Badge cls="b-gray">{na}</Badge></span> : <Badge cls={sm.cls} dot>{sm.label}</Badge>}</td>
                       <td className="num" style={{ fontWeight: 600 }}>{e.kpi}</td>
                       <td className="num" style={{ fontWeight: 600 }}>{e.comp}</td>
                       <td>
@@ -436,7 +449,7 @@ function EmployeeList({ ctx }) {
                       <td onClick={(ev) => ev.stopPropagation()}>
                         <div className="row" style={{ gap: 4, justifyContent: "flex-end" }}>
                           <button className="icon-btn" style={{ width: 34, height: 34 }} title="ดูข้อมูล" onClick={() => ctx.openEmp(e.id)}><Icon name="eye" size={16} /></button>
-                          <button className="icon-btn" style={{ width: 34, height: 34 }} title="ประเมิน" onClick={() => ctx.startEval(e.id)}><Icon name="eval" size={16} /></button>
+                          {canEval(e) && <button className="icon-btn" style={{ width: 34, height: 34 }} title="ประเมิน" onClick={() => ctx.startEval(e.id)}><Icon name="eval" size={16} /></button>}
                         </div>
                       </td>
                     </tr>

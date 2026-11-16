@@ -1,0 +1,3 @@
+-- 16/11/2569 โหมดดูแทน (HR/admin ทดสอบมุมมองบัญชีอื่น) — รันผ่าน MCP แล้ว (perf_view_as + perf_view_as_restore_claims)
+-- perf_view_as(p_email, p_fn, p_arg): is_hr_admin() เท่านั้น · p_fn ∈ perf_list/perf_get_form/perf_gap/perf_revisions (อ่านอย่างเดียว)
+-- สลับ request.jwt.claims เป็นอีเมลเป้าหมายระหว่างคำนวณ แล้วคืนค่าเดิมทันที · ฝั่งเว็บ (supa.jsx) ปิดทุกคำสั่งเขียนเมื่ออยู่ในโหมดนี้

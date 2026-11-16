@@ -233,8 +233,29 @@ function App() {
 
   // เมนูที่บัญชีนี้เห็น (ตัดเมนูย่อยที่ไม่มีสิทธิ์ · กลุ่มที่ไม่เหลือเมนูย่อยไม่แสดง)
   const okItem = (id, flag) => routeAllowed(id) && (flag !== "hr" || isHR) && (flag !== "nohr" || !isHR);
-  const menu = SIDE_MENU.filter((m) => !m.hr || isHR).map((m) => m.children ? { ...m, children: m.children.filter(([id, , f]) => okItem(id, f)) } : m)
-    .filter((m) => m.children ? m.children.length : routeAllowed(m.id));
+  // บัญชีผู้ประเมินรายบุคคล (ลงทะเบียนเอง <รหัส>@staff.bwp.co.th) — เมนูเหลือเท่าที่ต้องใช้ ไม่ให้หลง (16/11/2569)
+  const isPersonalEval = /@staff\.bwp\.co\.th$/i.test(cu.email || "")
+    || (cu.role === "supervisor" && !cu.dept && !(Array.isArray(cu.dept_scope) && cu.dept_scope.length) && !!cu.employee_id);
+  const menu = isPersonalEval
+    ? [{ id: "ann:home", label: "หน้าแรก", icon: "home" },
+       { id: "ann:todo", label: "ใบที่ต้องประเมิน", icon: "list", badge: "todo" },
+       { id: "ann:approve", label: "ใบที่รอฉันตรวจ/อนุมัติ", icon: "checkCircle", badge: "approve" },
+       { id: "ann:flow", label: "วิธีประเมิน (ขั้นตอน)", icon: "eval" }]
+    : SIDE_MENU.filter((m) => !m.hr || isHR).map((m) => m.children ? { ...m, children: m.children.filter(([id, , f]) => okItem(id, f)) } : m)
+      .filter((m) => m.children ? m.children.length : routeAllowed(m.id));
+  // โหมดดูแทน: เฉพาะ HR/admin ตัวจริง (REAL_USER) เลือกดูหน้าจอของบัญชีอื่นได้โดยไม่ต้องออกจากระบบ
+  const realU = window.REAL_USER || cu;
+  const canViewAs = realU && (realU.role === "admin" || realU.role === "hr");
+  const viewAsGroups = canViewAs ? (() => {
+    const us = (window.APP_USERS || []).filter((u) => u.active !== false && (u.email || "").toLowerCase() !== (realU.email || "").toLowerCase());
+    const label = (u) => (u.name || u.email) + " · " + u.email + (u.dept ? " (" + u.dept + ")" : "");
+    const g = [
+      ["ผู้ประเมินรายบุคคล (ลงทะเบียนเอง)", us.filter((u) => /@staff\.bwp\.co\.th$/i.test(u.email || ""))],
+      ["บัญชีหน่วยงาน", us.filter((u) => !/@staff\.bwp\.co\.th$/i.test(u.email || "") && u.role !== "admin" && u.role !== "hr")],
+      ["HR / ผู้ดูแลระบบ", us.filter((u) => u.role === "admin" || u.role === "hr")],
+    ];
+    return g.map(([t, l]) => [t, l.slice().sort((a, b) => label(a).localeCompare(label(b), "th")).map((u) => [u.email.toLowerCase(), label(u)])]).filter(([, l]) => l.length);
+  })() : [];
   const curGroup = menu.find((m) => m.children && m.children.some(([id]) => id === effRoute || (effRoute === "profile" && id === "employee")));
   const title = effRoute === "profile" ? "ข้อมูลพนักงาน" : routeTitle(effRoute);
   const crumbs = ["หน้าแรก", ...(curGroup ? [curGroup.label] : []), ...(effRoute !== "ann:home" ? [title] : [])];
@@ -265,8 +286,21 @@ function App() {
             <span className="i"><Icon name="logout" size={22} stroke={1.8} /></span><span className="l">ออกจากระบบ</span>
           </button>
         </nav>
+        {canViewAs && (
+          <select className="hcm-viewas" title="ดูหน้าจอในมุมมองของบัญชีอื่น (ใช้ทดสอบ · อ่านอย่างเดียว)"
+            value={window.VIEW_AS ? window.VIEW_AS.email : ""} onChange={(e) => window.setViewAs(e.target.value || null)}>
+            <option value="">👁 มุมมอง: ตัวเอง ({realU.name || realU.email})</option>
+            {viewAsGroups.map(([t, l]) => <optgroup key={t} label={t}>{l.map(([v, lb]) => <option key={v} value={v}>{lb}</option>)}</optgroup>)}
+          </select>
+        )}
         <div className="hcm-who"><b>{cuName}</b><span>{cuRole.label}</span></div>
       </header>
+      {window.VIEW_AS && (
+        <div className="hcm-viewas-bar">
+          👁 กำลังดูในมุมมองของ <b>{window.VIEW_AS.name}</b> ({window.VIEW_AS.email}) — <b>อ่านอย่างเดียว</b> บันทึก/ส่ง/แก้ไขไม่ได้
+          <button onClick={() => window.setViewAs(null)}>กลับมุมมองตัวเอง</button>
+        </div>
+      )}
 
       <div className="hcm-body">
         {mobileOpen && <div className="scrim-side" onClick={() => setMobileOpen(false)} />}

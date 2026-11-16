@@ -9,6 +9,47 @@ const SUPABASE_KEY = "sb_publishable_4dkNVOZYH2975pJd32gwig_IAOzMLtm";
 
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 window.sb = sb;
+
+// ===== โหมด "ดูในมุมมองของบัญชีอื่น" (HR/admin ใช้ทดสอบ · 16/11/2569) =====
+// เลือกบัญชีจากเมนูบนแถบด้านบน → เก็บใน sessionStorage แล้วโหลดหน้าใหม่
+// · ใบประเมิน/สถานะ คำนวณในฐานด้วยสิทธิ์ของบัญชีนั้นจริง (RPC perf_view_as — ฐานตรวจว่าผู้เรียกเป็น HR/admin)
+// · อ่านอย่างเดียว: ทุกคำสั่งบันทึก/แก้ไข/ส่ง ถูกปิด เพื่อไม่ให้เผลอทำแทนคนอื่น
+window.VIEW_AS = null;
+(function () {
+  let email = null;
+  try { email = sessionStorage.getItem("bwp_view_as"); } catch (e) { /* ignore */ }
+  if (!email) return;
+  window.VIEW_AS = { email: email.toLowerCase() };
+  const BLOCK_MSG = "โหมดดูแทน (อ่านอย่างเดียว) — บันทึก/แก้ไขไม่ได้ กดปุ่ม \"กลับมุมมองตัวเอง\" ก่อน";
+  const blocked = () => Promise.resolve({ data: null, error: { message: BLOCK_MSG } });
+  // ตัวต่อคำสั่งปลอม: เรียก .eq() .select() ฯลฯ ต่อได้ แต่ผลคือ error เสมอ
+  const blockedBuilder = () => { const p = new Proxy(function () {}, { get: (_t, k) => k === "then" ? (res, rej) => blocked().then(res, rej) : () => p, apply: () => p }); return p; };
+  const READ_AS = { perf_list: "p_cycle", perf_get_form: null, perf_gap: "p_cycle", perf_revisions: "p_cycle" };
+  const _rpc = sb.rpc.bind(sb);
+  sb.rpc = (fn, args, opts) => {
+    if (!window.VIEW_AS) return _rpc(fn, args, opts);
+    if (fn in READ_AS) {
+      const a = args || {}; const arg = READ_AS[fn] ? a[READ_AS[fn]] : Object.values(a)[0];
+      return _rpc("perf_view_as", { p_email: window.VIEW_AS.email, p_fn: fn, p_arg: arg == null ? null : String(arg) });
+    }
+    return blocked();
+  };
+  const _from = sb.from.bind(sb);
+  const WRITE = ["insert", "update", "upsert", "delete"];
+  sb.from = (t) => {
+    const q = _from(t);
+    if (!window.VIEW_AS) return q;
+    return new Proxy(q, { get: (o, k) => WRITE.indexOf(k) > -1 ? () => blockedBuilder() : (typeof o[k] === "function" ? o[k].bind(o) : o[k]) });
+  };
+  const _inv = sb.functions.invoke.bind(sb.functions);
+  sb.functions.invoke = (name, o) => window.VIEW_AS ? blocked() : _inv(name, o);
+  const _upd = sb.auth.updateUser.bind(sb.auth);
+  sb.auth.updateUser = (x) => window.VIEW_AS ? blocked() : _upd(x);
+})();
+window.setViewAs = (email) => {
+  try { if (email) sessionStorage.setItem("bwp_view_as", email); else sessionStorage.removeItem("bwp_view_as"); } catch (e) { /* ignore */ }
+  location.reload();
+};
 // URL สาธารณะคงที่ของโลโก้ (ใช้ได้แม้ยังไม่ล็อกอิน เช่น หน้าล็อกอิน)
 window.LOGO_PUBLIC_URL = SUPABASE_URL + "/storage/v1/object/public/branding/org-logo";
 
@@ -256,8 +297,21 @@ async function loadHRData() {
   const GRADE_KEYS = (window.PERF_BANDS || window.BANDS_DEFAULT).map((b) => [b[1], (window.BAND_STYLE[b[1]] || [0, "#64748b"])[1]]);
   const GRADE_DIST = GRADE_KEYS.map(([g, color]) => ({ g, color, n: EMPLOYEES.filter((e) => e.status === "done" && e.band.key === g).length }));
 
-  const currentUser = (appUsers || []).find((u) => (u.email || "").toLowerCase() === authEmail)
+  let currentUser = (appUsers || []).find((u) => (u.email || "").toLowerCase() === authEmail)
     || (authEmail ? { name: authEmail.split("@")[0], email: authEmail, role: "viewer", active: true } : null);
+  // โหมดดูแทน: ใช้ได้เฉพาะ HR/admin ตัวจริง — ไม่ใช่ก็ยกเลิกโหมด
+  window.REAL_USER = currentUser;
+  if (window.VIEW_AS) {
+    const target = (appUsers || []).find((u) => (u.email || "").toLowerCase() === window.VIEW_AS.email);
+    const realIsHR = currentUser && (currentUser.role === "admin" || currentUser.role === "hr");
+    if (realIsHR && target && target.email.toLowerCase() !== authEmail) {
+      window.VIEW_AS = { email: window.VIEW_AS.email, name: target.name || target.email, role: target.role, dept: target.dept };
+      currentUser = target;
+    } else {
+      window.VIEW_AS = null;
+      try { sessionStorage.removeItem("bwp_view_as"); } catch (e) { /* ignore */ }
+    }
+  }
   // ขอบเขตการมองเห็นตามหน่วยงาน: admin/hr เห็นทุกหน่วยงาน · อื่นๆ เห็นเฉพาะ dept_scope (หรือ dept ของตัวเอง)
   const _allAccess = !currentUser || currentUser.role === "admin" || currentUser.role === "hr";
   const _scopeDepts = _allAccess ? [] : (Array.isArray(currentUser.dept_scope) && currentUser.dept_scope.length

@@ -272,7 +272,8 @@ async function loadHRData() {
 
   Object.assign(window, {
     DEPARTMENTS: _myDepartments, COMPETENCIES: competencies, EMPLOYEES,
-    JD_LIBRARY: jdLibrary, NOTIFS: myNotifs, KPI_ITEMS: kpiItems, JD_ITEMS: jdItems,
+    // JD ชุดเก่า (status = archived) ไม่แสดงในรายการ/ตัวเลือก — ใช้ JD Rev.01 ตั้งแต่ 16/11/2569 · ค้นย้อนหลังได้จาก JD_LIBRARY_ALL
+    JD_LIBRARY: jdLibrary.filter((j) => j.status !== "archived"), JD_LIBRARY_ALL: jdLibrary, NOTIFS: myNotifs, KPI_ITEMS: kpiItems, JD_ITEMS: jdItems,
     KPI_DEFS, KPI_MONTHLY, SUBMISSIONS, TEAMS: teams, SUMMARY, STATUS_PIE, COMP_RADAR, GRADE_DIST, HR_ROSTER,
     APP_USERS: appUsers || [], APP_SETTINGS: appSettings || null, CYCLE_YEAR: cycleYear,
     CURRENT_USER: currentUser,

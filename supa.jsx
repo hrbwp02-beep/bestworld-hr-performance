@@ -308,8 +308,10 @@ async function loadHRData() {
       window.VIEW_AS = { email: window.VIEW_AS.email, name: target.name || target.email, role: target.role, dept: target.dept };
       currentUser = target;
     } else {
+      // ไม่ใช่ HR/admin หรือไม่พบบัญชีนั้น → ยกเลิกโหมด แล้วโหลดใหม่ (ข้อมูลรอบนี้ถูกดึงผ่านโหมดดูแทนไปแล้ว)
       window.VIEW_AS = null;
       try { sessionStorage.removeItem("bwp_view_as"); } catch (e) { /* ignore */ }
+      location.reload(); return;
     }
   }
   // ขอบเขตการมองเห็นตามหน่วยงาน: admin/hr เห็นทุกหน่วยงาน · อื่นๆ เห็นเฉพาะ dept_scope (หรือ dept ของตัวเอง)

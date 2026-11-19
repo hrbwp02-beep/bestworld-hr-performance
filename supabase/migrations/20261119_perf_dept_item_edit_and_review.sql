@@ -1,0 +1,6 @@
+-- ใช้กับฐานแล้ว 19/11/2569 ผ่าน MCP (ชื่อ migration: perf_dept_item_edit_and_review) — ไฟล์นี้เก็บไว้อ้างอิง
+-- บัญชีหน่วยงานแก้หัวข้อ JD (A/B) ของ JD ที่คนในหน่วยงานใช้ ถึง perf_cycles.config.dept_item_edit_until
+-- ตาราง perf_jd_item_log (ประวัติ, trigger เขียนเท่านั้น) · perf_dept_reviews + RPC perf_dept_review_submit (แจ้ง HR)
+-- ฟังก์ชัน: perf_jd_in_my_scope(jd), perf_dept_jd_editable(jd), perf_jd_item_log_trg()
+-- นโยบาย perf_jd_items: "read used in scope" (select), "dept insert/update/delete" (แยก ไม่ใช้ FOR ALL)
+-- ดูนิยามเต็มในฐาน: select pg_get_functiondef('perf_dept_jd_editable'::regproc);

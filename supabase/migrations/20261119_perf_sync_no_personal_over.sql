@@ -1,0 +1,2 @@
+-- ใช้กับฐานแล้ว 19/11/2569 ผ่าน MCP (ชื่อ migration: perf_sync_no_personal_over)
+-- perf_sync_deductions_base ไม่สร้างรายการ personal_over จากตอกบัตรแล้ว — ลากิจเกินสิทธิ์ HR บันทึกเป็น unpaid เอง

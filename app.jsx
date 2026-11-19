@@ -64,6 +64,7 @@ const SIDE_MENU = [
   { id: "g_perf", label: "การประเมินผลงาน", icon: "eval", children: [
     ["ann:flow", "ขั้นตอนการประเมิน"], ["ann:forms", "ใบประเมินทั้งหมด", "hr"], ["ann:mine", "ใบประเมินของหน่วยงาน", "nohr"], ["ann:overview", "สรุปผลการประเมิน"],
     ["ann:calib", "ปรับผล (Calibration)", "hr"], ["ann:reports-inform", "แจ้งผลการประเมิน", "hr"]] },
+  { id: "ann:deptcheck", label: "ตรวจข้อมูล & หัวข้อประเมิน", icon: "list" },
   { id: "ann:approve", label: "ศูนย์อนุมัติ", icon: "checkCircle", badge: "approve" },
   { id: "ann:todo", label: "งานของฉัน", icon: "list", badge: "todo" },
   { id: "g_rep", label: "รายงาน", icon: "reports", hr: true, children: [
@@ -73,7 +74,7 @@ const SIDE_MENU = [
   { id: "g_more", label: "วิเคราะห์เพิ่มเติม", icon: "trend", children: [["dashboard", "แดชบอร์ดผลประเมิน"], ["exec", "มุมมองผู้บริหาร"], ["reports", "รายงานวิเคราะห์"], ["kpi", "KPI หน่วยงาน (ยังไม่นับคะแนน)"]] },
 ];
 const ANN_TITLES = {
-  home: "หน้าแรก", flow: "ขั้นตอนการประเมิน", hub: "ตั้งค่าระบบ", mine: "ใบประเมินของหน่วยงาน", forms: "ใบประเมินทั้งหมด", todo: "งานของฉัน",
+  home: "หน้าแรก", deptcheck: "ตรวจข้อมูล & หัวข้อประเมินของหน่วยงาน", flow: "ขั้นตอนการประเมิน", hub: "ตั้งค่าระบบ", mine: "ใบประเมินของหน่วยงาน", forms: "ใบประเมินทั้งหมด", todo: "งานของฉัน",
   approve: "ศูนย์อนุมัติ", overview: "สรุปผลการประเมิน", calib: "ปรับผล (Calibration)", setup: "รายชื่อ & ผู้ประเมิน", exclude: "ผู้ที่ไม่ต้องประเมิน",
   deduct: "คะแนนหัก (ตอกบัตร/ใบเตือน)", lines: "สายการประเมิน", "reports-revise": "การแก้คะแนนโดยผู้ประเมินคนที่ 2", items: "หัวข้อประเมิน (JD)", reports: "รายงาน", cycle: "รอบประเมิน & เกณฑ์",
   "reports-exec": "รายงานผลการประเมิน (เสนอผู้บริหาร)", "reports-annual": "รายงานผลประเมินประจำปี", "reports-approval": "รายงานตรวจสอบสถานะการอนุมัติ", "reports-adjust": "รายงานการปรับเกรด/คะแนน",

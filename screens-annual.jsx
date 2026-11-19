@@ -181,6 +181,7 @@ function AnnualEval({ ctx, page }) {
       {(pg === "setup" || pg === "exclude") && <AnnualSetup key={pg} rows={rowsAll} cycle={cycle} reload={async () => { await load(); if (ctx.refresh) ctx.refresh(); }} initial={pg === "exclude" ? "excl" : "all"} />}
       {pg === "deduct" && <AnnualDeductions rows={rows} cycle={cycle} reload={load} />}
       {pg === "items" && <AnnualItems rows={rows} />}
+      {pg === "deptcheck" && <AnnDeptCheck rows={rows} cycle={cycle} />}
       {pg.startsWith("reports") && <AnnualReports key={pg} rows={rows} cycle={cycle} only={pg.split("-")[1]} />}
       {pg === "lines" && <AnnualLines cycle={cycle} rowsAll={rowsAll} reload={load} />}
       {pg === "cycle" && <AnnualCycleSettings key={cycle.id} cycle={cycle} reload={() => load()} cyc={cyc} rows={rows} />}
@@ -1015,6 +1016,182 @@ function AnnualItems({ rows }) {
   );
 }
 
+/* ---------- ตรวจข้อมูล & หัวข้อประเมินของหน่วยงาน (19/11/2569) ----------
+   บัญชีหน่วยงานตรวจรายชื่อ/JD/ผู้ประเมินของหน่วยงานตน แก้หัวข้อ JD (ส่วน A/B) ที่คนในหน่วยงานใช้ได้ถึง config.dept_item_edit_until
+   แล้วกด "ยืนยันถูกต้อง" หรือ "แจ้ง HR แก้" (perf_dept_review_submit → แจ้งเตือน HR) · ฐานข้อมูลคุมสิทธิ์จริง (perf_dept_jd_editable) */
+function AnnDeptCheck({ rows, cycle }) {
+  const hr = annIsHR();
+  const until = (cycle.config || {}).dept_item_edit_until || null;
+  const today = new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10);
+  const open = hr || (until && today <= until);
+  const el = rows.filter((r) => r.eligible);
+  const depts = [...new Map(el.map((r) => [r.dept, r.dept_name || r.dept])).entries()];
+  const [dept, setDept] = useAnnS(depts.length === 1 ? depts[0][0] : (depts[0] || [""])[0]);
+  const [jd, setJd] = useAnnS("");
+  const [items, setItems] = useAnnS(null);
+  const [common, setCommon] = useAnnS([]);
+  const [logs, setLogs] = useAnnS([]);
+  const [reviews, setReviews] = useAnnS([]);
+  const [st, setSt] = useAnnS("ok");
+  const [note, setNote] = useAnnS("");
+  const [busy, setBusy] = useAnnS(false);
+  const people = el.filter((r) => r.dept === dept);
+  const jds = [...new Map(people.filter((r) => r.jd_id).map((r) => [r.jd_id, r.jd_title || r.jd_id])).entries()];
+  const useBy = (id) => people.filter((r) => r.jd_id === id);
+  const myRev = reviews.find((x) => x.dept === dept);
+
+  const loadRev = async () => {
+    const { data } = await window.sb.from("perf_dept_reviews").select("*").eq("cycle_id", cycle.id);
+    setReviews(data || []);
+  };
+  const loadLogs = async () => {
+    const ids = jds.map((x) => x[0]);
+    if (!ids.length) { setLogs([]); return; }
+    const { data } = await window.sb.from("perf_jd_item_log").select("*").in("jd_id", ids).order("at", { ascending: false }).limit(200);
+    setLogs(data || []);
+  };
+  const loadItems = async (id) => {
+    if (!id) { setItems(null); return; }
+    const { data, error } = await window.sb.from("perf_jd_items").select("*").eq("jd_id", id).order("section").order("seq");
+    if (error) { toast(error.message, "x"); return; } setItems(data || []);
+  };
+  useAnnE(() => { loadRev(); window.sb.from("perf_common_items").select("*").order("kind").order("seq").then(({ data }) => setCommon(data || [])); }, []);
+  useAnnE(() => { setJd(jds.length ? jds[0][0] : ""); loadLogs(); const r = reviews.find((x) => x.dept === dept); setSt(r ? r.status : "ok"); setNote(r && r.note || ""); }, [dept, reviews.length]);
+  useAnnE(() => { loadItems(jd); }, [jd]);
+
+  const after = () => { loadItems(jd); loadLogs(); };
+  const save = async (it, patch) => {
+    const { data, error } = await window.sb.from("perf_jd_items").update({ ...patch, updated_at: new Date().toISOString() }).eq("id", it.id).select("id");
+    if (error) toast(error.message, "x"); else if (!data || !data.length) toast("บันทึกไม่ได้ — หมดเวลาแก้ไขหรือไม่มีสิทธิ์ใน JD นี้", "x"); else { toast("บันทึกแล้ว", "check"); after(); }
+  };
+  const addItem = async (section) => {
+    const seq = Math.max(0, ...items.filter((x) => x.section === section).map((x) => x.seq)) + 1;
+    const { error } = await window.sb.from("perf_jd_items").insert({ jd_id: jd, section, seq, title: "หัวข้อใหม่ (แก้ข้อความแล้วกดบันทึก)", weight: 1 });
+    if (error) toast(/row-level security/.test(error.message) ? "เพิ่มไม่ได้ — หมดเวลาแก้ไขหรือไม่มีสิทธิ์ใน JD นี้" : "เพิ่มไม่ได้: " + error.message, "x"); else after();
+  };
+  const delItem = async (it) => {
+    if (!window.confirm("ลบหัวข้อ \"" + it.title + "\"?")) return;
+    const { data, error } = await window.sb.from("perf_jd_items").delete().eq("id", it.id).select("id");
+    if (error) toast(error.message, "x"); else if (!data || !data.length) toast("ลบไม่ได้ — หมดเวลาแก้ไขหรือไม่มีสิทธิ์", "x"); else after();
+  };
+  const submit = async () => {
+    if (st === "issue" && !note.trim()) { toast("กรุณาเขียนสิ่งที่ต้องให้ HR แก้", "x"); return; }
+    setBusy(true);
+    try { await annRpc("perf_dept_review_submit", { p_cycle: cycle.id, p_dept: dept, p_status: st, p_note: note }); toast("ส่งถึง HR แล้ว", "check"); await loadRev(); }
+    catch (e) { toast(e.message, "x"); }
+    setBusy(false);
+  };
+  const hrDone = async (r, v) => {
+    const { error } = await window.sb.from("perf_dept_reviews").update({ hr_done: v }).eq("cycle_id", r.cycle_id).eq("dept", r.dept);
+    if (error) toast(error.message, "x"); else loadRev();
+  };
+  const fillTxt = { evaluator: "ผู้ประเมินกรอกเอง", dept: "บัญชีหน่วยงานกรอก", hr: "HR กรอก" };
+  const actTxt = { insert: "เพิ่มหัวข้อ", update: "แก้หัวข้อ", delete: "ลบหัวข้อ" };
+  const secTxt = { A: "A งาน JD", B: "B ทักษะ" };
+
+  return (
+    <>
+      <Card pad>
+        <div style={{ fontSize: 14, lineHeight: 1.7 }}>
+          <b>ขั้นตอน:</b> ① ตรวจรายชื่อ ตำแหน่ง JD และผู้ประเมินของหน่วยงานด้านล่าง ② ตรวจ/แก้หัวข้อประเมินตาม JD (ส่วน A งานตามหน้าที่ และ B ทักษะงาน) ③ กด <b>ยืนยันข้อมูลถูกต้อง</b> หรือ <b>แจ้ง HR แก้</b> (เช่น ชื่อตก ตำแหน่งผิด ผู้ประเมินผิด)
+          <div style={{ marginTop: 6, color: open ? "#15803d" : "#be123c" }}>
+            <Icon name="clock" size={14} /> {until ? (open ? "แก้หัวข้อได้ถึง " + annDate(until) : "หมดเวลาแก้หัวข้อแล้ว (" + annDate(until) + ") — ถ้าต้องแก้เพิ่ม แจ้ง HR") : (hr ? "HR แก้ได้ตลอด · ยังไม่ได้เปิดให้หน่วยงานแก้" : "ยังไม่เปิดให้หน่วยงานแก้หัวข้อ")}
+            {hr && " · (HR เปลี่ยนวันได้ที่ perf_cycles.config.dept_item_edit_until)"}
+          </div>
+          <div className="muted" style={{ fontSize: 12.5, marginTop: 4 }}>หัวข้อ C พฤติกรรมหลัก และ B ภาวะผู้นำ ใช้ทั้งบริษัท หน่วยงานแก้ไม่ได้ · การแก้ทุกครั้งบันทึกชื่อผู้แก้และเวลา HR ตรวจย้อนหลังได้</div>
+        </div>
+        {depts.length > 1 && <div className="row wrap" style={{ gap: 10, marginTop: 12, alignItems: "center" }}>
+          <span style={{ fontSize: 13, fontWeight: 600 }}>หน่วยงาน</span>
+          <select className="select" style={{ maxWidth: 320 }} value={dept} onChange={(e) => setDept(e.target.value)}>
+            {depts.map(([id, n]) => { const r = reviews.find((x) => x.dept === id); return <option key={id} value={id}>{n}{r ? (r.status === "ok" ? " · ✓ ยืนยันแล้ว" : " · ! แจ้งแก้") : ""}</option>; })}
+          </select>
+        </div>}
+      </Card>
+
+      {hr && <Card>
+        <CardHead title="สถานะการตรวจของแต่ละหน่วยงาน" sub={reviews.filter((r) => r.status === "ok").length + " ยืนยันแล้ว · " + reviews.filter((r) => r.status === "issue" && !r.hr_done).length + " รอ HR แก้ · " + (depts.length - reviews.length) + " ยังไม่ตอบ"} />
+        <div className="tbl-wrap"><table className="tbl">
+          <thead><tr><th>หน่วยงาน</th><th>ผล</th><th>สิ่งที่แจ้ง</th><th>โดย</th><th>เวลา</th><th>HR แก้แล้ว</th></tr></thead>
+          <tbody>{depts.map(([id, n]) => { const r = reviews.find((x) => x.dept === id); return (
+            <tr key={id}><td><a href="#" onClick={(e) => { e.preventDefault(); setDept(id); }}><b>{n}</b></a></td>
+              <td>{!r ? <Badge cls="b-gray">ยังไม่ตอบ</Badge> : r.status === "ok" ? <Badge cls="b-green" dot>ยืนยันถูกต้อง</Badge> : <Badge cls="b-red" dot>แจ้งแก้</Badge>}</td>
+              <td style={{ fontSize: 13, whiteSpace: "pre-wrap" }}>{r && r.note || ""}</td><td style={{ fontSize: 12.5 }}>{r ? r.by_email : ""}</td><td style={{ fontSize: 12.5 }}>{r ? annDateTime(r.at) : ""}</td>
+              <td>{r && r.status === "issue" ? <label className="row" style={{ gap: 6, fontSize: 13 }}><input type="checkbox" checked={!!r.hr_done} onChange={(e) => hrDone(r, e.target.checked)} />แก้แล้ว</label> : ""}</td></tr>); })}</tbody>
+        </table></div>
+      </Card>}
+
+      <Card>
+        <CardHead title={"① รายชื่อที่ต้องประเมิน · " + ((depts.find((d) => d[0] === dept) || [])[1] || "")} sub={people.length + " คน · ตรวจว่าครบ ตำแหน่ง/JD/ผู้ประเมินถูกต้อง"} />
+        <div className="tbl-wrap"><table className="tbl">
+          <thead><tr><th>รหัส</th><th>ชื่อ-สกุล</th><th>ตำแหน่ง</th><th>ระดับ</th><th>JD</th><th>สาย</th><th>ผู้ประเมินคนที่ 1 (ให้คะแนน)</th><th>ผู้ประเมินคนที่ 2 (ตรวจ/อนุมัติ)</th><th>ผู้กรอกใบ</th></tr></thead>
+          <tbody>{people.map((r) => (
+            <tr key={r.assignment_id}><td className="mono">{r.employee_id}</td><td><b>{r.name}</b></td><td style={{ fontSize: 13 }}>{r.position}</td><td style={{ fontSize: 13 }}>{ANN_LEVEL[r.level] || r.level}</td>
+              <td style={{ fontSize: 13 }}>{r.jd_id ? <a href="#" onClick={(e) => { e.preventDefault(); setJd(r.jd_id); }}>{r.jd_id}</a> : <span style={{ color: "#be123c" }}>ยังไม่มี JD</span>}</td>
+              <td style={{ fontSize: 13 }}>{r.line_name || "—"}</td><td style={{ fontSize: 13 }}>{r.evaluator_name || "—"}</td><td style={{ fontSize: 13 }}>{r.reviewer_name || "—"}</td>
+              <td style={{ fontSize: 12.5 }}>{fillTxt[r.fill_by] || r.fill_by || ""}</td></tr>))}
+            {!people.length && <tr><td colSpan={9} className="muted" style={{ textAlign: "center", padding: 20 }}>ไม่มีรายชื่อ</td></tr>}</tbody>
+        </table></div>
+      </Card>
+
+      <Card pad>
+        <div className="row wrap" style={{ gap: 10, alignItems: "center" }}>
+          <b style={{ fontSize: 15 }}>② หัวข้อประเมินตาม JD</b>
+          <select className="select" style={{ maxWidth: 440 }} value={jd} onChange={(e) => setJd(e.target.value)}>
+            {jds.map(([id, t]) => <option key={id} value={id}>{id} · {t} · ใช้ {useBy(id).length} คน</option>)}
+          </select>
+        </div>
+        {jd && <div className="muted" style={{ fontSize: 12.5, marginTop: 6 }}>ใช้กับ: {useBy(jd).map((r) => r.name).join(", ")}</div>}
+        <div className="muted" style={{ fontSize: 12.5, marginTop: 4 }}>แนะนำ: ส่วน A 3–6 ข้อ เขียน "มาตรฐานระดับ 3" (ทำได้ตามที่คาดหวังคืออะไร เห็นได้จริง) ทุกข้อ · ส่วน B 2–4 ข้อ · น้ำหนักมาก = ข้อนั้นสำคัญกว่า</div>
+      </Card>
+      {items && ["A", "B"].map((sec) => {
+        const its = items.filter((x) => x.section === sec);
+        const bUsed = sec === "A" || useBy(jd).some((r) => r.level === "ops" || r.level === "office");
+        return (
+          <Card key={sec}>
+            <CardHead title={sec === "A" ? ANN_SECTION.A : ANN_SECTION.B_skill} sub={its.length + " ข้อ" + (bUsed ? "" : " · คนที่ใช้ JD นี้เป็นหัวหน้า/ผู้จัดการ ส่วน B ใช้หัวข้อภาวะผู้นำแทน")}
+              right={open ? <button className="btn btn-soft btn-sm" onClick={() => addItem(sec)}><Icon name="plus" size={14} />เพิ่มหัวข้อ</button> : null} />
+            <div style={{ padding: "0 20px 16px", display: "grid", gap: 10 }}>
+              {its.map((it, i) => open
+                ? <div key={it.id + it.updated_at}><div className="muted" style={{ fontSize: 12, marginBottom: 4 }}>ข้อ {i + 1}</div><AnnItemRow it={it} showW onSave={(p) => save(it, p)} onDel={() => delItem(it)} /></div>
+                : <div key={it.id} style={{ border: "1px solid var(--border)", borderRadius: 10, padding: 12 }}><b>{i + 1}. {it.title}</b> <span className="muted" style={{ fontSize: 12 }}>· น้ำหนัก {annFmt(it.weight)}</span><div className="muted" style={{ fontSize: 13, marginTop: 4 }}>{it.standard || "—"}</div></div>)}
+              {!its.length && <div className="muted">ยังไม่มีหัวข้อ</div>}
+            </div>
+          </Card>);
+      })}
+      <Card>
+        <CardHead title="หัวข้อกลางทั้งบริษัท (ดูอย่างเดียว)" sub="C พฤติกรรมหลัก ใช้กับทุกคน · B ภาวะผู้นำ ใช้กับหัวหน้างานและผู้จัดการ" />
+        <div style={{ padding: "0 20px 16px", display: "grid", gap: 6 }}>
+          {common.map((c) => <div key={c.id} style={{ fontSize: 13 }}><span className="muted">{c.kind === "core" ? "C" : "B ภาวะผู้นำ"} {c.seq}.</span> <b>{c.title}</b>{c.standard ? <span className="muted"> — {c.standard}</span> : null}</div>)}
+        </div>
+      </Card>
+
+      <Card>
+        <CardHead title="③ ผลการตรวจของหน่วยงาน" sub={myRev ? "ส่งล่าสุด " + annDateTime(myRev.at) + " โดย " + myRev.by_email + (myRev.status === "issue" ? (myRev.hr_done ? " · HR แก้แล้ว" : " · รอ HR แก้") : "") : "ยังไม่ได้ส่ง"} />
+        <div style={{ padding: "0 20px 18px", display: "grid", gap: 10 }}>
+          <div className="row wrap" style={{ gap: 16, fontSize: 14 }}>
+            <label className="row" style={{ gap: 6 }}><input type="radio" checked={st === "ok"} onChange={() => setSt("ok")} />ข้อมูลถูกต้องครบถ้วน</label>
+            <label className="row" style={{ gap: 6 }}><input type="radio" checked={st === "issue"} onChange={() => setSt("issue")} />มีสิ่งที่ต้องให้ HR แก้</label>
+          </div>
+          <textarea className="input" rows={3} placeholder={st === "issue" ? "เช่น 180xxx ตำแหน่งผิด ควรเป็น… / ผู้ประเมินของ … ควรเป็น … / ขาดชื่อ …" : "หมายเหตุ (ถ้ามี)"} value={note} onChange={(e) => setNote(e.target.value)} />
+          <div><button className="btn btn-pri" disabled={busy || !dept} onClick={submit}>{st === "ok" ? "ยืนยันข้อมูลถูกต้อง" : "ส่งให้ HR แก้"}</button></div>
+        </div>
+      </Card>
+
+      <Card>
+        <CardHead title="ประวัติการแก้หัวข้อของหน่วยงานนี้" sub={logs.length + " รายการ (แก้ย้อนหลังไม่ได้)"} />
+        <div className="tbl-wrap"><table className="tbl">
+          <thead><tr><th>เวลา</th><th>JD</th><th>การแก้</th><th>เดิม</th><th>ใหม่</th><th>ผู้แก้</th></tr></thead>
+          <tbody>{logs.map((l) => { const o = l.old_data || {}, n = l.new_data || {};
+            const txt = (x) => x && x.title ? secTxt[x.section] + " · " + x.title + (x.standard ? " — " + x.standard : "") + " (น้ำหนัก " + annFmt(x.weight) + ")" : "";
+            return <tr key={l.id}><td style={{ fontSize: 12.5, whiteSpace: "nowrap" }}>{annDateTime(l.at)}</td><td className="mono" style={{ fontSize: 12.5 }}>{l.jd_id}</td><td style={{ fontSize: 13 }}>{actTxt[l.action] || l.action}</td>
+              <td style={{ fontSize: 12.5, color: "#be123c" }}>{txt(l.old_data)}</td><td style={{ fontSize: 12.5, color: "#15803d" }}>{txt(l.new_data)}</td><td style={{ fontSize: 12.5 }}>{l.by_email || "ระบบ"}</td></tr>; })}
+            {!logs.length && <tr><td colSpan={6} className="muted" style={{ textAlign: "center", padding: 18 }}>ยังไม่มีการแก้</td></tr>}</tbody>
+        </table></div>
+      </Card>
+    </>
+  );
+}
+
 /* ---------- HR: รายงาน (แบบเมนู Report ของระบบตัวอย่าง) — ทุกรายงานพิมพ์/บันทึก PDF และส่งออก CSV ได้ ---------- */
 const ANN_REPORTS = [
   ["exec", "รายงานผลการประเมิน (เสนอผู้บริหาร)", "เลือกทั้งบริษัท / หน่วยงาน / ส่วน / รายคน · ส่งออก Excel หลายชีตหรือ PDF พร้อมข้อสังเกตและข้อเสนอแนะอัตโนมัติ"],
@@ -1571,6 +1748,11 @@ function AnnualHome({ rows, cycle, onOpen, go, cyc }) {
         <div className="row wrap" style={{ gap: 8 }}><AnnCyclePick cycle={cycle} cyc={cyc} /><AnnualCycleBadge cycle={cycle} /></div>
       </div>
       <AnnTrialNote cycle={cycle} />
+      {!hr && (cycle.config || {}).dept_item_edit_until && today <= cycle.config.dept_item_edit_until && el.length > 0 && (
+        <div className="card card-pad" style={{ borderLeft: "4px solid #e08a00", display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+          <div style={{ flex: "1 1 300px", fontSize: 14 }}><b>กรุณาตรวจข้อมูลการประเมินของหน่วยงาน</b> — รายชื่อ JD ผู้ประเมิน และหัวข้อประเมิน แก้หัวข้อได้ถึง {annDate(cycle.config.dept_item_edit_until)} แล้วกดยืนยันหรือแจ้ง HR</div>
+          <button className="btn btn-pri btn-sm" onClick={() => go("deptcheck")}>ไปตรวจข้อมูล</button>
+        </div>)}
       <div className="hcm-home-grid">
         <AnnPanel title="สรุปผลการประเมิน" sub={cycle.name + " · " + scope}>
           <div className="hcm-sum">

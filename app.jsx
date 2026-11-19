@@ -67,7 +67,7 @@ const SIDE_MENU = [
   { id: "ann:approve", label: "ศูนย์อนุมัติ", icon: "checkCircle", badge: "approve" },
   { id: "ann:todo", label: "งานของฉัน", icon: "list", badge: "todo" },
   { id: "g_rep", label: "รายงาน", icon: "reports", hr: true, children: [
-    ["ann:reports", "รายงานทั้งหมด"], ["ann:reports-annual", "ผลประเมินประจำปี"], ["ann:reports-approval", "สถานะการอนุมัติ"], ["ann:reports-adjust", "การปรับเกรด/คะแนน"],
+    ["ann:reports", "รายงานทั้งหมด"], ["ann:reports-exec", "รายงานเสนอผู้บริหาร (Excel/PDF)"], ["ann:reports-annual", "ผลประเมินประจำปี"], ["ann:reports-approval", "สถานะการอนุมัติ"], ["ann:reports-adjust", "การปรับเกรด/คะแนน"],
     ["ann:reports-revise", "การแก้คะแนนโดยผู้ประเมินคนที่ 2"], ["ann:reports-deduct", "คะแนนหักการมาทำงาน"], ["ann:reports-gap", "วิเคราะห์ Gap (หัวข้อที่ต้องพัฒนา)"], ["ann:reports-dept", "สรุปผลรายหน่วยงาน"]] },
   { id: "g_people", label: "ข้อมูลพนักงาน", icon: "users", children: [["employee", "รายชื่อพนักงาน"], ["hrdata", "แดชบอร์ดกำลังคน"], ["analytics", "สถิติหน่วยงาน"]] },
   { id: "g_more", label: "วิเคราะห์เพิ่มเติม", icon: "trend", children: [["dashboard", "แดชบอร์ดผลประเมิน"], ["exec", "มุมมองผู้บริหาร"], ["reports", "รายงานวิเคราะห์"], ["kpi", "KPI หน่วยงาน (ยังไม่นับคะแนน)"]] },
@@ -76,7 +76,7 @@ const ANN_TITLES = {
   home: "หน้าแรก", flow: "ขั้นตอนการประเมิน", hub: "ตั้งค่าระบบ", mine: "ใบประเมินของหน่วยงาน", forms: "ใบประเมินทั้งหมด", todo: "งานของฉัน",
   approve: "ศูนย์อนุมัติ", overview: "สรุปผลการประเมิน", calib: "ปรับผล (Calibration)", setup: "รายชื่อ & ผู้ประเมิน", exclude: "ผู้ที่ไม่ต้องประเมิน",
   deduct: "คะแนนหัก (ตอกบัตร/ใบเตือน)", lines: "สายการประเมิน", "reports-revise": "การแก้คะแนนโดยผู้ประเมินคนที่ 2", items: "หัวข้อประเมิน (JD)", reports: "รายงาน", cycle: "รอบประเมิน & เกณฑ์",
-  "reports-annual": "รายงานผลประเมินประจำปี", "reports-approval": "รายงานตรวจสอบสถานะการอนุมัติ", "reports-adjust": "รายงานการปรับเกรด/คะแนน",
+  "reports-exec": "รายงานผลการประเมิน (เสนอผู้บริหาร)", "reports-annual": "รายงานผลประเมินประจำปี", "reports-approval": "รายงานตรวจสอบสถานะการอนุมัติ", "reports-adjust": "รายงานการปรับเกรด/คะแนน",
   "reports-deduct": "รายงานคะแนนหักการมาทำงานและใบเตือน", "reports-gap": "วิเคราะห์ Gap (หัวข้อที่ต้องพัฒนา)", "reports-dept": "สรุปผลรายหน่วยงาน", "reports-inform": "แจ้งผลการประเมิน",
 };
 const routeTitle = (r) => String(r).startsWith("ann:") ? ANN_TITLES[r.slice(4)] || "ประเมินผลประจำปี" : (TITLES[r] || [""])[0];

@@ -73,9 +73,9 @@ function annPrint(title, body, landscape) {
   w.document.close();
 }
 // แถบกราฟสำหรับหน้าพิมพ์ (แสดงคะแนนเป็นภาพ)
-function annBar(label, v, max, strong) {
+function annBar(label, v, max, strong, color) {
   const p = max ? Math.max(0, Math.min(100, v / max * 100)) : 0;
-  const c = p >= 90 ? "#16a34a" : p >= 70 ? "#2f6db5" : p >= 60 ? "#e08a00" : "#e11d48";
+  const c = color || (p >= 90 ? "#16a34a" : p >= 70 ? "#2f6db5" : p >= 60 ? "#e08a00" : "#e11d48");
   return `<div style="display:flex;align-items:center;gap:8px;margin:4px 0;font-size:12.5px"><span style="width:170px${strong ? ";font-weight:700" : ""}">${annEsc(label)}</span>
     <span style="flex:1;height:14px;background:#eef2f6;border-radius:7px;overflow:hidden;-webkit-print-color-adjust:exact;print-color-adjust:exact"><span style="display:block;height:100%;width:${p.toFixed(1)}%;background:${c};-webkit-print-color-adjust:exact;print-color-adjust:exact"></span></span>
     <span style="width:90px;text-align:right">${(Math.round(v * 10) / 10)} / ${max}</span></div>`;
@@ -118,7 +118,7 @@ function AnnualEval({ ctx, page }) {
   const [err, setErr] = useAnnS("");
   const [formId, setFormId] = useAnnS(null);
   const hr = annIsHR();
-  const pg = !hr && ANN_HR_PAGES.includes(page) ? "home" : (page || "home");
+  const pg = !hr && (ANN_HR_PAGES.includes(page) || String(page || "").startsWith("reports")) ? "home" : (page || "home");
 
   const [cycles, setCycles] = useAnnS([]);
   const [cycleId, setCycleId] = useAnnS(null);   // null = รอบล่าสุด
@@ -1017,6 +1017,7 @@ function AnnualItems({ rows }) {
 
 /* ---------- HR: รายงาน (แบบเมนู Report ของระบบตัวอย่าง) — ทุกรายงานพิมพ์/บันทึก PDF และส่งออก CSV ได้ ---------- */
 const ANN_REPORTS = [
+  ["exec", "รายงานผลการประเมิน (เสนอผู้บริหาร)", "เลือกทั้งบริษัท / หน่วยงาน / ส่วน / รายคน · ส่งออก Excel หลายชีตหรือ PDF พร้อมข้อสังเกตและข้อเสนอแนะอัตโนมัติ"],
   ["annual", "รายงานผลประเมินประจำปี", "ผลรายคนทุกปีที่มีในระบบ: คะแนนแต่ละส่วน คะแนนหัก คะแนนรวม เกรด (ปรับ = HR ปรับผล)"],
   ["approval", "รายงานตรวจสอบสถานะการอนุมัติ", "เลขที่ใบ วันที่ส่ง/ทบทวน/อนุมัติ ผู้อนุมัติ ค้างกี่วัน และขั้นถัดไป"],
   ["adjust", "รายงานการปรับเกรด/คะแนน", "ทุกครั้งที่ HR ปรับผล: ค่าที่ระบบคิด → ค่าที่ปรับ เหตุผล ผู้ปรับ เวลา"],
@@ -1027,7 +1028,7 @@ const ANN_REPORTS = [
   ["inform", "ใบแจ้งผลการประเมินรายบุคคล", "พิมพ์ใบแจ้งผลให้พนักงานลงนามรับทราบ ทีละหน่วยงาน (1 คน / 1 หน้า)"],
 ];
 function AnnualReports({ rows, cycle, only }) {
-  const [rep, setRep] = useAnnS(only || "annual");
+  const [rep, setRep] = useAnnS(only || "exec");
   const [dept, setDept] = useAnnS("all");
   const [extra, setExtra] = useAnnS({});   // ข้อมูลที่โหลดเพิ่มตามรายงาน
   const [showMoney, setShowMoney] = useAnnS(false);
@@ -1142,30 +1143,16 @@ function AnnualReports({ rows, cycle, only }) {
   const sub = cycle.name + (dept !== "all" ? " · " + dept : "");
   const clean = (h) => h.replace(/^#/, "");
   const csv = () => window.downloadCSV(title + "-" + cycle.id + ".csv", H.map(clean), R);
+  const xlsx = () => annXlsx(title + "-" + cycle.id + (dept !== "all" ? "-" + dept : "") + ".xlsx", [[title, [[title + " — " + cycle.name], ["บริษัท เบสท์เวิลด์ อินเตอร์พลาส จำกัด" + (dept !== "all" ? " · " + dept : "")], [],
+    H.map(clean), ...R.map((row) => row.map((c, i) => { if (H[i][0] !== "#" || c === "" || c == null) return c; const t = String(c).replace(/^(ปรับ)s*/, "").replace("−", "-"); return t !== "" && !isNaN(Number(t)) ? Number(t) : c; })),
+    [], [note]], 3]]);
   const printTable = () => annPrint(title, annPrintHead(title, sub) +
     `<table><tr>${H.map((h) => `<th${h[0] === "#" ? ' class="n"' : ""}>${annEsc(clean(h))}</th>`).join("")}</tr>${R.map((row) => `<tr>${row.map((c, i) => `<td${H[i][0] === "#" ? ' class="n"' : ""}>${String(c).startsWith("(ปรับ)") ? '<span class="adj">(ปรับ)</span>' + annEsc(String(c).slice(6)) : annEsc(c)}</td>`).join("")}</tr>`).join("")}</table>
      <div class="sub" style="margin-top:8px">${R.length} รายการ · ${annEsc(note)}</div>`, H.length > 8);
   const printInform = () => {
     const list = el.filter((r) => r.grade && (!onlyAppr || r.status === "approved"));
     if (!list.length) { toast("ไม่มีรายชื่อที่จะพิมพ์", "x"); return; }
-    const SEC = { A: "A งานตามหน้าที่ (JD)", B: "B ทักษะงาน / ภาวะผู้นำ", C: "C พฤติกรรมหลัก" };
-    annPrint("ใบแจ้งผลการประเมิน " + sub, list.map((r) => {
-      const ps = annParts(r, (cfg.weights || {})[r.level] || {});
-      const band = bands.find((b) => b[1] === r.grade);
-      return `<div class="page">${annPrintHead("ใบแจ้งผลการประเมินผลการปฏิบัติงานประจำปี", cycle.name + " · เลขที่ " + r.doc_no)}
-        <table><tr><td>ชื่อ-สกุล <b>${annEsc(r.name)}</b></td><td>รหัสพนักงาน <b>${annEsc(r.employee_id)}</b></td></tr><tr><td>ตำแหน่ง ${annEsc(r.position)}</td><td>หน่วยงาน ${annEsc(r.dept_name)}</td></tr>
-        <tr><td colspan="2">ช่วงผลงาน ${annEsc(annDate(cycle.period_start))} – ${annEsc(annDate(cycle.period_end))}</td></tr></table>
-        <h2>สรุปผลการประเมิน</h2><table><tr><th>ส่วน</th><th class="n">คะแนนที่ได้</th><th class="n">คะแนนเต็ม</th></tr>
-        ${ps.map(([k, v, mx]) => `<tr><td>${SEC[k]}</td><td class="n">${v.toFixed(1)}</td><td class="n">${mx.toFixed(1)}</td></tr>`).join("")}
-        <tr><td>การมาทำงาน (ลา / มาสาย / ขาดงาน)</td><td class="n">${annFmt(r.attendance_points)}</td><td class="n">10</td></tr>
-        <tr><td>หักจากหนังสือเตือน</td><td class="n">${Number(r.warning_points) ? "−" + annFmt(r.warning_points) : "0"}</td><td class="n"></td></tr>
-        <tr><td><b>คะแนนรวม</b></td><td class="n"><b>${annFmt(r.total)}</b></td><td class="n">100</td></tr></table>
-        <div style="margin-top:12px">${ps.map(([k, v, mx]) => annBar(SEC[k], v, mx)).join("")}${annBar("การมาทำงาน", Math.max(0, Number(r.attendance_points)), 10)}${annBar("คะแนนรวม", Math.max(0, Number(r.total)), 100, true)}</div>
-        <div style="margin-top:12px;font-size:16px">ผลการประเมิน: เกรด <b>${annEsc(r.grade)}</b> — ${annEsc(band ? band[3] : "")}</div>
-        ${showMoney ? `<div class="sub" style="margin-top:4px">โบนัส ${annFmt(r.bonus_months, 2)} เดือน${Number(r.bonus_factor) < 1 ? " × สัดส่วนอายุงาน " + r.bonus_factor : ""} · ปรับเงินเดือน ${r.raise_pct == null ? "—" : r.raise_pct + "%"} (มีผล ${annEsc(annDate(cycle.raise_effective))})</div>` : ""}
-        <h2>ความเห็นของผู้ประเมิน / สิ่งที่ควรพัฒนา</h2><div style="border:1px solid #cbd5e1;min-height:60px;padding:6px">${annEsc(r.evaluator_comment || "")}</div>
-        <div class="sign"><div>ผู้บังคับบัญชา</div><div>ฝ่ายบุคคล</div><div>พนักงานรับทราบ<br>วันที่ ......../......../........</div></div></div>`;
-    }).join(""));
+    annPrint("ใบแจ้งผลการประเมิน " + sub, list.map((r) => annInformPage(r, cycle, showMoney)).join(""));
   };
 
   return (
@@ -1180,11 +1167,12 @@ function AnnualReports({ rows, cycle, only }) {
           ))}
         </div>
       </Card>}
-      <Card>
+      {rep === "exec" ? <AnnExecReport rows={rows} cycle={cycle} /> : <Card>
         <CardHead title={title} sub={R.length + " รายการ · " + sub}
           right={<div className="row" style={{ gap: 8 }}>
             {rep === "inform" && <button className="btn btn-pri btn-sm" onClick={printInform}><Icon name="file" size={14} />พิมพ์ใบแจ้งผล</button>}
             <button className="btn btn-soft btn-sm" disabled={loading} onClick={printTable}><Icon name="file" size={14} />พิมพ์ / PDF</button>
+            <button className="btn btn-soft btn-sm" disabled={loading} onClick={xlsx}><Icon name="download" size={14} />Excel</button>
             <button className="btn btn-ghost btn-sm" disabled={loading} onClick={csv}><Icon name="download" size={14} />CSV</button>
           </div>} />
         <div className="row wrap" style={{ gap: 12, padding: "0 20px 12px", alignItems: "center" }}>
@@ -1203,8 +1191,346 @@ function AnnualReports({ rows, cycle, only }) {
             </tbody>
           </table></div>
         )}
-        <div className="muted" style={{ fontSize: 12, padding: "10px 20px 16px" }}>{note}{R.length > 500 ? " · หน้าจอแสดง 500 แถวแรก (พิมพ์/CSV ได้ครบ)" : ""}</div>
+        <div className="muted" style={{ fontSize: 12, padding: "10px 20px 16px" }}>{note}{R.length > 500 ? " · หน้าจอแสดง 500 แถวแรก (พิมพ์/Excel/CSV ได้ครบ)" : ""}</div>
+      </Card>}
+    </>
+  );
+}
+
+/* =========================================================
+   รายงานผลการประเมิน (เสนอผู้บริหาร) — เลือกขอบเขต ทั้งบริษัท / หน่วยงาน / ส่วน / รายคน
+   ส่งออก Excel (หลายชีต) หรือ PDF (สรุป + ข้อสังเกตอัตโนมัติ + ใบแจ้งผลรายคนถ้าต้องการ)
+   ========================================================= */
+// "ส่วน" = สายการประเมิน (เช่น 09-1 เป่า) · ถ้าไม่มีสาย ใช้ส่วนงานจากชื่อตำแหน่ง
+function annSecOf(r) { return r.line_name || (window.sectionOf ? window.sectionOf(r.position) : "") || "—"; }
+function annDeptOf(r) { return r.dept_name || r.dept || "—"; }
+function annNum(v, d) { if (v == null || v === "" || isNaN(Number(v))) return null; const k = Math.pow(10, d == null ? 1 : d); return Math.round(Number(v) * k) / k; }
+function annGroupBy(list, keyFn) { const g = {}; list.forEach((r) => { const k = keyFn(r); (g[k] = g[k] || []).push(r); }); return g; }
+
+// สถิติของกลุ่ม · ok(r) = ใบนี้นับคะแนนได้ไหม (ให้คะแนนครบ และถ้าเลือก "เฉพาะอนุมัติ" ต้องอนุมัติแล้ว)
+function annStats(list, ok) {
+  const sc = list.filter(ok);
+  const t = sc.map((r) => Number(r.total)).sort((a, b) => a - b);
+  const avg = t.length ? t.reduce((a, b) => a + b, 0) / t.length : null;
+  const sd = t.length > 1 ? Math.sqrt(t.reduce((s, v) => s + (v - avg) * (v - avg), 0) / (t.length - 1)) : null;
+  const med = t.length ? (t.length % 2 ? t[(t.length - 1) / 2] : (t[t.length / 2 - 1] + t[t.length / 2]) / 2) : null;
+  const gr = {}; sc.forEach((r) => { gr[r.grade] = (gr[r.grade] || 0) + 1; });
+  const bonus = sc.reduce((s, r) => s + Number(r.bonus_months || 0) * Number(r.bonus_factor == null ? 1 : r.bonus_factor), 0);
+  return { n: list.length, sent: list.filter((r) => !annTodoStatus(r.status)).length, appr: list.filter((r) => r.status === "approved").length,
+    scored: sc.length, avg, med, sd, min: t.length ? t[0] : null, max: t.length ? t[t.length - 1] : null, gr, bonus, adj: sc.filter((r) => r.adjusted).length };
+}
+
+// ข้อสังเกตอัตโนมัติ → [[ระดับ, ข้อความ]] ระดับ: good / warn / bad / info
+function annInsights(list, ok, bands, gap, money) {
+  const out = [];
+  if (!list.length) return out;
+  const st = annStats(list, ok);
+  const pc = (a, b) => (b ? Math.round(a / b * 100) : 0);
+  if (st.scored < st.n) out.push(["warn", "ให้คะแนนครบแล้ว " + st.scored + " จาก " + st.n + " คน (" + pc(st.scored, st.n) + "%) · อนุมัติแล้ว " + st.appr + " คน — ตัวเลขในรายงานยังไม่ใช่ผลสุดท้ายจนกว่าจะอนุมัติครบ"]);
+  else out.push(["good", "ประเมินครบทุกคน " + st.n + " คน · อนุมัติแล้ว " + st.appr + " คน (" + pc(st.appr, st.n) + "%)"]);
+  if (!st.scored) return out;
+  out.push(["info", "คะแนนเฉลี่ย " + st.avg.toFixed(1) + " (มัธยฐาน " + st.med.toFixed(1) + ") · ต่ำสุด " + st.min.toFixed(1) + " · สูงสุด " + st.max.toFixed(1) + (st.sd != null ? " · ส่วนเบี่ยงเบนมาตรฐาน " + st.sd.toFixed(1) : "")]);
+
+  // การกระจายเกรด: ผลงานดีเด่น (A ขึ้นไป) / ต่ำกว่ามาตรฐาน (ต่ำกว่าช่วง 70)
+  const topG = bands.filter((b) => b[0] >= 90).map((b) => b[1]);
+  const lowG = bands.filter((b) => b[0] < 70).map((b) => b[1]);
+  const nTop = topG.reduce((s, g) => s + (st.gr[g] || 0), 0);
+  const nLow = lowG.reduce((s, g) => s + (st.gr[g] || 0), 0);
+  if (st.scored >= 5 && nTop / st.scored > 0.3) out.push(["warn", "ได้เกรด " + topG.join("/") + " ถึง " + pc(nTop, st.scored) + "% ของคนที่ประเมิน — สูงกว่าที่ควรเป็น (ทั่วไปไม่เกิน 20–30%) ควรทบทวน (Calibration) ว่าผู้ประเมินให้คะแนนง่ายไปหรือไม่ เพราะกระทบงบโบนัสโดยตรง"]);
+  else if (nTop) out.push(["good", "ผลงานดีเด่น (เกรด " + topG.join("/") + ") " + nTop + " คน (" + pc(nTop, st.scored) + "%) — ควรพิจารณาเป็นกลุ่ม Talent / ผู้สืบทอดตำแหน่ง"]);
+  if (nLow) out.push(["bad", "ต่ำกว่ามาตรฐาน (เกรด " + lowG.join("/") + ") " + nLow + " คน (" + pc(nLow, st.scored) + "%) — ควรทำแผนพัฒนารายบุคคล (IDP) หรือแผนปรับปรุงผลงาน (PIP) และติดตามรายไตรมาส"]);
+  if (st.scored >= 10 && st.sd != null && st.sd < 5) out.push(["warn", "คะแนนกระจุกตัวมาก (ส่วนเบี่ยงเบน " + st.sd.toFixed(1) + ") — ผู้ประเมินอาจให้คะแนนกลางๆ ใกล้กันทุกคน ทำให้แยกคนผลงานดีกับไม่ดีไม่ออก"]);
+
+  // หน่วยงาน / ผู้ประเมินที่ให้คะแนนต่างจากค่าเฉลี่ยมาก (≥ 5 คะแนน, มีอย่างน้อย 3 คน)
+  const diffOf = (keyFn, label) => {
+    const g = annGroupBy(list.filter(ok), keyFn);
+    const hi = [], lo = [];
+    Object.entries(g).forEach(([k, rs]) => { if (rs.length < 3 || k === "—") return; const a = rs.reduce((s, r) => s + Number(r.total), 0) / rs.length; const d = a - st.avg;
+      if (d >= 5) hi.push(k + " (" + a.toFixed(1) + ")"); else if (d <= -5) lo.push(k + " (" + a.toFixed(1) + ")"); });
+    if (hi.length) out.push(["warn", label + "ที่เฉลี่ยสูงกว่าภาพรวม 5 คะแนนขึ้นไป: " + hi.join(", ") + " — ตรวจว่าผลงานดีจริงหรือให้คะแนนง่าย"]);
+    if (lo.length) out.push(["warn", label + "ที่เฉลี่ยต่ำกว่าภาพรวม 5 คะแนนขึ้นไป: " + lo.join(", ") + " — ตรวจว่าผลงานต่ำจริงหรือให้คะแนนเข้มกว่าที่อื่น"]);
+  };
+  if (new Set(list.map(annDeptOf)).size > 1) diffOf(annDeptOf, "หน่วยงาน");
+  diffOf((r) => r.evaluator_name || "—", "ผู้ประเมิน");
+
+  // การมาทำงาน / ใบเตือน
+  const sc = list.filter(ok);
+  const nAtt = sc.filter((r) => Number(r.attendance_points) < 10).length;
+  const nWarn = sc.filter((r) => Number(r.warning_points) > 0).length;
+  if (nAtt) { const lost = sc.reduce((s, r) => s + Math.max(0, 10 - Number(r.attendance_points)), 0);
+    out.push(["info", "ถูกหักคะแนนการมาทำงาน " + nAtt + " คน (" + pc(nAtt, st.scored) + "%) เฉลี่ยคนละ " + (lost / nAtt).toFixed(1) + " คะแนน" + (nWarn ? " · มีใบเตือน " + nWarn + " คน" : "") + " — ควรสื่อสารเรื่องวินัยการมาทำงาน"]); }
+  else if (nWarn) out.push(["info", "มีใบเตือน " + nWarn + " คน"]);
+  if (st.adj) out.push(["info", "HR ปรับผล (Calibration) " + st.adj + " ใบ — รายละเอียดในรายงาน \"การปรับเกรด/คะแนน\""]);
+
+  // หัวข้อที่ต้องพัฒนา / จุดแข็ง (รวม Gap ทุกหน่วยงานในขอบเขต ถ่วงตามจำนวนคน)
+  if (gap && gap.length) {
+    const ds = new Set(list.map(annDeptOf));
+    const agg = {};
+    gap.filter((g) => ds.has(g.dept_name)).forEach((g) => { const o = agg[g.title] = agg[g.title] || { n: 0, s: 0 }; o.n += Number(g.n_rated || 0); o.s += Number(g.avg_rating || 0) * Number(g.n_rated || 0); });
+    const items = Object.entries(agg).filter(([, o]) => o.n >= 3).map(([t, o]) => [t, o.s / o.n]).sort((a, b) => a[1] - b[1]);
+    const weak = items.filter((x) => x[1] < 3).slice(0, 3), strong = items.filter((x) => x[1] >= 3.5).slice(-3).reverse();
+    if (weak.length) out.push(["bad", "หัวข้อที่ต่ำกว่าระดับคาดหวัง (ควรจัดอบรม/พัฒนาก่อน): " + weak.map((x) => "\"" + x[0] + "\" " + x[1].toFixed(2)).join(" · ")]);
+    if (strong.length) out.push(["good", "จุดแข็งขององค์กร: " + strong.map((x) => "\"" + x[0] + "\" " + x[1].toFixed(2)).join(" · ")]);
+  }
+  if (money && st.bonus) out.push(["info", "โบนัสรวมตามเกณฑ์ " + st.bonus.toFixed(2) + " เดือนเงินเดือน (ยังไม่คูณเงินเดือนจริง) · เฉลี่ยคนละ " + (st.bonus / st.scored).toFixed(2) + " เดือน"]);
+  return out;
+}
+
+// ดาวน์โหลด Excel หลายชีต · sheets = [[ชื่อชีต, ตาราง (array of array), แถวหัวตาราง]]
+function annXlsx(filename, sheets) {
+  const X = window.XLSX;
+  if (!X) { toast("โหลดตัวสร้าง Excel ไม่สำเร็จ — ลองรีเฟรชหน้า", "x"); return; }
+  const wb = X.utils.book_new();
+  sheets.forEach(([name, aoa, head]) => {
+    const ws = X.utils.aoa_to_sheet(aoa);
+    const h = head == null ? 0 : head;
+    const w = [];   // ความกว้างคอลัมน์ตามข้อความ (ไม่นับแถวหัวเรื่องด้านบน)
+    aoa.slice(h).forEach((row) => row.forEach((c, i) => { const l = String(c == null ? "" : c).length; w[i] = Math.max(w[i] || 6, Math.min(60, l + 2)); }));
+    ws["!cols"] = w.map((x) => ({ wch: x || 8 }));
+    if (head != null && aoa.length > h + 1 && (aoa[h] || []).length) ws["!autofilter"] = { ref: X.utils.encode_range({ s: { r: h, c: 0 }, e: { r: aoa.length - 1, c: aoa[h].length - 1 } }) };
+    X.utils.book_append_sheet(wb, ws, String(name).replace(/[:\\/?*\[\]]/g, " ").slice(0, 31));
+  });
+  X.writeFile(wb, String(filename).replace(/[\\/:*?"<>|]/g, "-"));
+}
+
+// ใบแจ้งผลรายคน 1 หน้า (ใช้ทั้งรายงาน "แจ้งผล" และรายงานผู้บริหาร)
+function annInformPage(r, cycle, showMoney) {
+  const cfg = cycle.config || {}, bands = cfg.bands || [];
+  const SEC = { A: "A งานตามหน้าที่ (JD)", B: "B ทักษะงาน / ภาวะผู้นำ", C: "C พฤติกรรมหลัก" };
+  const ps = annParts(r, (cfg.weights || {})[r.level] || {});
+  const band = bands.find((b) => b[1] === r.grade);
+  return `<div class="page">${annPrintHead("ใบแจ้งผลการประเมินผลการปฏิบัติงานประจำปี", cycle.name + " · เลขที่ " + r.doc_no)}
+    <table><tr><td>ชื่อ-สกุล <b>${annEsc(r.name)}</b></td><td>รหัสพนักงาน <b>${annEsc(r.employee_id)}</b></td></tr><tr><td>ตำแหน่ง ${annEsc(r.position)}</td><td>หน่วยงาน ${annEsc(r.dept_name)}</td></tr>
+    <tr><td colspan="2">ช่วงผลงาน ${annEsc(annDate(cycle.period_start))} – ${annEsc(annDate(cycle.period_end))}</td></tr></table>
+    <h2>สรุปผลการประเมิน</h2><table><tr><th>ส่วน</th><th class="n">คะแนนที่ได้</th><th class="n">คะแนนเต็ม</th></tr>
+    ${ps.map(([k, v, mx]) => `<tr><td>${SEC[k]}</td><td class="n">${v.toFixed(1)}</td><td class="n">${mx.toFixed(1)}</td></tr>`).join("")}
+    <tr><td>การมาทำงาน (ลา / มาสาย / ขาดงาน)</td><td class="n">${annFmt(r.attendance_points)}</td><td class="n">10</td></tr>
+    <tr><td>หักจากหนังสือเตือน</td><td class="n">${Number(r.warning_points) ? "−" + annFmt(r.warning_points) : "0"}</td><td class="n"></td></tr>
+    <tr><td><b>คะแนนรวม</b></td><td class="n"><b>${annFmt(r.total)}</b></td><td class="n">100</td></tr></table>
+    <div style="margin-top:12px">${ps.map(([k, v, mx]) => annBar(SEC[k], v, mx)).join("")}${annBar("การมาทำงาน", Math.max(0, Number(r.attendance_points)), 10)}${annBar("คะแนนรวม", Math.max(0, Number(r.total)), 100, true)}</div>
+    <div style="margin-top:12px;font-size:16px">ผลการประเมิน: เกรด <b>${annEsc(r.grade)}</b> — ${annEsc(band ? band[3] : "")}</div>
+    ${showMoney ? `<div class="sub" style="margin-top:4px">โบนัส ${annFmt(r.bonus_months, 2)} เดือน${Number(r.bonus_factor) < 1 ? " × สัดส่วนอายุงาน " + r.bonus_factor : ""} · ปรับเงินเดือน ${r.raise_pct == null ? "—" : r.raise_pct + "%"} (มีผล ${annEsc(annDate(cycle.raise_effective))})</div>` : ""}
+    <h2>ความเห็นของผู้ประเมิน / สิ่งที่ควรพัฒนา</h2><div style="border:1px solid #cbd5e1;min-height:60px;padding:6px">${annEsc(r.evaluator_comment || "")}</div>
+    <div class="sign"><div>ผู้บังคับบัญชา</div><div>ฝ่ายบุคคล</div><div>พนักงานรับทราบ<br>วันที่ ......../......../........</div></div></div>`;
+}
+
+const ANN_INS_STYLE = { good: ["#15803d", "#e7f6ec", "✓"], warn: ["#b45309", "#fdf1dc", "!"], bad: ["#be123c", "#fde4ea", "▼"], info: ["#1d4ed8", "#e8effb", "i"] };
+
+function AnnExecReport({ rows, cycle }) {
+  const [mode, setMode] = useAnnS("all");          // all | dept | sec | person
+  const [pick, setPick] = useAnnS({});             // ค่าที่เลือก (หน่วยงาน / ส่วน / รหัสพนักงาน) → true
+  const [q, setQ] = useAnnS("");
+  const [onlyAppr, setOnlyAppr] = useAnnS(false);
+  const [money, setMoney] = useAnnS(false);
+  const [pages, setPages] = useAnnS(false);
+  const [gap, setGap] = useAnnS(null);
+  const [deds, setDeds] = useAnnS(null);
+  const cfg = cycle.config || {};
+  const bands = cfg.bands || [];
+
+  useAnnE(() => {
+    let off = false;
+    (async () => {
+      try { const g = await annRpc("perf_gap", { p_cycle: cycle.id }); if (!off) setGap(g || []); } catch (e) { if (!off) setGap([]); }
+      try { const { data, error } = await window.sb.from("perf_deductions").select("*").eq("cycle_id", cycle.id); if (error) throw error; if (!off) setDeds(data || []); } catch (e) { if (!off) setDeds([]); }
+    })();
+    return () => { off = true; };
+  }, [cycle.id]);
+
+  const base = rows.filter((r) => r.eligible);
+  const secKey = (r) => annDeptOf(r) + " › " + annSecOf(r);
+  const depts = [...new Set(base.map(annDeptOf))];
+  const secs = [...new Set(base.map(secKey))];
+  const keyOf = mode === "dept" ? annDeptOf : mode === "sec" ? secKey : (r) => r.employee_id;
+  const list = mode === "all" ? base : base.filter((r) => pick[keyOf(r)]);
+  const nPick = Object.values(pick).filter(Boolean).length;
+  const ok = (r) => r.grade && r.total != null && (!onlyAppr || r.status === "approved");
+  const st = annStats(list, ok);
+  const ins = annInsights(list, ok, bands, gap, money);
+  const changeMode = (m) => { setMode(m); setPick({}); setQ(""); };
+  const toggle = (k) => setPick((p) => ({ ...p, [k]: !p[k] }));
+
+  const scopeTxt = mode === "all" ? "ทั้งบริษัท" : nPick === 0 ? "ยังไม่ได้เลือก"
+    : mode === "person" ? "รายบุคคล " + nPick + " คน"
+    : (mode === "dept" ? "หน่วยงาน: " : "ส่วน: ") + Object.keys(pick).filter((k) => pick[k]).join(", ");
+  const scopeShort = mode === "all" ? "ทั้งบริษัท" : mode === "dept" ? (nPick === 1 ? Object.keys(pick).find((k) => pick[k]) : "หลายหน่วยงาน") : mode === "sec" ? (nPick === 1 ? Object.keys(pick).find((k) => pick[k]).split(" › ")[1] : "หลายส่วน") : "รายบุคคล";
+  const fname = (ext) => "รายงานผลการประเมิน-" + cycle.id + "-" + scopeShort + "." + ext;
+
+  // ตารางสรุปตามกลุ่ม (ใช้ทั้งหน้าจอ / Excel / PDF)
+  const groupRows = (keyFn) => Object.entries(annGroupBy(list, keyFn)).map(([k, rs]) => { const s = annStats(rs, ok); return { k, s }; });
+  const gH = ["ต้องประเมิน", "ให้คะแนนครบ", "อนุมัติแล้ว", "คะแนนเฉลี่ย", "ต่ำสุด", "สูงสุด", ...bands.map((b) => b[1])];
+  const gVals = (s) => [s.n, s.scored, s.appr, annNum(s.avg), annNum(s.min), annNum(s.max), ...bands.map((b) => s.gr[b[1]] || 0)];
+  const byDept = groupRows(annDeptOf);
+  const bySec = groupRows(secKey);
+
+  const pct = (v) => annNum(v == null ? null : annPct(v));
+  const statusTxt = (r) => (ANN_STATUS[r.status] || [r.status])[0];
+  const bandTxt = (g) => { const b = bands.find((x) => x[1] === g); return b ? b[3] : ""; };
+
+  const exportExcel = () => {
+    if (!list.length) { toast("ยังไม่ได้เลือกขอบเขต", "x"); return; }
+    const now = annDateTime(new Date().toISOString());
+    const head = [["รายงานผลการประเมินผลการปฏิบัติงานประจำปี — " + cycle.name], ["บริษัท เบสท์เวิลด์ อินเตอร์พลาส จำกัด"], ["ขอบเขต: " + scopeTxt], ["ข้อมูล ณ " + now + (onlyAppr ? " · นับเฉพาะใบที่อนุมัติแล้ว" : " · นับทุกใบที่ให้คะแนนครบ (รวมที่ยังไม่อนุมัติ)")], []];
+    // ชีต 1 สรุปผู้บริหาร
+    const s1 = [...head,
+      ["ตัวชี้วัด", "ค่า"],
+      ["จำนวนพนักงานที่ต้องประเมิน", st.n], ["ให้คะแนนครบแล้ว", st.scored], ["อนุมัติแล้ว", st.appr],
+      ["คะแนนเฉลี่ย", annNum(st.avg)], ["มัธยฐาน", annNum(st.med)], ["ต่ำสุด", annNum(st.min)], ["สูงสุด", annNum(st.max)], ["ส่วนเบี่ยงเบนมาตรฐาน", annNum(st.sd)],
+      ...(money ? [["โบนัสรวมตามเกณฑ์ (เดือนเงินเดือน)", annNum(st.bonus, 2)]] : []),
+      [], ["เกรด", "ช่วงคะแนน", "ความหมาย", "จำนวน (คน)", "ร้อยละ"],
+      ...bands.map((b, i) => [b[1], b[0] + (i ? "–" + (bands[i - 1][0] - 0.01).toFixed(2) : " ขึ้นไป"), b[3], st.gr[b[1]] || 0, st.scored ? annNum((st.gr[b[1]] || 0) / st.scored * 100) : 0]),
+      [], ["ข้อสังเกตและข้อเสนอแนะ"], ...ins.map((x, i) => [(i + 1) + ". " + x[1]]),
+    ];
+    // ชีต 2–3 รายหน่วยงาน / รายส่วน
+    const s2 = [...head, ["หน่วยงาน", ...gH, ...(money ? ["โบนัสรวม (เดือน)"] : [])], ...byDept.map(({ k, s }) => [k, ...gVals(s), ...(money ? [annNum(s.bonus, 2)] : [])])];
+    const s3 = [...head, ["หน่วยงาน", "ส่วน / สายการประเมิน", ...gH], ...bySec.map(({ k, s }) => [...k.split(" › "), ...gVals(s)])];
+    // ชีต 4 รายบุคคล
+    const pH = ["เลขที่ใบ", "รหัส", "ชื่อ-สกุล", "ตำแหน่ง", "หน่วยงาน", "ส่วน / สาย", "ระดับ", "JD", "ผู้ประเมินคนที่ 1", "ผู้ประเมินคนที่ 2", "สถานะ",
+      "A งาน JD (%)", "B ทักษะ/ภาวะผู้นำ (%)", "C พฤติกรรม (%)", "ผลงาน (เต็ม 90)", "มาทำงาน (เต็ม 10)", "หักใบเตือน", "คะแนนรวม", "เกรด", "ความหมายเกรด",
+      "HR ปรับผล", "คะแนนที่ระบบคิด", "เกรดที่ระบบคิด", "เหตุผลการปรับ", ...(money ? ["โบนัส (เดือน)", "สัดส่วนอายุงาน", "โบนัสสุทธิ (เดือน)", "ขึ้นเงินเดือน (%)"] : []), "ความเห็นผู้ประเมิน"];
+    const s4 = [...head, pH, ...list.map((r) => [r.doc_no, r.employee_id, r.name, r.position, annDeptOf(r), annSecOf(r), ANN_LEVEL[r.level] || r.level || "", r.jd_id || "", r.evaluator_name || "", r.reviewer_name || "", statusTxt(r),
+      pct(r.avg_a), pct(r.avg_b), pct(r.avg_c), r.perf_pct == null ? null : annNum(0.9 * r.perf_pct), annNum(r.attendance_points), Number(r.warning_points) ? -annNum(r.warning_points) : 0,
+      ok(r) ? annNum(r.total) : null, ok(r) ? r.grade : "", ok(r) ? bandTxt(r.grade) : "",
+      r.adjusted ? "ปรับ" : "", r.adjusted ? annNum(r.calc_total) : null, r.adjusted ? r.calc_grade || "" : "", r.adjusted ? r.adj_reason || "" : "",
+      ...(money ? [annNum(r.bonus_months, 2), r.bonus_factor == null ? null : Number(r.bonus_factor), ok(r) ? annNum(Number(r.bonus_months || 0) * Number(r.bonus_factor == null ? 1 : r.bonus_factor), 2) : null, r.raise_pct == null ? null : Number(r.raise_pct)] : []),
+      r.evaluator_comment || ""])];
+    // ชีต 5 คะแนนหัก
+    const ids = new Set(list.map((r) => r.employee_id));
+    const ds = (deds || []).filter((d) => !d.waived && ids.has(d.employee_id));
+    const kinds = ANN_DEDUCT.map((x) => x[0]).filter((k) => ds.some((d) => d.kind === k));
+    const dBy = {}; ds.forEach((d) => { const o = dBy[d.employee_id] = dBy[d.employee_id] || {}; o[d.kind] = (o[d.kind] || 0) + Number(d.qty || 0); });
+    const s5 = [...head, ["รหัส", "ชื่อ-สกุล", "หน่วยงาน", ...kinds.map(annDeductLabel), "คะแนนมาทำงาน (เต็ม 10)", "หักใบเตือน"],
+      ...list.filter((r) => dBy[r.employee_id]).map((r) => [r.employee_id, r.name, annDeptOf(r), ...kinds.map((k) => dBy[r.employee_id][k] || null), annNum(r.attendance_points), Number(r.warning_points) ? -annNum(r.warning_points) : 0])];
+    // ชีต 6 หัวข้อที่ต้องพัฒนา (Gap)
+    const dset = new Set(list.map(annDeptOf));
+    const SEC = { A: "A งานตาม JD", B: "B ทักษะ/ภาวะผู้นำ", C: "C พฤติกรรมหลัก" };
+    const s6 = [...head, ["ส่วน", "หัวข้อ", "หน่วยงาน", "จำนวนคน", "ระดับเฉลี่ย (1–5)", "Gap (เทียบระดับ 3)", "ต่ำกว่าคาดหวัง (คน)", "เกินคาดหวัง (คน)"],
+      ...(gap || []).filter((g) => dset.has(g.dept_name)).sort((a, b) => Number(a.gap) - Number(b.gap))
+        .map((g) => [SEC[g.section] || g.section, g.title, g.dept_name, Number(g.n_rated), annNum(g.avg_rating, 2), annNum(g.gap, 2), Number(g.n_below || 0), Number(g.n_above || 0)])];
+    // ชีต 7 ผู้ประเมิน (ใช้ตรวจความเข้ม/หย่อนของการให้คะแนน)
+    const s7 = [...head, ["ผู้ประเมินคนที่ 1", ...gH, "ต่างจากค่าเฉลี่ยรวม"],
+      ...groupRows((r) => r.evaluator_name || "(ยังไม่มีผู้ประเมิน)").map(({ k, s }) => [k, ...gVals(s), s.avg != null && st.avg != null ? annNum(s.avg - st.avg) : null])];
+    annXlsx(fname("xlsx"), [["สรุปผู้บริหาร", s1, 5], ["รายหน่วยงาน", s2, 5], ["รายส่วน", s3, 5], ["รายบุคคล", s4, 5], ["คะแนนหัก", s5, 5], ["หัวข้อที่ต้องพัฒนา", s6, 5], ["ผู้ประเมิน", s7, 5]]);
+  };
+
+  const exportPdf = () => {
+    if (!list.length) { toast("ยังไม่ได้เลือกขอบเขต", "x"); return; }
+    const e = annEsc, n1 = (v) => (v == null ? "—" : Number(v).toFixed(1));
+    const gTable = (title, grs, firstH) => `<h2>${e(title)}</h2><table class="sm"><tr><th>${e(firstH)}</th>${gH.map((h) => `<th class="n">${e(h)}</th>`).join("")}</tr>
+      ${grs.map(({ k, s }) => `<tr><td>${e(k)}</td>${gVals(s).map((v) => `<td class="n">${v == null ? "—" : v}</td>`).join("")}</tr>`).join("")}</table>`;
+    const box = (l, v) => `<span class="box">${e(l)} <b style="font-size:16px">${e(v)}</b></span>`;
+    let html = `<style>.sm th,.sm td{font-size:11px;padding:3px 4px}ol.ins li{margin:4px 0}.ins .t{display:inline-block;min-width:16px;text-align:center;border-radius:4px;font-weight:700;margin-right:4px;-webkit-print-color-adjust:exact;print-color-adjust:exact}</style>
+      <div class="${pages ? "page" : ""}">${annPrintHead("รายงานผลการประเมินผลการปฏิบัติงานประจำปี", cycle.name)}
+      <div class="sub">ขอบเขต: <b>${e(scopeTxt)}</b> · ${onlyAppr ? "นับเฉพาะใบที่อนุมัติแล้ว" : "นับทุกใบที่ให้คะแนนครบ (รวมที่ยังไม่อนุมัติ)"}</div>
+      <div style="margin-top:8px">${box("ต้องประเมิน", st.n + " คน")}${box("ให้คะแนนครบ", st.scored + " คน")}${box("อนุมัติแล้ว", st.appr + " คน")}${box("คะแนนเฉลี่ย", n1(st.avg))}${money ? box("โบนัสรวม", st.bonus.toFixed(2) + " เดือน") : ""}</div>
+      <h2>การกระจายเกรด</h2>${bands.map((b) => annBar(b[1] + " · " + b[3], st.gr[b[1]] || 0, st.scored || 1, false, ANN_GRADE_COLOR[b[1]])).join("")}
+      <h2>ข้อสังเกตและข้อเสนอแนะ</h2><ol class="ins">${ins.map(([lv, t]) => { const c = ANN_INS_STYLE[lv]; return `<li><span class="t" style="color:${c[0]};background:${c[1]}">${c[2]}</span>${e(t)}</li>`; }).join("")}</ol>
+      ${byDept.length > 1 || mode !== "person" ? gTable("สรุปรายหน่วยงาน", byDept, "หน่วยงาน") : ""}
+      ${bySec.length > 1 ? gTable("สรุปรายส่วน / สายการประเมิน", bySec, "ส่วน") : ""}
+      <h2>ผลรายบุคคล</h2><table class="sm"><tr><th>รหัส</th><th>ชื่อ-สกุล</th><th>ตำแหน่ง</th><th>ส่วน</th><th class="n">A%</th><th class="n">B%</th><th class="n">C%</th><th class="n">มาทำงาน</th><th class="n">หักเตือน</th><th class="n">คะแนนรวม</th><th>เกรด</th>${money ? '<th class="n">โบนัส</th><th class="n">ขึ้น%</th>' : ""}</tr>
+      ${list.map((r) => `<tr><td>${e(r.employee_id)}</td><td>${e(r.name)}</td><td>${e(r.position)}</td><td>${e(annSecOf(r))}</td><td class="n">${pct(r.avg_a) ?? ""}</td><td class="n">${pct(r.avg_b) ?? ""}</td><td class="n">${pct(r.avg_c) ?? ""}</td>
+        <td class="n">${annFmt(r.attendance_points)}</td><td class="n">${Number(r.warning_points) ? "−" + annFmt(r.warning_points) : ""}</td>
+        <td class="n">${ok(r) ? (r.adjusted ? '<span class="adj">(ปรับ)</span>' : "") + annFmt(r.total) : `<span class="sub">${e(statusTxt(r))}</span>`}</td><td><b>${ok(r) ? e(r.grade) : ""}</b></td>
+        ${money ? `<td class="n">${ok(r) ? (Number(r.bonus_months || 0) * Number(r.bonus_factor == null ? 1 : r.bonus_factor)).toFixed(2) : ""}</td><td class="n">${ok(r) && r.raise_pct != null ? r.raise_pct : ""}</td>` : ""}</tr>`).join("")}</table>
+      <div class="sub" style="margin-top:6px">A/B/C = เปอร์เซ็นต์ของแต่ละส่วน (ระดับ 3 = 70%, ระดับ 5 = 100%) · คะแนนรวม = ผลงาน 90 + มาทำงาน 10 − ใบเตือน · (ปรับ) = HR ปรับผลใน Calibration</div>
+      <div class="sign"><div>ผู้จัดทำ (ฝ่ายบุคคล)<br>วันที่ ......../......../........</div><div>ผู้ตรวจสอบ<br>วันที่ ......../......../........</div><div>ผู้อนุมัติ<br>วันที่ ......../......../........</div></div></div>`;
+    if (pages) html += list.filter(ok).map((r) => annInformPage(r, cycle, money)).join("");
+    annPrint("รายงานผลการประเมิน " + cycle.name + " " + scopeShort, html);
+  };
+
+  const qq = q.trim().toLowerCase();
+  const shownPeople = mode === "person" ? base.filter((r) => !qq || [r.employee_id, r.name, r.position, annDeptOf(r), annSecOf(r)].join(" ").toLowerCase().includes(qq)) : [];
+  const chip = (k, label, sub) => (
+    <label key={k} className="row" style={{ gap: 6, fontSize: 13, padding: "5px 10px", borderRadius: 999, cursor: "pointer",
+      border: "1px solid " + (pick[k] ? "var(--pri, #2563eb)" : "var(--border)"), background: pick[k] ? "var(--pri-soft, #eef3ff)" : "transparent" }}>
+      <input type="checkbox" checked={!!pick[k]} onChange={() => toggle(k)} />{label}{sub != null && <span className="muted" style={{ fontSize: 11.5 }}>{sub}</span>}
+    </label>);
+  const cnt = (keyFn, k) => base.filter((r) => keyFn(r) === k).length;
+
+  return (
+    <>
+      <Card>
+        <CardHead title="รายงานผลการประเมิน (เสนอผู้บริหาร)" sub={cycle.name + " · " + scopeTxt}
+          right={<div className="row" style={{ gap: 8 }}>
+            <button className="btn btn-pri btn-sm" disabled={!list.length} onClick={exportExcel}><Icon name="download" size={14} />Excel</button>
+            <button className="btn btn-soft btn-sm" disabled={!list.length} onClick={exportPdf}><Icon name="file" size={14} />PDF / พิมพ์</button>
+          </div>} />
+        <div style={{ padding: "0 20px 14px" }}>
+          <div className="row wrap" style={{ gap: 12, alignItems: "center" }}>
+            <span style={{ fontSize: 13, fontWeight: 600 }}>ขอบเขต</span>
+            <Seg options={[{ value: "all", label: "ทั้งบริษัท" }, { value: "dept", label: "หน่วยงาน" }, { value: "sec", label: "ส่วน" }, { value: "person", label: "เลือกรายคน" }]} value={mode} onChange={changeMode} />
+            {mode !== "all" && <span className="muted" style={{ fontSize: 12.5 }}>เลือกแล้ว {nPick} · <a href="#" onClick={(ev) => { ev.preventDefault(); setPick({}); }}>ล้าง</a></span>}
+          </div>
+          {mode === "dept" && <div className="row wrap" style={{ gap: 6, marginTop: 10 }}>{depts.map((d) => chip(d, d, cnt(annDeptOf, d) + " คน"))}</div>}
+          {mode === "sec" && <div style={{ marginTop: 10, display: "grid", gap: 8 }}>{depts.map((d) => (
+            <div key={d} className="row wrap" style={{ gap: 6, alignItems: "center" }}>
+              <span style={{ fontSize: 12.5, fontWeight: 700, minWidth: 120 }}>{d}</span>
+              {secs.filter((s) => s.startsWith(d + " › ")).map((s) => chip(s, s.split(" › ")[1], cnt(secKey, s)))}
+            </div>))}</div>}
+          {mode === "person" && <div style={{ marginTop: 10 }}>
+            <div className="row wrap" style={{ gap: 8, alignItems: "center" }}>
+              <input className="input" style={{ maxWidth: 320 }} placeholder="ค้นหา รหัส / ชื่อ / ตำแหน่ง / หน่วยงาน" value={q} onChange={(ev) => setQ(ev.target.value)} />
+              <button className="btn btn-ghost btn-sm" onClick={() => setPick((p) => { const o = { ...p }; shownPeople.forEach((r) => { o[r.employee_id] = true; }); return o; })}>เลือกทั้งหมดที่แสดง ({shownPeople.length})</button>
+            </div>
+            <div style={{ maxHeight: 260, overflow: "auto", border: "1px solid var(--border)", borderRadius: 10, marginTop: 8 }}>
+              {shownPeople.map((r) => (
+                <label key={r.employee_id} className="row wrap" style={{ gap: 8, padding: "5px 10px", fontSize: 13, cursor: "pointer", borderBottom: "1px solid var(--border)", background: pick[r.employee_id] ? "var(--pri-soft, #eef3ff)" : undefined }}>
+                  <input type="checkbox" checked={!!pick[r.employee_id]} onChange={() => toggle(r.employee_id)} />
+                  <span className="mono" style={{ width: 60 }}>{r.employee_id}</span><b style={{ minWidth: 140 }}>{r.name}</b>
+                  <span className="muted" style={{ flex: "1 1 180px", fontSize: 12.5 }}>{r.position} · {annDeptOf(r)} › {annSecOf(r)}</span>
+                  {ok(r) ? <AnnGrade g={r.grade} /> : <AnnStatus s={r.status} />}
+                </label>))}
+              {!shownPeople.length && <div className="muted" style={{ padding: 14 }}>ไม่พบรายชื่อ</div>}
+            </div>
+          </div>}
+          <div className="row wrap" style={{ gap: 16, marginTop: 12, fontSize: 13 }}>
+            <label className="row" style={{ gap: 6 }}><input type="checkbox" checked={onlyAppr} onChange={(ev) => setOnlyAppr(ev.target.checked)} />นับคะแนนเฉพาะใบที่อนุมัติแล้ว</label>
+            <label className="row" style={{ gap: 6 }}><input type="checkbox" checked={money} onChange={(ev) => setMoney(ev.target.checked)} />แสดงโบนัส / ขึ้นเงินเดือน</label>
+            <label className="row" style={{ gap: 6 }}><input type="checkbox" checked={pages} onChange={(ev) => setPages(ev.target.checked)} />PDF: แนบใบแจ้งผลรายคน (คนละ 1 หน้า)</label>
+          </div>
+          <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>Excel มี 7 ชีต: สรุปผู้บริหาร · รายหน่วยงาน · รายส่วน · รายบุคคล · คะแนนหัก · หัวข้อที่ต้องพัฒนา · ผู้ประเมิน (กรองข้อมูลในแต่ละชีตได้)</div>
+        </div>
       </Card>
+
+      {!list.length ? <Card pad><div className="muted">เลือก{mode === "dept" ? "หน่วยงาน" : mode === "sec" ? "ส่วน" : "พนักงาน"}อย่างน้อย 1 รายการ</div></Card> : <>
+        <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 14 }}>
+          <Stat icon="users" label="ต้องประเมิน" value={st.n} sub={"ส่งแล้ว " + st.sent + " · อนุมัติ " + st.appr} />
+          <Stat icon="checkCircle" label="ให้คะแนนครบ" value={st.scored} tone="#0d9488" soft="#e2f4f2" sub={(st.n ? Math.round(st.scored / st.n * 100) : 0) + "% ของทั้งหมด"} />
+          <Stat icon="award" label="คะแนนเฉลี่ย" value={st.avg == null ? "—" : st.avg.toFixed(1)} tone="#16a34a" soft="#e7f6ec" sub={st.scored ? "ต่ำสุด " + st.min.toFixed(1) + " · สูงสุด " + st.max.toFixed(1) : "ยังไม่มีคะแนน"} />
+          {money && <Stat icon="trend" label="โบนัสรวมตามเกณฑ์" value={st.bonus.toFixed(2)} unit="เดือน" tone="#e08a00" soft="#fdf1dc" sub="ยังไม่คูณเงินเดือน" />}
+        </div>
+        <Card>
+          <CardHead title="การกระจายเกรด" sub={st.scored + " คนที่นับคะแนน"} />
+          <div className="row wrap" style={{ gap: 10, padding: "0 20px 18px" }}>
+            {bands.map((b) => (
+              <div key={b[1]} style={{ border: "1px solid var(--border)", borderRadius: 12, padding: "10px 14px", minWidth: 96 }}>
+                <AnnGrade g={b[1]} /><div className="mono" style={{ fontSize: 22, fontWeight: 700, marginTop: 4 }}>{st.gr[b[1]] || 0}</div>
+                <div className="muted" style={{ fontSize: 11.5 }}>{st.scored ? Math.round((st.gr[b[1]] || 0) / st.scored * 100) : 0}% · {b[3]}</div>
+              </div>))}
+          </div>
+        </Card>
+        <Card>
+          <CardHead title="ข้อสังเกตและข้อเสนอแนะ (วิเคราะห์อัตโนมัติ)" sub="ระบบคิดจากข้อมูลในขอบเขตที่เลือก — ใส่ในรายงาน PDF และชีตสรุปผู้บริหารของ Excel ให้ด้วย" />
+          <div style={{ padding: "0 20px 16px", display: "grid", gap: 8 }}>
+            {ins.map(([lv, t], i) => { const c = ANN_INS_STYLE[lv]; return (
+              <div key={i} className="row" style={{ gap: 10, alignItems: "flex-start", fontSize: 13.5 }}>
+                <span style={{ flex: "0 0 22px", height: 22, borderRadius: 6, display: "grid", placeItems: "center", fontWeight: 700, color: c[0], background: c[1] }}>{c[2]}</span><span>{t}</span>
+              </div>); })}
+          </div>
+        </Card>
+        <Card>
+          <CardHead title="สรุปรายหน่วยงาน / รายส่วน" />
+          <div className="tbl-wrap"><table className="tbl">
+            <thead><tr><th>หน่วยงาน › ส่วน</th>{gH.map((h) => <th key={h} className="num">{h}</th>)}</tr></thead>
+            <tbody>{byDept.map(({ k, s }) => (
+              <React.Fragment key={k}>
+                <tr style={{ background: "var(--bg-2, #f6f8fb)" }}><td><b>{k}</b></td>{gVals(s).map((v, i) => <td key={i} className="num"><b>{v == null ? "—" : v}</b></td>)}</tr>
+                {bySec.filter((x) => x.k.startsWith(k + " › ")).length > 1 && bySec.filter((x) => x.k.startsWith(k + " › ")).map((x) => (
+                  <tr key={x.k}><td style={{ paddingLeft: 28 }}>{x.k.split(" › ")[1]}</td>{gVals(x.s).map((v, i) => <td key={i} className="num">{v == null ? "—" : v}</td>)}</tr>))}
+              </React.Fragment>))}</tbody>
+          </table></div>
+        </Card>
+      </>}
     </>
   );
 }

@@ -23,8 +23,8 @@ const ANN_RATING = [
 ];
 const ANN_GRADE_COLOR = { "A+": "#15803d", A: "#16a34a", "B+": "#0d9488", B: "#0891b2", C: "#e08a00", D: "#e11d48", F: "#9f1239" };
 const ANN_DEDUCT = [
-  ["late", "มาสาย (ครั้ง)"], ["absent", "ขาดงาน (วัน)"], ["personal_over", "ลากิจเกินสิทธิ์ (ครั้ง)"], ["sick_over", "ลาป่วยเกินสิทธิ์ (วัน)"],
-  ["sick_no_cert", "ลาป่วยไม่มีใบรับรองแพทย์ (ครั้ง)"], ["unapproved", "ลาโดยไม่ได้รับอนุมัติ (ครั้ง)"], ["unpaid", "ลาไม่รับค่าจ้าง (ครั้ง)"],
+  ["late", "มาสาย (ครั้ง)"], ["absent", "ขาดงาน (วัน)"], ["personal_over", "ลากิจเกินสิทธิ์ (เลิกใช้ 19/11/2569)"], ["sick_over", "ลาป่วยเกินสิทธิ์ (วัน)"],
+  ["sick_no_cert", "ลาป่วยไม่มีใบรับรองแพทย์ (ครั้ง)"], ["unapproved", "ลาโดยไม่ได้รับอนุมัติ (ครั้ง)"], ["unpaid", "ลาไม่รับค่าจ้าง / ลากิจเกินสิทธิ์ (ครั้ง)"],
   ["warn_verbal", "หนังสือเตือนด้วยวาจา"], ["warn_written_1", "หนังสือเตือนลายลักษณ์อักษร ครั้งที่ 1"],
   ["warn_written_2", "หนังสือเตือนลายลักษณ์อักษร ครั้งที่ 2"], ["warn_written_3", "หนังสือเตือนลายลักษณ์อักษร ครั้งที่ 3"],
   ["suspend", "พักงาน"], ["adjust", "ปรับคะแนน (ใส่ติดลบเพื่อคืนคะแนน)"],
@@ -891,7 +891,7 @@ function AnnualDeductions({ rows, cycle, reload }) {
     <>
       <Card pad>
         <div className="row wrap" style={{ gap: 12, justifyContent: "space-between" }}>
-          <div style={{ fontSize: 13.5 }}>การมาทำงานเริ่มที่ 10 คะแนนแล้วหักตามเกณฑ์ปี 2568 (หักเกิน 10 ได้) · ลากิจเกินสิทธิ์ 7 วันนับเป็นครั้ง (ลาไม่เต็มวันก็นับ 1 ครั้ง) · ลาไม่รับค่าจ้างแยกเป็นอีกรายการ HR กรอกเอง · ใบเตือนหักจากคะแนนรวม · <b>ขาดงานที่ออกใบเตือนเรื่องขาดงานแล้ว</b> ระบบหักครั้งเดียวโดยใช้ค่าที่มากกว่าให้อัตโนมัติ (ใบเตือนต้องเขียนเหตุผลว่า "ขาดงาน")</div>
+          <div style={{ fontSize: 13.5 }}>การมาทำงานเริ่มที่ 10 คะแนนแล้วหักตามเกณฑ์ปี 2568 (หักเกิน 10 ได้) · <b>ลากิจที่เกินสิทธิ์ 7 วัน ให้บันทึกเป็น "ลาไม่รับค่าจ้าง / ลากิจเกินสิทธิ์" (HR กรอกเอง นับเป็นครั้ง ลาไม่เต็มวันก็นับ 1 ครั้ง)</b> — ระบบไม่คิดจากตอกบัตรแล้ว กันหักซ้ำ · ใบเตือนหักจากคะแนนรวม · <b>ขาดงานที่ออกใบเตือนเรื่องขาดงานแล้ว</b> ระบบหักครั้งเดียวโดยใช้ค่าที่มากกว่าให้อัตโนมัติ (ใบเตือนต้องเขียนเหตุผลว่า "ขาดงาน")</div>
           <button className="btn btn-pri btn-sm" disabled={busy} onClick={sync}><Icon name="refresh" size={14} />ดึงจากตอกบัตร + ใบเตือน</button>
         </div>
       </Card>
@@ -901,7 +901,7 @@ function AnnualDeductions({ rows, cycle, reload }) {
           <div className="field" style={{ minWidth: 220 }}><label>พนักงาน</label><select className="select" value={add.employee_id} onChange={(e) => setAdd({ ...add, employee_id: e.target.value })}>
             <option value="">— เลือก —</option>{rows.slice().sort((a, b) => a.name.localeCompare(b.name, "th")).map((r) => <option key={r.employee_id} value={r.employee_id}>{r.name} ({r.employee_id})</option>)}</select></div>
           <div className="field" style={{ minWidth: 260 }}><label>ประเภท</label><select className="select" value={add.kind} onChange={(e) => setAdd({ ...add, kind: e.target.value })}>
-            {ANN_DEDUCT.map(([v, l]) => <option key={v} value={v}>{l}{k[v] != null ? " · หัก " + k[v] : ""}</option>)}</select></div>
+            {ANN_DEDUCT.filter(([v]) => v !== "personal_over").map(([v, l]) => <option key={v} value={v}>{l}{k[v] != null ? " · หัก " + k[v] : ""}</option>)}</select></div>
           <div className="field" style={{ width: 110 }}><label>{add.kind === "adjust" ? "คะแนน (+/−)" : "จำนวน"}</label><input className="input" type="number" value={add.qty} onChange={(e) => setAdd({ ...add, qty: e.target.value })} /></div>
           <div className="field" style={{ flex: 1, minWidth: 200 }}><label>หมายเหตุ</label><input className="input" value={add.note} onChange={(e) => setAdd({ ...add, note: e.target.value })} /></div>
           <button className="btn btn-soft" onClick={addRow}><Icon name="plus" size={15} />เพิ่ม</button>

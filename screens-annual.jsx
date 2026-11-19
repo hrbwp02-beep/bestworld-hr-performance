@@ -1586,7 +1586,7 @@ function AnnExecReport({ rows, cycle }) {
       ["คะแนนเฉลี่ย", annNum(st.avg)], ["มัธยฐาน", annNum(st.med)], ["ต่ำสุด", annNum(st.min)], ["สูงสุด", annNum(st.max)], ["ส่วนเบี่ยงเบนมาตรฐาน", annNum(st.sd)],
       ...(money ? [["โบนัสรวมตามเกณฑ์ (เดือนเงินเดือน)", annNum(st.bonus, 2)]] : []),
       [], ["เกรด", "ช่วงคะแนน", "ความหมาย", "จำนวน (คน)", "ร้อยละ"],
-      ...bands.map((b, i) => [b[1], b[0] + (i ? "–" + (bands[i - 1][0] - 0.01).toFixed(2) : " ขึ้นไป"), b[3], st.gr[b[1]] || 0, st.scored ? annNum((st.gr[b[1]] || 0) / st.scored * 100) : 0]),
+      ...bands.map((b, i) => [b[1], b[0] + "–" + (i ? bands[i - 1][0] - 1 : 100), b[3], st.gr[b[1]] || 0, st.scored ? annNum((st.gr[b[1]] || 0) / st.scored * 100) : 0]),
       [], ["ข้อสังเกตและข้อเสนอแนะ"], ...ins.map((x, i) => [(i + 1) + ". " + x[1]]),
     ];
     // ชีต 2–3 รายหน่วยงาน / รายส่วน

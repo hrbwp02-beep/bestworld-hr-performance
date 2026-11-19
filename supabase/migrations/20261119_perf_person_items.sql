@@ -1,0 +1,4 @@
+-- ใช้กับฐานแล้ว 19/11/2569 ผ่าน MCP (ชื่อ migration: perf_person_items)
+-- perf_assignments.own_items + ตาราง perf_person_items (A/B เฉพาะคน) + perf_person_editable / perf_person_items_split / perf_person_items_revert
+-- perf_items ใช้หัวข้อเฉพาะคนเมื่อ own_items · guard/log trigger · perf_jd_item_log.assignment_id
+-- ตรวจแล้ว: perf_items ของทุกใบเหมือนเดิม (1753 รายการ hash เท่าเดิม) ก่อนมีใครแยกหัวข้อ

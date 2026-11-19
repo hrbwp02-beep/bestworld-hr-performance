@@ -1037,44 +1037,67 @@ function AnnDeptCheck({ rows, cycle }) {
   const [st, setSt] = useAnnS("ok");
   const [note, setNote] = useAnnS("");
   const [busy, setBusy] = useAnnS(false);
+  const [own, setOwn] = useAnnS({});      // assignment_id → ใช้หัวข้อเฉพาะคน
   const people = el.filter((r) => r.dept === dept);
-  const jds = [...new Map(people.filter((r) => r.jd_id).map((r) => [r.jd_id, r.jd_title || r.jd_id])).entries()];
-  const useBy = (id) => people.filter((r) => r.jd_id === id);
+  // ตัวเลือกหัวข้อ: JD (คีย์ = รหัส JD) และคนที่แยกหัวข้อเฉพาะตัว (คีย์ = "p:" + assignment_id)
+  const jds = [...new Map(people.filter((r) => r.jd_id && !own[r.assignment_id]).map((r) => [r.jd_id, r.jd_title || r.jd_id])).entries()];
+  const persons = people.filter((r) => own[r.assignment_id]);
+  const useBy = (id) => people.filter((r) => r.jd_id === id && !own[r.assignment_id]);
+  const isP = String(jd).startsWith("p:");
+  const pRow = isP ? people.find((r) => "p:" + r.assignment_id === jd) : null;
+  const tbl = isP ? "perf_person_items" : "perf_jd_items";
+  const byAsg = {}; rows.forEach((r) => { byAsg[r.assignment_id] = r; });
   const myRev = reviews.find((x) => x.dept === dept);
 
   const loadRev = async () => {
     const { data } = await window.sb.from("perf_dept_reviews").select("*").eq("cycle_id", cycle.id);
     setReviews(data || []);
   };
+  const loadOwn = async () => {
+    const { data } = await window.sb.from("perf_assignments").select("id, own_items").eq("cycle_id", cycle.id).eq("own_items", true);
+    const o = {}; (data || []).forEach((x) => { o[x.id] = true; }); setOwn(o); return o;
+  };
   const loadLogs = async () => {
-    const ids = jds.map((x) => x[0]);
+    const ids = [...new Set(people.map((r) => r.jd_id).filter(Boolean))];
     if (!ids.length) { setLogs([]); return; }
     const { data } = await window.sb.from("perf_jd_item_log").select("*").in("jd_id", ids).order("at", { ascending: false }).limit(200);
     setLogs(data || []);
   };
   const loadItems = async (id) => {
     if (!id) { setItems(null); return; }
-    const { data, error } = await window.sb.from("perf_jd_items").select("*").eq("jd_id", id).order("section").order("seq");
+    const p = String(id).startsWith("p:");
+    const { data, error } = await window.sb.from(p ? "perf_person_items" : "perf_jd_items").select("*").eq(p ? "assignment_id" : "jd_id", p ? id.slice(2) : id).order("section").order("seq");
     if (error) { toast(error.message, "x"); return; } setItems(data || []);
   };
-  useAnnE(() => { loadRev(); window.sb.from("perf_common_items").select("*").order("kind").order("seq").then(({ data }) => setCommon(data || [])); }, []);
+  useAnnE(() => { loadOwn(); loadRev(); window.sb.from("perf_common_items").select("*").order("kind").order("seq").then(({ data }) => setCommon(data || [])); }, []);
   useAnnE(() => { setJd(jds.length ? jds[0][0] : ""); loadLogs(); const r = reviews.find((x) => x.dept === dept); setSt(r ? r.status : "ok"); setNote(r && r.note || ""); }, [dept, reviews.length]);
   useAnnE(() => { loadItems(jd); }, [jd]);
 
   const after = () => { loadItems(jd); loadLogs(); };
   const save = async (it, patch) => {
-    const { data, error } = await window.sb.from("perf_jd_items").update({ ...patch, updated_at: new Date().toISOString() }).eq("id", it.id).select("id");
-    if (error) toast(error.message, "x"); else if (!data || !data.length) toast("บันทึกไม่ได้ — หมดเวลาแก้ไขหรือไม่มีสิทธิ์ใน JD นี้", "x"); else { toast("บันทึกแล้ว", "check"); after(); }
+    const { data, error } = await window.sb.from(tbl).update({ ...patch, updated_at: new Date().toISOString() }).eq("id", it.id).select("id");
+    if (error) toast(error.message, "x"); else if (!data || !data.length) toast("บันทึกไม่ได้ — หมดเวลาแก้ไข ใบส่งแล้ว หรือไม่มีสิทธิ์", "x"); else { toast("บันทึกแล้ว", "check"); after(); }
   };
   const addItem = async (section) => {
     const seq = Math.max(0, ...items.filter((x) => x.section === section).map((x) => x.seq)) + 1;
-    const { error } = await window.sb.from("perf_jd_items").insert({ jd_id: jd, section, seq, title: "หัวข้อใหม่ (แก้ข้อความแล้วกดบันทึก)", weight: 1 });
+    const { error } = await window.sb.from(tbl).insert({ ...(isP ? { assignment_id: jd.slice(2) } : { jd_id: jd }), section, seq, title: "หัวข้อใหม่ (แก้ข้อความแล้วกดบันทึก)", weight: 1 });
     if (error) toast(/row-level security/.test(error.message) ? "เพิ่มไม่ได้ — หมดเวลาแก้ไขหรือไม่มีสิทธิ์ใน JD นี้" : "เพิ่มไม่ได้: " + error.message, "x"); else after();
   };
   const delItem = async (it) => {
     if (!window.confirm("ลบหัวข้อ \"" + it.title + "\"?")) return;
-    const { data, error } = await window.sb.from("perf_jd_items").delete().eq("id", it.id).select("id");
+    const { data, error } = await window.sb.from(tbl).delete().eq("id", it.id).select("id");
     if (error) toast(error.message, "x"); else if (!data || !data.length) toast("ลบไม่ได้ — หมดเวลาแก้ไขหรือไม่มีสิทธิ์", "x"); else after();
+  };
+  // แยกหัวข้อเฉพาะคน (คัดลอกจาก JD) / กลับไปใช้ตาม JD
+  const split = async (r) => {
+    if (!window.confirm("แยกหัวข้อประเมินเฉพาะ " + r.name + "?\nระบบคัดลอกหัวข้อจาก JD " + r.jd_id + " มาให้แก้ได้อิสระ — คนอื่นที่ใช้ JD เดียวกันไม่เปลี่ยน")) return;
+    try { await annRpc("perf_person_items_split", { p_assignment: r.assignment_id }); await loadOwn(); setJd("p:" + r.assignment_id); toast("แยกหัวข้อแล้ว — แก้ได้ด้านล่าง", "check"); loadLogs(); }
+    catch (e) { toast(e.message, "x"); }
+  };
+  const revert = async (r) => {
+    if (!window.confirm("กลับไปใช้หัวข้อตาม JD " + r.jd_id + " สำหรับ " + r.name + "?\nหัวข้อเฉพาะคนที่แก้ไว้จะถูกลบ")) return;
+    try { await annRpc("perf_person_items_revert", { p_assignment: r.assignment_id }); await loadOwn(); setJd(r.jd_id || ""); toast("กลับไปใช้หัวข้อตาม JD แล้ว", "check"); loadLogs(); }
+    catch (e) { toast(e.message, "x"); }
   };
   const submit = async () => {
     if (st === "issue" && !note.trim()) { toast("กรุณาเขียนสิ่งที่ต้องให้ HR แก้", "x"); return; }
@@ -1088,7 +1111,7 @@ function AnnDeptCheck({ rows, cycle }) {
     if (error) toast(error.message, "x"); else loadRev();
   };
   const fillTxt = { evaluator: "ผู้ประเมินกรอกเอง", dept: "บัญชีหน่วยงานกรอก", hr: "HR กรอก" };
-  const actTxt = { insert: "เพิ่มหัวข้อ", update: "แก้หัวข้อ", delete: "ลบหัวข้อ" };
+  const actTxt = { insert: "เพิ่มหัวข้อ", update: "แก้หัวข้อ", delete: "ลบหัวข้อ", person_insert: "เพิ่มหัวข้อเฉพาะคน", person_update: "แก้หัวข้อเฉพาะคน", person_delete: "ลบหัวข้อเฉพาะคน" };
   const secTxt = { A: "A งาน JD", B: "B ทักษะ" };
 
   return (
@@ -1125,13 +1148,16 @@ function AnnDeptCheck({ rows, cycle }) {
       <Card>
         <CardHead title={"① รายชื่อที่ต้องประเมิน · " + ((depts.find((d) => d[0] === dept) || [])[1] || "")} sub={people.length + " คน · ตรวจว่าครบ ตำแหน่ง/JD/ผู้ประเมินถูกต้อง"} />
         <div className="tbl-wrap"><table className="tbl">
-          <thead><tr><th>รหัส</th><th>ชื่อ-สกุล</th><th>ตำแหน่ง</th><th>ระดับ</th><th>JD</th><th>สาย</th><th>ผู้ประเมินคนที่ 1 (ให้คะแนน)</th><th>ผู้ประเมินคนที่ 2 (ตรวจ/อนุมัติ)</th><th>ผู้กรอกใบ</th></tr></thead>
+          <thead><tr><th>รหัส</th><th>ชื่อ-สกุล</th><th>ตำแหน่ง</th><th>ระดับ</th><th>JD</th><th>สาย</th><th>ผู้ประเมินคนที่ 1 (ให้คะแนน)</th><th>ผู้ประเมินคนที่ 2 (ตรวจ/อนุมัติ)</th><th>ผู้กรอกใบ</th><th>หัวข้อประเมิน</th></tr></thead>
           <tbody>{people.map((r) => (
             <tr key={r.assignment_id}><td className="mono">{r.employee_id}</td><td><b>{r.name}</b></td><td style={{ fontSize: 13 }}>{r.position}</td><td style={{ fontSize: 13 }}>{ANN_LEVEL[r.level] || r.level}</td>
               <td style={{ fontSize: 13 }}>{r.jd_id ? <a href="#" onClick={(e) => { e.preventDefault(); setJd(r.jd_id); }}>{r.jd_id}</a> : <span style={{ color: "#be123c" }}>ยังไม่มี JD</span>}</td>
               <td style={{ fontSize: 13 }}>{r.line_name || "—"}</td><td style={{ fontSize: 13 }}>{r.evaluator_name || "—"}</td><td style={{ fontSize: 13 }}>{r.reviewer_name || "—"}</td>
-              <td style={{ fontSize: 12.5 }}>{fillTxt[r.fill_by] || r.fill_by || ""}</td></tr>))}
-            {!people.length && <tr><td colSpan={9} className="muted" style={{ textAlign: "center", padding: 20 }}>ไม่มีรายชื่อ</td></tr>}</tbody>
+              <td style={{ fontSize: 12.5 }}>{fillTxt[r.fill_by] || r.fill_by || ""}</td>
+              <td style={{ whiteSpace: "nowrap" }}>{own[r.assignment_id]
+                ? <><a href="#" onClick={(e) => { e.preventDefault(); setJd("p:" + r.assignment_id); }}><Badge cls="b-blue">เฉพาะคน</Badge></a>{open && <button className="btn btn-ghost btn-sm" onClick={() => revert(r)}>กลับไปใช้ตาม JD</button>}</>
+                : <><span className="muted" style={{ fontSize: 12.5 }}>ตาม JD</span>{open && r.jd_id && annTodoStatus(r.status) && <button className="btn btn-ghost btn-sm" onClick={() => split(r)}>แยกเฉพาะคนนี้</button>}</>}</td></tr>))}
+            {!people.length && <tr><td colSpan={10} className="muted" style={{ textAlign: "center", padding: 20 }}>ไม่มีรายชื่อ</td></tr>}</tbody>
         </table></div>
       </Card>
 
@@ -1139,15 +1165,18 @@ function AnnDeptCheck({ rows, cycle }) {
         <div className="row wrap" style={{ gap: 10, alignItems: "center" }}>
           <b style={{ fontSize: 15 }}>② หัวข้อประเมินตาม JD</b>
           <select className="select" style={{ maxWidth: 440 }} value={jd} onChange={(e) => setJd(e.target.value)}>
-            {jds.map(([id, t]) => <option key={id} value={id}>{id} · {t} · ใช้ {useBy(id).length} คน</option>)}
+            {jds.length > 0 && <optgroup label="ตาม JD (ใช้กับทุกคนในตำแหน่งนี้)">{jds.map(([id, t]) => <option key={id} value={id}>{id} · {t} · ใช้ {useBy(id).length} คน</option>)}</optgroup>}
+            {persons.length > 0 && <optgroup label="หัวข้อเฉพาะบุคคล">{persons.map((r) => <option key={r.assignment_id} value={"p:" + r.assignment_id}>เฉพาะ {r.name} ({r.jd_id})</option>)}</optgroup>}
           </select>
         </div>
-        {jd && <div className="muted" style={{ fontSize: 12.5, marginTop: 6 }}>ใช้กับ: {useBy(jd).map((r) => r.name).join(", ")}</div>}
+        {jd && !isP && <div className="muted" style={{ fontSize: 12.5, marginTop: 6 }}>ใช้กับ: {useBy(jd).map((r) => r.name).join(", ")}{people.some((r) => r.jd_id === jd && own[r.assignment_id]) ? " · (" + people.filter((r) => r.jd_id === jd && own[r.assignment_id]).map((r) => r.name).join(", ") + " ใช้หัวข้อเฉพาะคน)" : ""}</div>}
+        {isP && pRow && <div style={{ fontSize: 13, marginTop: 6, color: "#1d4ed8" }}>หัวข้อเฉพาะของ <b>{pRow.name}</b> (คัดลอกจาก JD {pRow.jd_id}) — แก้ตรงนี้ไม่กระทบคนอื่น{open && <> · <a href="#" onClick={(e) => { e.preventDefault(); revert(pRow); }}>กลับไปใช้ตาม JD</a></>}</div>}
+        {jds.length + persons.length > 0 && <div className="muted" style={{ fontSize: 12.5, marginTop: 4 }}>ถ้าตำแหน่งเดียวกันแต่ทำงานต่างกัน กด "แยกเฉพาะคนนี้" ในตารางรายชื่อด้านบน</div>}
         <div className="muted" style={{ fontSize: 12.5, marginTop: 4 }}>แนะนำ: ส่วน A 3–6 ข้อ เขียน "มาตรฐานระดับ 3" (ทำได้ตามที่คาดหวังคืออะไร เห็นได้จริง) ทุกข้อ · ส่วน B 2–4 ข้อ · น้ำหนักมาก = ข้อนั้นสำคัญกว่า</div>
       </Card>
       {items && ["A", "B"].map((sec) => {
         const its = items.filter((x) => x.section === sec);
-        const bUsed = sec === "A" || useBy(jd).some((r) => r.level === "ops" || r.level === "office");
+        const bUsed = sec === "A" || (isP ? !!(pRow && (pRow.level === "ops" || pRow.level === "office")) : useBy(jd).some((r) => r.level === "ops" || r.level === "office"));
         return (
           <Card key={sec}>
             <CardHead title={sec === "A" ? ANN_SECTION.A : ANN_SECTION.B_skill} sub={its.length + " ข้อ" + (bUsed ? "" : " · คนที่ใช้ JD นี้เป็นหัวหน้า/ผู้จัดการ ส่วน B ใช้หัวข้อภาวะผู้นำแทน")}
@@ -1185,7 +1214,7 @@ function AnnDeptCheck({ rows, cycle }) {
           <thead><tr><th>เวลา</th><th>JD</th><th>การแก้</th><th>เดิม</th><th>ใหม่</th><th>ผู้แก้</th></tr></thead>
           <tbody>{logs.map((l) => { const o = l.old_data || {}, n = l.new_data || {};
             const txt = (x) => x && x.title ? secTxt[x.section] + " · " + x.title + (x.standard ? " — " + x.standard : "") + " (น้ำหนัก " + annFmt(x.weight) + ")" : "";
-            return <tr key={l.id}><td style={{ fontSize: 12.5, whiteSpace: "nowrap" }}>{annDateTime(l.at)}</td><td className="mono" style={{ fontSize: 12.5 }}>{l.jd_id}</td><td style={{ fontSize: 13 }}>{actTxt[l.action] || l.action}</td>
+            return <tr key={l.id}><td style={{ fontSize: 12.5, whiteSpace: "nowrap" }}>{annDateTime(l.at)}</td><td className="mono" style={{ fontSize: 12.5 }}>{l.jd_id}</td><td style={{ fontSize: 13 }}>{actTxt[l.action] || l.action}{l.assignment_id && byAsg[l.assignment_id] ? " · " + byAsg[l.assignment_id].name : ""}</td>
               <td style={{ fontSize: 12.5, color: "#be123c" }}>{txt(l.old_data)}</td><td style={{ fontSize: 12.5, color: "#15803d" }}>{txt(l.new_data)}</td><td style={{ fontSize: 12.5 }}>{l.by_email || "ระบบ"}</td></tr>; })}
             {!logs.length && <tr><td colSpan={6} className="muted" style={{ textAlign: "center", padding: 18 }}>ยังไม่มีการแก้</td></tr>}</tbody>
         </table></div>

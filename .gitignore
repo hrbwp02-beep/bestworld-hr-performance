@@ -21,3 +21,7 @@ build/
 
 .vercel
 .env*
+
+# แบบประเมินสำรอง Excel — ข้อมูลพนักงาน ห้าม commit
+tools/backup-excel/data.json
+tools/backup-excel/out/

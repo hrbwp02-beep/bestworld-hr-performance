@@ -62,11 +62,13 @@ function AnnTotal({ r }) {
 function annPrint(title, body, landscape) {
   const w = window.open("", "_blank");
   if (!w) { toast("เบราว์เซอร์บล็อกหน้าต่างใหม่ — อนุญาต pop-up ก่อน", "x"); return; }
+  // แถวหัวตาราง (แถวแรกที่เป็น <th>) → <thead> เพื่อให้หัวตารางขึ้นซ้ำทุกหน้าเมื่อพิมพ์/บันทึก PDF
+  body = String(body).replace(/(<table[^>]*>)\s*(<tr>\s*<th[\s\S]*?<\/tr>)/g, "$1<thead>$2</thead>");
   w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${annEsc(title)}</title>
     <style>@page{size:A4 ${landscape ? "landscape" : "portrait"};margin:12mm}body{font-family:'Sarabun','TH Sarabun New',Tahoma,sans-serif;color:#1a1a1a;font-size:13px;margin:0;padding:18px}
     h1{font-size:18px;margin:0}h2{font-size:15px;margin:16px 0 6px;color:#1d4ed8}.sub{color:#555;font-size:12.5px}
     table{border-collapse:collapse;width:100%;margin-top:8px}th,td{border:1px solid #cbd5e1;padding:4px 6px;text-align:left;vertical-align:top}th{background:#1d4ed8;color:#fff;font-weight:600}
-    td.n,th.n{text-align:right}.adj{color:#c2410c;font-weight:700}.box{display:inline-block;border:1px solid #cbd5e1;border-radius:8px;padding:6px 12px;margin:4px 6px 0 0}
+    thead{display:table-header-group}tr{page-break-inside:avoid;break-inside:avoid}td.n,th.n{text-align:right}.adj{color:#c2410c;font-weight:700}.box{display:inline-block;border:1px solid #cbd5e1;border-radius:8px;padding:6px 12px;margin:4px 6px 0 0}
     .page{page-break-after:always}.page:last-child{page-break-after:auto}.sign{display:flex;gap:30px;margin-top:40px}.sign div{flex:1;text-align:center;border-top:1px dotted #555;padding-top:4px}
     .bar{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #1d4ed8;padding-bottom:8px;margin-bottom:8px}@media print{.noprint{display:none}}</style></head>
     <body><div class="noprint" style="text-align:right;margin-bottom:8px"><button onclick="window.print()" style="padding:8px 16px;background:#1d4ed8;color:#fff;border:none;border-radius:8px;cursor:pointer">พิมพ์ / บันทึก PDF</button></div>${body}</body></html>`);
